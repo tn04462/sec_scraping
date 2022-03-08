@@ -2,6 +2,8 @@ import re
 import json
 import logging
 
+import pandas as pd
+
 from bs4 import BeautifulSoup
 
 
@@ -56,56 +58,117 @@ class HtmlFilingParser():
     def get_unparsed_tables(self):
         self.unparsed_tables = self.soup.find_all("table")
     
-    def get_element_text_content(self, td):
-        content = " ".join([s.strip().replace("\n", "' '") for s in td.strings]).strip()
+    def get_element_text_content(self, ele):
+        content = " ".join([s.strip().replace("\n", " ") for s in ele.strings]).strip()
         return content
 
 
-    def parse_htmltable_with_header(self, htmltable):
-        table = {}
+    def parse_htmltable_with_header(self, htmltable, colspan_mode="separate", merge_delimiter=" "):
         # parse the header
-        header = self.parse_htmltable_header(htmltable)
-        rows = []
-        # parse each row
-        for row in htmltable.find_all("tr"):
-            rows.append(row)
+        header, colspans, body = self.parse_htmltable_header(htmltable)
+        # get number of rows (assuming rowspan=1 for each row)
+        rows = htmltable.find_all("tr")
+        amount_rows = len(rows)
+        amount_columns = None
+
+        # mode to write duplicate column names
+        if colspan_mode == "separate":
+            # get total number columns including colspan
+            amount_columns = sum([col for col in colspans])
+            # create empty table 
+            table = [[None] * amount_columns for each in range(amount_rows)]
+            # parse, write each row (ommiting the header)
+            for row_idx, row in enumerate(rows[1:]):
+                for field_idx, field in enumerate(row.find_all("td")):
+                    content = self.get_element_text_content(field)
+                    # adjust row_idx for header
+                    table[row_idx+1][field_idx] = content
+
+        # mode to merge content of a colspan column under one unique column
+        # splitting field content by the merge_delimiter
+        elif colspan_mode == "merge":
+            #get number of columns ignoring colspan
+            amount_columns = sum([1 for col in colspans])
+            #create empty table
+            table = [[None] * amount_columns for each in range(amount_rows)]
+
+            # parse, merge and write each row excluding header
+            for row_idx, row in enumerate(rows[1:]):
+                # get list of content in row
+                unmerged_row_content = [self.get_element_text_content(td) for td in row.find_all("td")]
+                merged_row_content = [None] * amount_columns
+                # what we need to shift by to adjust for total of colspan > 1
+                colspan_offset = 0
+                for idx, colspan in enumerate(colspans):
+                    unmerged_idx = idx + colspan_offset
+                    merged_row_content[idx] = merge_delimiter.join(unmerged_row_content[unmerged_idx:(unmerged_idx+colspan)])
+                    colspan_offset += colspan - 1
+                # write merged rows to table
+                for r in range(amount_columns):
+                    # adjust row_idx for header
+                    table[row_idx+1][r] = merged_row_content[r]
+
+            # change colspans to reflect the merge and write header correctly
+            colspans = [1] * len(colspans)
+
+
+        # write header
+        cspan_offset = 0
+        for idx, h in enumerate(header):
+            colspan = colspans[idx]
+            if colspan > 1:
+                for r in range(colspan-1):
+                    table[0][idx + cspan_offset] = h
+                    cspan_offset = cspan_offset + 1
+
+            else:
+                table[0][idx + cspan_offset] = h
+
+        return table
+           
         
     
     def parse_htmltable_header(self, htmltable):
-        header = {}
         parsed_header = []
         unparsed_header = []
+        body = []
+        colspans = []
+        # first case with actual table header tag <th>
         if htmltable.find_all("th") != (None or []):
-            # logging.debug(f"value of htmltable.find_all('th'): {htmltable.find_all('th')}")
             for th in htmltable.find_all("th"):
+                colspan = 1
+                if "colspan" in th.attrs:
+                    colspan = int(th["colspan"])
                 parsed_header.append(self.get_element_text_content(th))
-            # logging.debug(f"parsed <th> header: ${parsed_header}")
+                colspans.append(colspan)
+            body = [row for row in htmltable.find_all("tr")]
+        # then case where first <tr> is header 
         else:
             unparsed_header = htmltable.find("tr")
-            # logging.debug(f"unparsed not <th>_header: {unparsed_header}")
-            parsed_header = [self.get_element_text_content(td) for td in unparsed_header.find_all("td")]
-            # logging.debug(f"parsed not <th> header: {parsed_header}")
-
-        return parsed_header
+            for td in unparsed_header.find_all("td"):
+                colspan = 1
+                if "colspan" in td.attrs:
+                    colspan = int(td["colspan"])
+                parsed_header.append(self.get_element_text_content(td))
+                colspans.append(colspan)
+            body = [row for row in htmltable.find_all("tr")][1:]
+        return parsed_header, colspans, body
 
     def table_has_header(self, htmltable):
         has_header = False
         #has header if it has <th> tags in table
         if htmltable.find("th"):
-            # logging.debug("found <th> element")
             has_header = True
             return has_header
         else:
             #finding first <tr> element to check if it is empty or not
             possible_header = htmltable.find("tr")
-            # logging.debug(f"possible_header: ${possible_header}")
             header_fields = [self.get_element_text_content(td) for td in possible_header.find_all("td")]
-            # logging.debug(f"header_fields strings: ${header_fields}")
             for h in header_fields:
                 if (h != "") and (h != []):
                     has_header = True
                     break
-            return has_header
+        return has_header
 
 
 
@@ -115,22 +178,23 @@ class ParserS1(HtmlFilingParser):
         wanted_field = [
             # "Title of Each Class of Securities to be Registered",
             # "Title of Each Class of Security Being Registered",
-            "Amount of Registration Fee"
-            "Titel of Each Class (.*) Regi(.*)"
+            "Amount(\s*)of(\s*)Registration(\s*)Fee",
+            "Title(\s*)of(\s*)Each(\s*)Class(\s*)(.*)Regi(.*)",
+            "Amount(\s*)(Being|to(\s*)be)(\s*)Registered"
         ]
         for table in self.unparsed_tables:
             if self.table_has_header(table):
-                header = self.parse_htmltable_header(table)
+                header, colspans, body = self.parse_htmltable_header(table)
                 if not header:
                     logging.debug(f"table assumed to have header but doesnt. header: ${header}")
                     raise ValueError("Header is empty")
-                logging.debug(header)
+                # logging.debug(header)
                 for w in wanted_field:
                     reg = re.compile(w, re.I | re.DOTALL)
                     for h in header:
-                        if re.match(reg, h):
-                            return (True, header, table)
-        return (False, None, None)
+                        if re.search(reg, h):
+                            return self.parse_htmltable_with_header(table, colspan_mode="merge")
+        return None
 
                 
 
@@ -240,8 +304,9 @@ with open(S1_path, "rb") as f:
     parser.make_soup(text)
     parser.get_unparsed_tables()
     registration_fee_table = parser.get_calculation_of_registration_fee_table()
-    logging.debug(registration_fee_table)
-
+    print(registration_fee_table[0])
+    df = pd.DataFrame(columns=registration_fee_table[0], data=registration_fee_table[1:])
+    print(df)
 
 # TEST FOR Parser424B5
 # with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\424B5\0001628280-20-012767\filing-details.html", "rb") as f:
