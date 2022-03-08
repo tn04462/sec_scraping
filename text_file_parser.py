@@ -9,41 +9,6 @@ from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.DEBUG)
 
-class TextMetaParser():
-
-    def __init__(self):
-        self.re_doc = re.compile("<DOCUMENT>(.*?)</DOCUMENT>", flags=re.DOTALL)
-        self.re_sec_doc = re.compile("<SEC-DOCUMENT>(.*?)</SEC-DOCUMENT>", flags=re.DOTALL)
-        self.re_text = re.compile("<TEXT>(.*?)</TEXT>", flags=re.DOTALL)
-        self.re_sec_header = re.compile("<SEC-HEADER>.*?\n(.*?)</SEC-HEADER>", flags=re.DOTALL)
-
-    def process_document_metadata(self, doc):
-        """Process the metadata of an embedded document.
-        Args:
-            doc (str): Document to extract meta data from.
-        Return:
-            dict: Dictionary with fields parsed from document.
-        """
-        metadata_doc = {}
-
-        # Document type
-        type_m = re.search("<TYPE>(.*?)\n", doc)
-        if type_m:
-            metadata_doc["type"] = type_m.group(1)
-
-        # Document sequence
-        seq_m = re.search("<SEQUENCE>(.*?)\n", doc)
-        if seq_m:
-            metadata_doc["sequence"] = seq_m.group(1)
-
-        # Document filename
-        fn_m = re.search("<FILENAME>(.*?)\n", doc)
-        metadata_doc["filename"] = fn_m.group(1)
-
-        return metadata_doc
-    
-    def process_document(self, doc, pattern_dict):
-        pass
 
 class HtmlFilingParser():
     def __init__(self):
@@ -142,7 +107,7 @@ class HtmlFilingParser():
                 parsed_header.append(self.get_element_text_content(th))
                 colspans.append(colspan)
             body = [row for row in htmltable.find_all("tr")]
-        # then case where first <tr> is header 
+        # second case where first <tr> is header 
         else:
             unparsed_header = htmltable.find("tr")
             for td in unparsed_header.find_all("td"):
@@ -161,7 +126,8 @@ class HtmlFilingParser():
             has_header = True
             return has_header
         else:
-            #finding first <tr> element to check if it is empty or not
+            # finding first <tr> element to check if it is empty
+            # otherwise consider it a header
             possible_header = htmltable.find("tr")
             header_fields = [self.get_element_text_content(td) for td in possible_header.find_all("td")]
             for h in header_fields:
