@@ -9,6 +9,41 @@ from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.DEBUG)
 
+class FullTextSubmission():
+    # based on a folder structure with a "full-submission.txt" and a "filing-details.html"
+    # file in the same directory
+    def __init__(self, path):
+        self.path = path
+        self.form_type = None
+        self.filing_number = None
+        self.CIK = None
+        self.main_document = None
+        self.full_text = None
+        self.init_filing()
+    
+    def init_filing(self):
+        # extract the form_type, filing_number, CIK and open the html of the main document
+        with open(path, "r") as f:
+            self.full_text = f.read()
+        self.form_type = re.search("FORM TYPE:(.*)", self.full_text).group(1).strip()
+        self.filing_number = re.search("SEC FILE NUMBER:(.*)", self.full_text).group(1).strip()
+        self.CIK = re.search("CENTRAL INDEX KEY:(.*)", self.full_text).group(1).strip()
+        with open(self.path.replace("full-submission.txt", "filing-details.html"), "rb") as f:
+            self.main_document = BeautifulSoup(f.read(), "html.parser")
+
+ # should probably create a db of files so i can query by filing number or write some code
+ # to save the files from the sec-edgar-downloader to save with the filing number 
+ # attached
+
+class FilingHandler():
+    '''handle the different filing types. parse and return the needed content then save it to db.
+        Expects a FullTextSubmission as the filing argument in its functions'''
+    def parse_filing(self, filing):
+        if filing.form_type == "S-1":
+            pass
+
+
+
 
 class HtmlFilingParser():
     def __init__(self):
@@ -36,7 +71,7 @@ class HtmlFilingParser():
         amount_rows = len(rows)
         amount_columns = None
 
-        # mode to write duplicate column names
+        # mode to write duplicate column names for colspan > 1
         if colspan_mode == "separate":
             # get total number columns including colspan
             amount_columns = sum([col for col in colspans])
@@ -262,17 +297,22 @@ r""" with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\P
     logging.debug(metadata_doc)
     pass """
 
+# TEST FOR FullTextSubmission
+path = r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\S-3\0001628280-20-013330\full-submission.txt" 
+fts = FullTextSubmission(path)
+print(fts)
+
 # TEST FOR ParserS1
-S1_path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\S-1\0001213900-16-014630\filing-details.html"
-with open(S1_path, "rb") as f:
-    text = f.read()
-    parser = ParserS1()
-    parser.make_soup(text)
-    parser.get_unparsed_tables()
-    registration_fee_table = parser.get_calculation_of_registration_fee_table()
-    print(registration_fee_table[0])
-    df = pd.DataFrame(columns=registration_fee_table[0], data=registration_fee_table[1:])
-    print(df)
+# S1_path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\S-1\0001213900-16-014630\filing-details.html"
+# with open(S1_path, "rb") as f:
+#     text = f.read()
+#     parser = ParserS1()
+#     parser.make_soup(text)
+#     parser.get_unparsed_tables()
+#     registration_fee_table = parser.get_calculation_of_registration_fee_table()
+#     print(registration_fee_table[0])
+#     df = pd.DataFrame(columns=registration_fee_table[0], data=registration_fee_table[1:])
+#     print(df)
 
 # TEST FOR Parser424B5
 # with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\424B5\0001628280-20-012767\filing-details.html", "rb") as f:
