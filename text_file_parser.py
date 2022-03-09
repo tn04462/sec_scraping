@@ -1,6 +1,7 @@
 import re
 import json
 import logging
+from pathlib import Path
 
 import pandas as pd
 
@@ -10,33 +11,35 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.DEBUG)
 
 class FullTextSubmission():
-    # based on a folder structure with a "full-submission.txt" and a "filing-details.html"
+    # based on a folder structure with a single "full-submission.txt" and a single "filing-details.html"
     # file in the same directory
     def __init__(self, path):
-        self.path = path
+        self.path = Path(path)
         self.form_type = None
         self.filing_number = None
         self.CIK = None
         self.main_document = None
+        self.secondary_documents = None
         self.full_text = None
         self.init_filing()
     
     def init_filing(self):
         # extract the form_type, filing_number, CIK and open the html of the main document
-        with open(path, "r") as f:
+        with open((self.path / "full-submission.txt"), "r") as f:
             self.full_text = f.read()
+        with open((self.path / "filing-details.html"), "rb") as f:
+            self.main_document = BeautifulSoup(f.read(), "html.parser")
         self.form_type = re.search("FORM TYPE:(.*)", self.full_text).group(1).strip()
         self.filing_number = re.search("SEC FILE NUMBER:(.*)", self.full_text).group(1).strip()
         self.CIK = re.search("CENTRAL INDEX KEY:(.*)", self.full_text).group(1).strip()
-        with open(self.path.replace("full-submission.txt", "filing-details.html"), "rb") as f:
-            self.main_document = BeautifulSoup(f.read(), "html.parser")
+        
 
  # should probably create a db of files so i can query by filing number or write some code
  # to save the files from the sec-edgar-downloader to save with the filing number 
  # attached
 
 class FilingHandler():
-    '''handle the different filing types. parse and return the needed content then save it to db.
+    '''handle the different filing types. parse and return the needed content.
         Expects a FullTextSubmission as the filing argument in its functions'''
     def parse_filing(self, filing):
         if filing.form_type == "S-1":
@@ -298,7 +301,7 @@ r""" with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\P
     pass """
 
 # TEST FOR FullTextSubmission
-path = r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\S-3\0001628280-20-013330\full-submission.txt" 
+path = r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\S-3\0001628280-20-013330" 
 fts = FullTextSubmission(path)
 print(fts)
 
