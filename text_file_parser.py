@@ -1,3 +1,4 @@
+from cgitb import html
 import re
 import json
 import logging
@@ -10,6 +11,7 @@ from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 class FullTextSubmission():
     # based on a folder structure with a single "full-submission.txt" and a single "filing-details.html"
     # file in the same directory
@@ -19,7 +21,7 @@ class FullTextSubmission():
         self.filing_number = None
         self.CIK = None
         self.main_document = None
-        self.secondary_documents = None
+        self.all_documents = None
         self.full_text = None
         self.init_filing()
     
@@ -29,6 +31,7 @@ class FullTextSubmission():
             self.full_text = f.read()
         with open((self.path / "filing-details.html"), "rb") as f:
             self.main_document = BeautifulSoup(f.read(), "html.parser")
+        # self.all_documents = 
         self.form_type = re.search("FORM TYPE:(.*)", self.full_text).group(1).strip()
         self.filing_number = re.search("SEC FILE NUMBER:(.*)", self.full_text).group(1).strip()
         self.CIK = re.search("CENTRAL INDEX KEY:(.*)", self.full_text).group(1).strip()
@@ -38,9 +41,47 @@ class FullTextSubmission():
  # to save the files from the sec-edgar-downloader to save with the filing number 
  # attached
 
+class FilingDocument():
+    def __init__(self, doc_type):
+        self.doc_type = doc_type
+
+class XBRLDocument():
+    def __init__(self, htm_, lab_, cal_, def_):
+        self.html = htm_
+        self.label = lab_
+        self.calculation = cal_
+        self.definiton = def_
+    
+
+
+
+
 class FilingHandler():
     '''handle the different filing types. parse and return the needed content.
         Expects a FullTextSubmission as the filing argument in its functions'''
+    
+    def get_documents(self, full_text):
+        divided_full_text = re.findall(re.compile("<DOCUMENT>(.*?)</DOCUMENT>", re.DOTALL), full_text)
+        print(len(divided_full_text))
+        for doc in divided_full_text:
+            desc = re.findall("<DESCRIPTION>(.*)", doc)
+            print("start of new doc:")
+            print(desc)
+            if desc[0] == "10-Q":
+                soup = BeautifulSoup(doc, "lxml")
+                tags = []
+                for s in soup.find_all(re.compile("<(.*)>(.*?)</(.*)>"), re.DOTALL):
+                    if s.group(1) not in tags:
+                        tags.append(s.group(1))
+                print(tags)
+                    
+            
+
+    
+    def preprocess_text_submission(self, path):
+        with open(path, "rb") as f:
+            pass
+
     def parse_filing(self, filing):
         if filing.form_type == "S-1":
             pass
@@ -301,9 +342,10 @@ r""" with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\P
     pass """
 
 # TEST FOR FullTextSubmission
-path = r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\S-3\0001628280-20-013330" 
+path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\10-Q\0001628280-21-023228" 
 fts = FullTextSubmission(path)
-print(fts)
+handler = FilingHandler()
+handler.get_documents(fts.full_text)
 
 # TEST FOR ParserS1
 # S1_path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\S-1\0001213900-16-014630\filing-details.html"
