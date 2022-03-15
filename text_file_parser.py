@@ -8,12 +8,14 @@ import pandas as pd
 
 from bs4 import BeautifulSoup
 
+from xbrl_parser import XBRLFile, XBRLInstanceDocument, ParserXBRL
+
 
 logging.basicConfig(level=logging.DEBUG)
 
 
 class FullTextSubmission():
-    # based on a folder structure with a single "full-submission.txt" and a single "filing-details.html"
+    # based on a folder structure with a single "full-submission.txt" and a single "filing-details.htm"
     # file in the same directory
     def __init__(self, path):
         self.path = Path(path)
@@ -40,48 +42,95 @@ class FullTextSubmission():
  # should probably create a db of files so i can query by filing number or write some code
  # to save the files from the sec-edgar-downloader to save with the filing number 
  # attached
-
-class FilingDocument():
-    def __init__(self, doc_type):
-        self.doc_type = doc_type
-
-class XBRLDocument():
-    def __init__(self, htm_, lab_, cal_, def_):
-        self.html = htm_
-        self.label = lab_
-        self.calculation = cal_
-        self.definiton = def_
-    
-
-
-
+class Document():
+    def __init__(self, file_name, description, type_, content):
+        self.file_name = file_name
+        self.description = description
+        self.type_ = type_
+        self.content = content
 
 class FilingHandler():
     '''handle the different filing types. parse and return the needed content.
         Expects a FullTextSubmission as the filing argument in its functions'''
+
     
-    def get_documents(self, full_text):
+    def get_form_type(self, full_text):
+        header = re.search(re.compile("<SEC-HEADER>(.*)</SEC-HEADER>", re.DOTALL), full_text).group(1)
+        form_type = re.search(re.compile("CONFORMED SUBMISSION TYPE:(.*)"), header).group(1).strip()
+        return form_type
+
+
+    def preprocess_documents(self, full_text):
+        """
+        how to soup files: 
+            xbrl: as lxml
+            html: as html
+
+        returns relevant souped file and the filetype: return file, filetype
+        """
+        # get list of individual documents
         divided_full_text = re.findall(re.compile("<DOCUMENT>(.*?)</DOCUMENT>", re.DOTALL), full_text)
-        print(len(divided_full_text))
+        documents = {}
+        form_type = self.get_form_type(full_text)
         for doc in divided_full_text:
-            desc = re.findall("<DESCRIPTION>(.*)", doc)
-            print("start of new doc:")
-            print(desc)
-            if desc[0] == "10-Q":
-                soup = BeautifulSoup(doc, "lxml")
-                tags = []
-                for s in soup.find_all(re.compile("<(.*)>(.*?)</(.*)>"), re.DOTALL):
-                    if s.group(1) not in tags:
-                        tags.append(s.group(1))
-                print(tags)
-                    
-            
+            type_ = re.findall("<TYPE>(.*)", doc)[0] if re.findall("<TYPE>(.*)", doc) else None
+            desc = re.findall("<DESCRIPTION>(.*)", doc)[0] if re.findall("<DESCRIPTION>(.*)", doc) else None
+            file_name = None if re.search("<FILENAME>(.*)", doc) == None else re.search("<FILENAME>(.*)", doc).group(1).strip()
+            if (desc is None) or (file_name is None):
+                pass
+            else:
+                documents[file_name] = Document(file_name, desc, type_, doc)
+        if form_type == ("10-Q" or "10-K"):
+            instance_file, label_file, xbrl_file_name_root, xbrl = None, None, None, None
+            # find schema file to get root of the xbrl file_name
+            for fn in documents.keys():
+                if re.search("\.xsd", fn):
+                    xbrl_file_name_root = fn.replace(".xsd", "")
+                    break
+            for fn in documents.keys():
+            # look for wantedfiles in TYPE, DESCRIPTION and finally check by filename similarity
+                if instance_file is None:
+                    if re.search("\.xml", fn):
+                        if re.search(re.compile(".*\.ins", re.I), documents[fn].type_):
+                            instance_file = documents[fn]
+                        elif re.search(re.compile("INSTANCE", re.I), documents[fn].description):
+                            instance_file = documents[fn]
+                        elif xbrl_file_name_root:
+                            if (re.match(re.escape(xbrl_file_name_root + "_htm.xml"), fn)
+                            ) or (
+                            re.match(re.escape(xbrl_file_name_root + ".xml"), fn)):
+                                instance_file = documents[fn]
 
+                if label_file is None:
+                    if re.search(re.escape("lab.xml"), fn):
+                        label_file = documents[fn]
+                    elif xbrl_file_name_root:
+                        if re.match(re.escape(xbrl_file_name_root + "_lab.xml"), fn):
+                            label_file = documents[fn]
+                if (instance_file != None) and (label_file != None):
+                    souped_ins = self.soup_xbrl_file(instance_file.content)
+                    souped_lab = self.soup_xbrl_file(label_file.content)
+                    xbrl = XBRLFile(souped_ins, souped_lab)
+                    return xbrl, "xbrl"
+            logging.debug(f"couldnt find relevant xbrl files in {form_type}, parsing first file as html")
+            logging.debug(("descriptions, filenames, type_ (s): ", [(documents[fn].description, fn, documents[fn].type_) for fn in documents.keys()]))
+            return self.soup_html_file(divided_full_text[0]), "html"
     
-    def preprocess_text_submission(self, path):
-        with open(path, "rb") as f:
-            pass
+    def process_document(self, document, mode):
+        if mode == "xbrl":
+            parser = ParserXBRL()
+            xbrl = parser.parse_xbrl(document)
+            return xbrl
+        if mode == "html":
+            return 
 
+               
+    def soup_xbrl_file(self, file):
+        return BeautifulSoup(file, "xml")
+    
+    def soup_html_file(self, file):
+        return BeautifulSoup(file, "lxml")
+                                       
     def parse_filing(self, filing):
         if filing.form_type == "S-1":
             pass
@@ -342,10 +391,20 @@ r""" with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\P
     pass """
 
 # TEST FOR FullTextSubmission
-path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\10-Q\0001628280-21-023228" 
-fts = FullTextSubmission(path)
-handler = FilingHandler()
-handler.get_documents(fts.full_text)
+path = r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\10-Q\0001213900-19-008896"
+paths = sorted(Path(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\10-Q").glob("*"))
+for p in paths:
+# path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\10-Q\0001628280-21-023228" 
+    fts = FullTextSubmission(p)
+    handler = FilingHandler()
+    doc, mode = handler.preprocess_documents(fts.full_text)
+    file = handler.process_document(doc, mode)
+    # if file:
+    #     matches = file.search_for_key(re.compile("sharesoutstanding", re.I))
+    #     for m in matches:
+    #         print(file.facts[m])
+    # else:
+    #     print(p, mode)
 
 # TEST FOR ParserS1
 # S1_path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\S-1\0001213900-16-014630\filing-details.html"
