@@ -1,18 +1,11 @@
 import re
 
-class XBRLFile():
-    '''unparsed full text files that are needed to parse xbrl.
-    label file for more readable keys: not implemented
-    instance file for context, facts ect.
-    ''' 
-    def __init__(self, instance_file, label_file):
-        self.ins = instance_file
-        self.lab = label_file
 
 
 class XBRLInstanceDocument():
-    '''Object representation of relevant information of the instance file'''
-    def __init__(self):
+    '''Object representation of parsed relevant information of the instance file'''
+    def __init__(self, info):
+        self.info = info
         self.contexts = {}
         self.facts = {}
         self.units = {}

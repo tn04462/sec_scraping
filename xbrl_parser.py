@@ -9,14 +9,14 @@ logging.basicConfig(level=logging.DEBUG)
 
 class ParserXBRL():
     def parse_xbrl(self, xbrl_file):
-        xbrl = XBRLInstanceDocument()
+        xbrl = XBRLInstanceDocument(xbrl_file.info)
         xbrl.contexts = self._get_contexts(xbrl_file.ins)
         xbrl.units = self._get_units(xbrl_file.ins)
         xbrl.facts = self._get_facts(xbrl_file.ins, xbrl)
         return xbrl
     
-    def parse_instance_file(self, xbrl):
-        pass
+    # def parse_instance_file(self, xbrl):
+    #     pass
 
     def _get_contexts(self, instance_file):
         # print(set([i.name for i in instance_file.find_all()]))
@@ -65,6 +65,7 @@ class ParserXBRL():
         if (id and entity and period):
             return Context(id, entity, period)
 
+
     def _parse_unit(self, unit):
         if unit.find("divide"):
             try:
@@ -79,12 +80,7 @@ class ParserXBRL():
         else:
             measure = self._parse_measure(unit.find("measure"))
             return Unit(measure)
-
-        # handle numerator/denominator units
-        # make it so the unitRef isnt the part that stays important
-        # as it can change while the underlying measure stays the same
-        # that allows removal of normalize_unit_ref
-        pass
+            
 
     def _parse_measure(self, measure):
         if measure.string:
