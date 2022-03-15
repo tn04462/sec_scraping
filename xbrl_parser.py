@@ -80,7 +80,7 @@ class ParserXBRL():
         else:
             measure = self._parse_measure(unit.find("measure"))
             return Unit(measure)
-            
+
 
     def _parse_measure(self, measure):
         if measure.string:
@@ -149,7 +149,7 @@ class ParserXBRL():
                         dimension = member.attrs["dimension"] if "dimension" in member.attrs.keys() else None
                         member_tag = member.string.split(":")
                         tag = Tag(member_tag[0], member_tag[1])
-                        segment.members.append(ExplicitMember(dimension, tag))
+                        segment.add_member(ExplicitMember(dimension, tag))
                         # print(f"current members in segment: {len(segment.members)}")
                         
             if x.name == "scenario":

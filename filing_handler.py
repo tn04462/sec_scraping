@@ -65,7 +65,7 @@ class XBRLFile():
 
 
 class FilingHandler():
-    '''handle the different filing types. parse and return the needed content.
+    '''handle the different filing types. parse and return the content.
     '''
 
     def parse_filing(self, path):
@@ -134,7 +134,7 @@ class FilingHandler():
             logging.debug("NOT IMPLEMENTED HANDLING OF HTML FILE")
             return
         else:
-            logging.debug(f"NOT IMPLEMENTED HANDLING OF FILE")
+            logging.debug(f"UNHANDLED OR NOT SPECIFIED PARSING_TYPE")
             return
     
     def _is_xbrl_label_file(self, file_name, xbrl_file_name_root):
@@ -148,7 +148,7 @@ class FilingHandler():
     
     def _is_xbrl_instance_file(self, file_name, type_, description, xbrl_file_name_root):
         if re.search("\.xml", file_name):
-            if re.search(re.compile(".*\.ins", re.I), ):
+            if re.search(re.compile(".*\.ins", re.I), type_):
                 return True
             elif re.search(re.compile("INSTANCE", re.I), description):
                 return True

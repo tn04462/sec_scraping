@@ -1,15 +1,39 @@
 import re
+import logging
 
 
 
 class XBRLInstanceDocument():
-    '''Object representation of parsed relevant information of the instance file'''
+    '''Object representation of parsed relevant information of the instance file
+    '''
     def __init__(self, info):
         self.info = info
         self.contexts = {}
         self.facts = {}
         self.units = {}
     
+    def get_fact(self, specifier, member_specifier, namespace="any"):
+        found_keys = self.search_for_key(re.compile(specifier, re.I))
+        # logging.debug(found_keys)
+        valid_facts = []
+        for fk in found_keys:
+            possible_facts = self.facts[fk]
+            for pf in possible_facts:                   
+                if member_specifier == "":
+                    valid_facts.append(pf)
+                elif pf.has_member(member_specifier) is True and self.is_fact_in_namespace(pf, namespace):
+                    valid_facts.append(pf)
+        print(valid_facts)
+    
+    def is_fact_in_namespace(self, fact, namespace):
+        if namespace == "any":
+            return True
+        if fact.tag.classifier == namespace:
+            return True
+        else:
+            return False
+
+
     def search_for_key(self, regex):
         match = []
         for key in self.facts.keys():
@@ -82,6 +106,16 @@ class Segment():
     '''
     def __init__(self, members=[]):
         self.members = members
+        if self.members != []:
+            self._has_members = True
+        else:
+            self._has_members = False
+    
+    def add_member(self, member):
+        self.members.append(member)
+        if self.members != []:
+            self._has_members = True
+
     
     def __repr__(self):
         members_string = ""
@@ -98,12 +132,12 @@ class Entity():
             <segment>...</segment>
         </entity>
     '''
-    def __init__(self, identifier, segments=None):
+    def __init__(self, identifier, segment=None):
         self.identifier = identifier
-        self.segments = segments
+        self.segment = segment
     
     def __repr__(self):
-        return "Entity<"+str(self.identifier) + " " + str(self.segments)+">"
+        return "Entity<"+str(self.identifier) + " " + str(self.segment)+">"
 
 
 class DivisionUnit():
@@ -155,9 +189,36 @@ class Fact():
         self.tag = tag
         self.context = context
         self.value = value
+
+        
+        # maybe make attributes of facts more accessible like that
+        # self.period = self._get_period()
+        # def _get_period(self):
+        #   return self.context.period
     
     def __repr__(self):
         return "Fact<"+str(self.tag) + ": " + str(self.value) + " with: " + str(self.context)+">"
+
+    def get_members_tags(self):
+        return [s.tag for s in  [m for m in self.context.entity.segment.members]]
+    
+    def has_members(self):
+        return self.context.entity.segment._has_members
+
+    def has_member(self, specifier):
+        if (specifier == ""):
+            return True
+        if (specifier == None):
+            if self.has_members():
+                return False
+            else:
+                return True
+                # logging.debug(f"shouldnt be empty: {self.context.entity.segment.members}")
+        regex = re.compile(str(specifier), re.I)
+        members = [re.search(regex, m.tag.specifier) for m in self.context.entity.segment.members]
+        if members != []:
+            return True
+        return False
 
 
 class Tag():
