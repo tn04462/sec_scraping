@@ -24,15 +24,18 @@ r""" with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\P
 # TEST FOR FullTextSubmission
 # path = r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\10-Q\0001213900-19-008896"
 paths = sorted(Path(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\10-Q").glob("*"))
+handler = FilingHandler()
 for p in paths:
 # path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\10-Q\0001628280-21-023228" 
-    fts = FullTextSubmission(p)
-    handler = FilingHandler()
-    now = time.now()
-    doc = handler.preprocess_documents(fts.full_text)
-    file = handler.process_file(doc)
-    elapsed = time.now() - now
-    print(f"elapsed: {elapsed}")
+    # fts = FullTextSubmission(p)
+    p = p / "full-submission.txt"
+    with open(p, "r") as f:
+        now = time.now()
+        full_text = f.read()
+        doc = handler.preprocess_documents(full_text)
+        file = handler.process_file(doc)
+        elapsed = time.now() - now
+        print(f"elapsed: {elapsed}")
     # if file:
     #     matches = file.search_for_key(re.compile("sharesoutstanding", re.I))
     #     for m in matches:

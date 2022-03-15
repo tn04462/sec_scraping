@@ -7,25 +7,25 @@ logging.basicConfig(level=logging.DEBUG)
 from xbrl_parser import ParserXBRL
 
 
-class FullTextSubmission():
-    def __init__(self, path):
-        self.path = Path(path)
-        self.form_type = None
-        self.filing_number = None
-        self.CIK = None
-        self.full_text = None
-        self.main_document = None
-        self.init_filings()
+# class FullTextSubmission():
+#     def __init__(self, path):
+#         self.path = Path(path)
+#         self.form_type = None
+#         self.filing_number = None
+#         self.CIK = None
+#         self.full_text = None
+#         self.main_document = None
+#         self.init_filings()
 
-    def init_filings(self):
-        with open((self.path / "full-submission.txt"), "r") as f:
-            self.full_text = f.read()
-        with open((self.path / "filing-details.html"), "rb") as f:
-            self.main_document = BeautifulSoup(f.read(), "html.parser")
+#     def init_filings(self):
+#         with open((self.path / "full-submission.txt"), "r") as f:
+#             self.full_text = f.read()
+#         with open((self.path / "filing-details.html"), "rb") as f:
+#             self.main_document = BeautifulSoup(f.read(), "html.parser")
         
-        self.form_type = re.search("FORM TYPE:(.*)", self.full_text).group(1).strip()
-        self.filing_number = re.search("SEC FILE NUMBER:(.*)", self.full_text).group(1).strip()
-        self.CIK = re.search("CENTRAL INDEX KEY:(.*)", self.full_text).group(1).strip()
+#         self.form_type = re.search("FORM TYPE:(.*)", self.full_text).group(1).strip()
+#         self.filing_number = re.search("SEC FILE NUMBER:(.*)", self.full_text).group(1).strip()
+#         self.CIK = re.search("CENTRAL INDEX KEY:(.*)", self.full_text).group(1).strip()
 
 class Document():
     def __init__(self, file_name, description, type_, filing_number, content):
@@ -67,6 +67,15 @@ class XBRLFile():
 class FilingHandler():
     '''handle the different filing types. parse and return the needed content.
     '''
+
+    def parse_filing(self, path):
+        '''path: path to full-submission.txt of filing'''
+        with open(path, "r") as f:
+            full_text = f.read()
+            pp = self.preprocess_documents(full_text)
+            parsed = self.process_file(pp)
+            return parsed
+
 
     def preprocess_documents(self, full_text):
         """
@@ -122,6 +131,10 @@ class FilingHandler():
             xbrl = parser.parse_xbrl(file)
             return xbrl
         if file.info.parsing_type == "html":
+            logging.debug("NOT IMPLEMENTED HANDLING OF HTML FILE")
+            return
+        else:
+            logging.debug(f"NOT IMPLEMENTED HANDLING OF FILE")
             return
     
     def _is_xbrl_label_file(self, file_name, xbrl_file_name_root):

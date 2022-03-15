@@ -13,18 +13,6 @@ from xbrl_parser import XBRLFile, XBRLInstanceDocument, ParserXBRL
 
 logging.basicConfig(level=logging.DEBUG)
 
-
-
-        
-
- 
-
-
-
-
-
-
-
 class HtmlFilingParser():
     def __init__(self):
         self.soup = None
