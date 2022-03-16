@@ -25,7 +25,8 @@ r""" with open(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\P
 # path = r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\10-Q\0001213900-19-008896"
 paths = sorted(Path(r"C:\Users\Olivi\Testing\sec_scraping\filings\sec-edgar-filings\PHUN\10-Q").glob("*"))
 handler = FilingHandler()
-for p in paths:
+shares_outstanding = []
+for p in paths[:2]:
 # path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\10-Q\0001628280-21-023228" 
     # fts = FullTextSubmission(p)
     now = datetime.now()
@@ -36,16 +37,36 @@ for p in paths:
         file = handler.process_file(doc)
         
         
-        file.get_fact("Commonstocksharesoutstanding", None, namespace="us-gaap")
+        facts = file.search_fact("Commonstocksharesoutstanding", None, namespace="us-gaap")
+        # print([str(f) for f in facts])
         # if file:
         #     matches = file.search_for_key(re.compile("sharesoutstanding", re.I))
         #     for m in matches:
         #         print(file.facts[m])
         #         print([f.get_members() for f in file.facts[m]])
         elapsed = datetime.now() - now
-        print(f"time for processing: {elapsed}")
+        # print([f.convert_to_dict() for f in facts])
+        # print(f"time for processing: {elapsed}")
     # else:
     #     print(p, mode)
+
+fact1 = Fact(
+            Tag("us", "common"),
+            Context(id="1", entity=Entity(identifier="1"), period=Instant("2020-09-03")),
+            Value("29", unit=Unit("usd"))
+            )
+
+fact2 = Fact(
+            Tag("us", "common"),
+            Context(id="1", entity=Entity(identifier="1"), period=Instant("2020-09-03")),
+            Value("29", unit=Unit("usd"))
+            )
+
+print(f"fact1: {fact1.__repr__}, fact2: {fact2.__repr__}")
+print((fact1 == fact2))
+print(fact1.__eq__(fact2))
+print(fact1.__dict__)
+print(fact2.__dict__)
 
 # TEST FOR ParserS1
 # S1_path = r"C:\Users\Olivi\Testing\sec_scraping_testing\filings\sec-edgar-filings\PHUN\S-1\0001213900-16-014630\filing-details.html"

@@ -52,7 +52,10 @@ class ParserXBRL():
             if specifier not in facts.keys():
                 facts[specifier] = [parsed_fact]
             else:
-                facts[specifier].append(parsed_fact)
+                if fact not in facts[specifier]:
+                    facts[specifier].append(parsed_fact)
+                else:
+                    logging.debug("duplicate fact avoided")
         return facts
         
     
@@ -144,7 +147,6 @@ class ParserXBRL():
                 identifier = x.string
             if x.name == "segment":
                 for member in x:
-                    
                     if member.name == "explicitMember":
                         dimension = member.attrs["dimension"] if "dimension" in member.attrs.keys() else None
                         member_tag = member.string.split(":")

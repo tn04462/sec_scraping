@@ -12,26 +12,23 @@ class XBRLInstanceDocument():
         self.facts = {}
         self.units = {}
     
-    def get_fact(self, specifier, member_specifier, namespace="any"):
+    def search_fact(self, specifier: str, member_specifier: str ="", namespace: str ="any", period="instant"):
+        ''''tries to find a fact that matches params, returns those facts.
+        params:
+            member_specifier: "" = all
+            period: "instant", "period" or "any" 
+        '''
         found_keys = self.search_for_key(re.compile(specifier, re.I))
-        # logging.debug(found_keys)
-        valid_facts = []
+        matched_facts = []
         for fk in found_keys:
             possible_facts = self.facts[fk]
-            for pf in possible_facts:                   
-                if member_specifier == "":
-                    valid_facts.append(pf)
-                elif pf.has_member(member_specifier) is True and self.is_fact_in_namespace(pf, namespace):
-                    valid_facts.append(pf)
-        print(valid_facts)
-    
-    def is_fact_in_namespace(self, fact, namespace):
-        if namespace == "any":
-            return True
-        if fact.tag.classifier == namespace:
-            return True
-        else:
-            return False
+            for pf in possible_facts:
+                if pf.has_period(period):                          
+                    if member_specifier == "":
+                        matched_facts.append(pf)
+                    elif pf.has_member(member_specifier) and pf.has_namespace(namespace):
+                        matched_facts.append(pf)
+        return matched_facts
 
 
     def search_for_key(self, regex):
@@ -63,7 +60,7 @@ class Context():
         self.period = period
         self.scenario = scenario
     
-    def __repr__(self):
+    def __str__(self):
         return "Context<id:"+self.id+" "+str(self.entity) + " " + str(self.period)+">" 
 
 
@@ -79,8 +76,8 @@ class Period():
         self.start = start
         self.end = end
     
-    def __repr__(self):
-        return "Period<"+str(self.start) + " to " + str(self.end)+">" 
+    def __str__(self):
+        return str(self.start) + "_" + str(self.end) 
 
 
 class Instant():
@@ -90,11 +87,11 @@ class Instant():
             <instant>2020-06-30</instant>
         </period>
     '''
-    def __init__(self, timestamp):
+    def __init__(self, timestamp: str):
         self.timestamp = timestamp
     
-    def __repr__(self):
-        return "Instant<"+str(self.timestamp)+">"
+    def __str__(self):
+        return self.timestamp
 
 
 class Segment():
@@ -104,7 +101,7 @@ class Segment():
             <xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonStockMember</xbrldi:explicitMember>
         </segment>
     '''
-    def __init__(self, members=[]):
+    def __init__(self, members: list =[]):
         self.members = members
         if self.members != []:
             self._has_members = True
@@ -117,7 +114,7 @@ class Segment():
             self._has_members = True
 
     
-    def __repr__(self):
+    def __str__(self):
         members_string = ""
         for m in self.members:
             members_string = members_string + str(m.tag) + ";"
@@ -136,7 +133,7 @@ class Entity():
         self.identifier = identifier
         self.segment = segment
     
-    def __repr__(self):
+    def __str__(self):
         return "Entity<"+str(self.identifier) + " " + str(self.segment)+">"
 
 
@@ -157,10 +154,10 @@ class Unit():
             <measure>iso4217:USD</measure>
         </unit>
     '''
-    def __init__(self, unit):
+    def __init__(self, unit: str):
         self.unit = unit
     
-    def __repr__(self):
+    def __str__(self):
         if self.unit == "number":
             return ""
         if self.unit == "usd":
@@ -174,7 +171,7 @@ class Value():
         self.value = value
         self.unit = unit
     
-    def __repr__(self):
+    def __str__(self):
         return str(self.value) +" "+ str(self.unit)
 
 
@@ -189,19 +186,51 @@ class Fact():
         self.tag = tag
         self.context = context
         self.value = value
-
-        
-        # maybe make attributes of facts more accessible like that
-        # self.period = self._get_period()
-        # def _get_period(self):
-        #   return self.context.period
+ 
+        # maybe make attributes of facts more accessible like below
+        self.period = self._get_period()
     
-    def __repr__(self):
+    def __str__(self):
         return "Fact<"+str(self.tag) + ": " + str(self.value) + " with: " + str(self.context)+">"
-
+    
+    def _get_period(self):
+          return self.context.period
+    
+    def convert_to_dict(self):
+        '''convert to a flatter dict. return the dict'''
+        return {
+            "namespace": self.tag.classifier,
+            "specifier": self.tag.specifier,
+            "value": self.value.value,
+            "unit": str(self.value.unit),
+            "period": str(self.period),
+            "members": [str(x) for x in self.get_members_tags()],
+            "identifier": self.context.entity.identifier
+            }
+    
     def get_members_tags(self):
         return [s.tag for s in  [m for m in self.context.entity.segment.members]]
     
+    def has_period(self, period: str ="instant"):
+        '''check if period is "instance",  regular "period" or either. returns boolean'''
+        if period == "instant":
+            if isinstance(self.period, Instant):
+                return True
+        if period == "period":
+            if isinstance(self.period, Period):
+                return True
+        if (period == "any") and self.period:
+            return True
+        return False
+    
+    def has_namespace(self, namespace):
+        if namespace == "any":
+            return True
+        if self.tag.classifier == namespace:
+            return True
+        else:
+            return False
+
     def has_members(self):
         return self.context.entity.segment._has_members
 
@@ -229,7 +258,7 @@ class Tag():
         self.classifier = classifier
         self.specifier = specifier
     
-    def __repr__(self):
+    def __str__(self):
         return str(self.classifier) + ":" + str(self.specifier)
 
 
@@ -244,7 +273,7 @@ class ExplicitMember():
         self.dimension = dimension
         self.tag = tag
     
-    def __repr__(self):
+    def __str__(self):
         return str(self.tag) + " with dimension: " + str(self.dimension)
 
 
@@ -260,5 +289,5 @@ class Label():
         self.specifier = specifier
         self.name = name
     
-    def __repr__(self):
+    def __str__(self):
         return str(self.classifier) + ":" + str(self.specifier) + " represented as: " + str(self.name)
