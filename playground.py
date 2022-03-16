@@ -3,12 +3,14 @@ from sec_edgar_downloader import Downloader
 from pathlib import Path
 import re
 from bs4 import BeautifulSoup
+import pandas as pd
+from datetime import datetime
 
 from xbrl_parser import *
 from xbrl_structure import *
 from filing_handler import *
 
-from datetime import datetime
+
 
 
 # dl = Downloader(Path(r"C:\Users\Olivi\Testing\sec_scraping_testing\filings"))
@@ -38,6 +40,8 @@ for p in paths:
         
         
         facts = file.search_fact("Commonstocksharesoutstanding", None, namespace="us-gaap")
+        for fact in facts:
+            shares_outstanding.append(fact.convert_to_dict())
         # print([facts[0] == facts[i] for i in range(len(facts))])
         # if file:
         #     matches = file.search_for_key(re.compile("sharesoutstanding", re.I))
@@ -46,7 +50,21 @@ for p in paths:
         #         print([f.get_members() for f in file.facts[m]])
         elapsed = datetime.now() - now
         # print([f.convert_to_dict() for f in facts])
-        # print(f"time for processing: {elapsed}")
+        # print(f"time for processing: {elapsed}"
+logging.getLogger("matplotlib").setLevel(level=logging.ERROR)
+logging.getLogger("PIL").setLevel(level=logging.ERROR)
+
+df = pd.DataFrame(shares_outstanding)
+df.drop("members", axis=1, inplace=True)
+df.drop_duplicates(inplace=True)
+df["period"] = pd.to_datetime(df["period"])
+df["value"] = pd.to_numeric(df["value"])
+df.sort_values(by="period", inplace=True)
+import matplotlib.pyplot as plt
+print(df)
+df.plot(x="period",y="value", kind="bar")
+plt.show(block=True)
+
 
 
 # TEST XBRLElement classes for equality

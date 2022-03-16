@@ -103,7 +103,7 @@ class Instant(AbstractXBRLElement):
         </period>
     '''
     def __init__(self, timestamp: str):
-        self.timestamp = timestamp
+        self.timestamp = str(timestamp)
     
     def __str__(self):
         return self.timestamp
