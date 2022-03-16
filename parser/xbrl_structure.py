@@ -30,11 +30,12 @@ class XBRLInstanceDocument():
         for fk in found_keys:
             possible_facts = self.facts[fk]
             for pf in possible_facts:
-                if pf.has_period(period):                          
-                    if member_specifier == "":
-                        matched_facts.append(pf)
-                    elif pf.has_member(member_specifier) and pf.has_namespace(namespace):
-                        matched_facts.append(pf)
+                if pf not in matched_facts:
+                    if pf.has_period(period):                          
+                        if member_specifier == "":
+                            matched_facts.append(pf)
+                        elif pf.has_member(member_specifier) and pf.has_namespace(namespace):
+                            matched_facts.append(pf)
         return matched_facts
 
 

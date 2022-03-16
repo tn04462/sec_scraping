@@ -41,7 +41,9 @@ for p in paths:
         
         facts = file.search_fact("Commonstocksharesoutstanding", None, namespace="us-gaap")
         for fact in facts:
-            shares_outstanding.append(fact.convert_to_dict())
+            d = fact.convert_to_dict()
+            if d not in shares_outstanding:
+                shares_outstanding.append(d)
         # print([facts[0] == facts[i] for i in range(len(facts))])
         # if file:
         #     matches = file.search_for_key(re.compile("sharesoutstanding", re.I))
@@ -55,15 +57,16 @@ logging.getLogger("matplotlib").setLevel(level=logging.ERROR)
 logging.getLogger("PIL").setLevel(level=logging.ERROR)
 
 df = pd.DataFrame(shares_outstanding)
-df.drop("members", axis=1, inplace=True)
-df.drop_duplicates(inplace=True)
+# df.drop("members", axis=1, inplace=True)
+# df.drop_duplicates(inplace=True)
 df["period"] = pd.to_datetime(df["period"])
 df["value"] = pd.to_numeric(df["value"])
 df.sort_values(by="period", inplace=True)
-import matplotlib.pyplot as plt
+
 print(df)
-df.plot(x="period",y="value", kind="bar")
-plt.show(block=True)
+# import matplotlib.pyplot as plt
+# df.plot(x="period",y="value", kind="bar")
+# plt.show(block=True)
 
 
 
