@@ -12,11 +12,8 @@ class ParserXBRL():
         xbrl = XBRLInstanceDocument(xbrl_file.info)
         xbrl.contexts = self._get_contexts(xbrl_file.ins)
         xbrl.units = self._get_units(xbrl_file.ins)
-        xbrl.facts = self._get_facts(xbrl_file.ins, xbrl)
+        self._get_facts(xbrl_file.ins, xbrl)
         return xbrl
-    
-    # def parse_instance_file(self, xbrl):
-    #     pass
 
     def _get_contexts(self, instance_file):
         # print(set([i.name for i in instance_file.find_all()]))
@@ -48,15 +45,8 @@ class ParserXBRL():
 
         for fact in instance_file.find_all(is_fact):
             parsed_fact = self._parse_fact(fact, xbrl.contexts, xbrl.units)
-            specifier = parsed_fact.tag.specifier
-            if specifier not in facts.keys():
-                facts[specifier] = [parsed_fact]
-            else:
-                if fact not in facts[specifier]:
-                    facts[specifier].append(parsed_fact)
-                else:
-                    logging.debug("duplicate fact avoided")
-        return facts
+            xbrl.add_fact(parsed_fact)
+        return 
         
     
     def _parse_context(self, context):

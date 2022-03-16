@@ -12,6 +12,13 @@ class XBRLInstanceDocument():
         self.facts = {}
         self.units = {}
     
+    def add_fact(self, fact):
+        specifier = fact.tag.specifier
+        if specifier not in self.facts.keys():
+            self.facts[specifier] = []
+        if fact not in self.facts[specifier]:
+            self.facts[specifier].append(fact)
+    
     def search_fact(self, specifier: str, member_specifier: str ="", namespace: str ="any", period="instant"):
         ''''tries to find a fact that matches params, returns those facts.
         params:
@@ -19,7 +26,7 @@ class XBRLInstanceDocument():
             period: "instant", "period" or "any" 
         '''
         found_keys = self.search_for_key(re.compile(specifier, re.I))
-        matched_facts = []
+        matched_facts = []    
         for fk in found_keys:
             possible_facts = self.facts[fk]
             for pf in possible_facts:
@@ -44,9 +51,17 @@ class XBRLInstanceDocument():
             if re.match(regex, key):
                 match.append(key)
         return match
+
+class AbstractXBRLElement():
+    '''to be subclassed only'''
+    def __eq__(self, other):
+        return (isinstance(other, self.__class__) and (self.__dict__ == other.__dict__))
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
     
 
-class Context():
+class Context(AbstractXBRLElement):
     '''object representation of a <context> tag.
     example xml:
         <context id="if745c13b17f2451da3e609125ef1b62e_D20200101-20201231">
@@ -64,7 +79,7 @@ class Context():
         return "Context<id:"+self.id+" "+str(self.entity) + " " + str(self.period)+">" 
 
 
-class Period():
+class Period(AbstractXBRLElement):
     '''object representation of a <period> representing a span of time.
     example xml:
         <period>
@@ -80,7 +95,7 @@ class Period():
         return str(self.start) + "_" + str(self.end) 
 
 
-class Instant():
+class Instant(AbstractXBRLElement):
     '''object representation of a <period> representing one point in time.
     example xml:
         <period>
@@ -94,7 +109,7 @@ class Instant():
         return self.timestamp
 
 
-class Segment():
+class Segment(AbstractXBRLElement):
     '''object representation of a <segment> tag.
     example xml:
         <segment>
@@ -121,7 +136,7 @@ class Segment():
         return "Segment<"+members_string+">"
 
 
-class Entity():
+class Entity(AbstractXBRLElement):
     '''object representation of a <entity> tag.
     example xml:
         <entity>
@@ -137,7 +152,7 @@ class Entity():
         return "Entity<"+str(self.identifier) + " " + str(self.segment)+">"
 
 
-class DivisionUnit():
+class DivisionUnit(AbstractXBRLElement):
     '''object representation of a <unit> tag, which presents as a ratio
     example xml:
     '''
@@ -147,7 +162,7 @@ class DivisionUnit():
         self.name = str(numerator).lower() + " per " +str(denominator).lower()
     
 
-class Unit():
+class Unit(AbstractXBRLElement):
     '''object representation of a <unit> tag.
     example xml:
         <unit id="usd">
@@ -165,7 +180,7 @@ class Unit():
         return str(self.unit)
 
 
-class Value():
+class Value(AbstractXBRLElement):
     '''object representation of a value found in a xbrl fact'''
     def __init__(self, value, unit=None):
         self.value = value
@@ -175,7 +190,7 @@ class Value():
         return str(self.value) +" "+ str(self.unit)
 
 
-class Fact():
+class Fact(AbstractXBRLElement):
     '''object representation of a xbrl fact.
     example xml:
         <dei:EntityPublicFloat contextRef="i7e9c6efa" decimals="0" id="id31231" unitRef="usd">
@@ -250,7 +265,7 @@ class Fact():
         return False
 
 
-class Tag():
+class Tag(AbstractXBRLElement):
     '''object representation of a tag of the form classifier:specifier.
     example: us-gaap:WarrantMember
     '''
@@ -262,7 +277,7 @@ class Tag():
         return str(self.classifier) + ":" + str(self.specifier)
 
 
-class ExplicitMember():
+class ExplicitMember(AbstractXBRLElement):
     '''object representation of a <explicitMember> tag.
     example xml: 
         <xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">
@@ -277,7 +292,7 @@ class ExplicitMember():
         return str(self.tag) + " with dimension: " + str(self.dimension)
 
 
-class Label():
+class Label(AbstractXBRLElement):
     '''object representation of a <link:label> in a linkbase
     example:
         <link:label id="lab_dei_EntityAddressCityOrTown_label_en-US" xlink:label="lab_dei_EntityAddressCityOrTown" xlink:role="http://www.xbrl.org/2003/role/label" xlink:type="resource" xml:lang="en-US">
