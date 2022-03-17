@@ -408,37 +408,36 @@ class Downloader:
                 z.extractall(save_path.parent)
         return
 
-    # save by cik would be most consistent but allow
-    # for switching to ticker_or_cik term.
-    # allow for user created save function,
-    # which gets ticker_or_cik, file and base_meta passed
-    # could be used for parsing before saving or
-    # save in another file structure 
-
-
 
     def _guess_full_url(self, base_meta, prefered_file_type, skip_not_prefered):
         '''infers the filename of a filing and adds it and
         a fallback to the base_meta dict. returns the changed base_meta dict
         '''
-        skip = False
+        
         base_url = base_meta["base_url"]
         accession_number = base_meta["accession_number"]
         base_meta["fallback_url"] = urljoin(base_url, base_meta["main_file_name"])
         if prefered_file_type == "xbrl":
             # only add link to the zip file for xbrl to reduce amount of requests
             base_meta["file_url"] = urljoin(base_url, (accession_number + "-xbrl.zip"))
+        if not "file_url" in base_meta.keys():
         # extend for file_types: xml, html/htm, txt
-
         # for cases not specified: check if main_file_name has wanted extension
         # and assume main_file is the one relevant
-        if not "file_url" in base_meta.keys():
             suffix = Path(base_meta["main_file_name"]).suffix.replace(".", "")
             if suffix == prefered_file_type:
                 base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"])
-                skip = False
-            else:
-                skip = skip_not_prefered
+            elif prefered_file_type == "txt":
+                base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"].replace(suffix, ".txt"))
+            elif suffix == ("html" or "htm") and prefered_file_type == ("html" or "htm"):
+                base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"].replace(suffix, "htm"))
+            elif prefered_file_type == "xml":
+                base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"].replace(suffix, "xml"))
+        if skip_not_prefered and not base_meta["file_url"]:
+            skip = True
+        else:
+            skip = False
+            base_meta["file_url"] = base_meta["fallback_url"]
         base_meta["skip"] = skip
         return base_meta
 
