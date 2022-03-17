@@ -3,6 +3,7 @@ Aim: Be able to download any SEC file type in every(as long as available
  on website) file format for every filer identified either by
  CIK or ticker symbol. While respecting the sec guidelines:
   https://www.sec.gov/privacy.htm#security
+  https://www.sec.gov/os/webmaster-faq#developers
   the most important are:
     - respect rate limit
     - have user_agent header
@@ -15,10 +16,28 @@ Flow of Program:
     2) get the base-url to the wanted filings by making post request to search-API
     3) get metadata from hit 
     4) try to get the requested file_format by building the url in relation to form type
-       if the download fails because 404, log urls used, then retry or fallback to the
-       accession_number.txt
+    5) download files
+    6) save or yield files
     
     create an index file that makes lookup by case number faster
+
+Things to add:
+    use: 
+        https://www.sec.gov/files/company_tickers_exchange.json
+        and
+        https://www.sec.gov/edgar/sec-api-documentation
+        bulk data instead of pulling every 10-Q/10-K and parsing the xbrl
+        compare in case of PHUN for shares outstanding to see if relevant
+        facts are omitted by not linking them to us-gaap or dei
+
+        still need to pull individual S-1, S-3, 424B's ect
+        and parse those to get information on dilutive data
+        like shelves, notes, offerings ect!
+        
+        see below for relevance of filing and specificatiosn:
+        https://www.sec.gov/dera/data/dera_edgarfilingcounts
+        https://www.sec.gov/edgar/filer-information/current-edgar-filer-manual
+
    
 
 '''
@@ -100,6 +119,8 @@ class Downloader:
                   the implementation of a custom way to process filings.
 
         '''
+        if prefered_file_type == (None or ""):
+            prefered_file_type = PREFERED_FILE_TYPE_MAP[form_type] if PREFERED_FILE_TYPE_MAP[form_type] else "html"
 
         hits = self._json_from_search_api(
             ticker_or_cik=ticker_or_cik,
