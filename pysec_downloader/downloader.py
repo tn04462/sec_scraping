@@ -3,32 +3,37 @@ Aim: Be able to download any SEC file type in every(as long as available
  on website) file format for every filer identified either by
  CIK or ticker symbol. While respecting the sec guidelines:
   https://www.sec.gov/privacy.htm#security
-  https://www.sec.gov/os/webmaster-faq#developers
+  
   the most important are:
     - respect rate limit
     - have user_agent header
     - stress sec systems as little as possible
 
+Sec information:
+    https://www.sec.gov/os/accessing-edgar-data
+    https://www.sec.gov/os/webmaster-faq#developers
+
 Flow of Program:
     * Downloader creates session
     * 
-    1) call is made to get_xbrl("aapl", 10-Q, from_date=2020-01-01, max_amount=10)
+    1) call is made to get_filings("aapl", 10-Q, from_date=2020-01-01, max_amount=10)
     2) get the base-url to the wanted filings by making post request to search-API
-    3) get metadata from hit 
-    4) try to get the requested file_format by building the url in relation to form type
-    5) download files
-    6) save or yield files
+    3) get metadata from results 
+    4) try to get the prefered_file_extension by building the url with cosnideration to form type
+    5) downloaded each file and save or yield it
     
-    create an index file that makes lookup by case number faster
-
 Things to add:
     use: 
         https://www.sec.gov/files/company_tickers_exchange.json
+        for a lookup of cik:ticker for getting xbrl data by ticker
         and
         https://www.sec.gov/edgar/sec-api-documentation
         bulk data instead of pulling every 10-Q/10-K and parsing the xbrl
         compare in case of PHUN for shares outstanding to see if relevant
         facts are omitted by not linking them to us-gaap or dei
+
+Other Notes:
+        create an index file that makes lookup by case number faster
 
         still need to pull individual S-1, S-3, 424B's ect
         and parse those to get information on dilutive data
@@ -41,7 +46,9 @@ Things to add:
    
 
 '''
+from tempfile import TemporaryFile
 import requests
+import json
 from urllib3.util import Retry
 from pathlib import Path
 import time
@@ -58,11 +65,11 @@ if debug is True:
     logger = logging.getLogger("downloader")
     logger.setLevel(logging.DEBUG)
 
+r'''download interface for various SEC files.
 
 
-class Downloader:
-    r'''
-    usage: 
+    usage:
+    
     dl = Downloader(r"C:\Users\Download_Folder", user_agent={john smith js@test.com})
     dl.get_filings(
         ticker_or_cik="AAPL",
@@ -75,19 +82,31 @@ class Downloader:
         skip_not_prefered=True,
         save=True)   
     '''
+
+
+class Downloader:
+    '''suit to download various files from the sec
+    
+    enables easier access to download files from the sec. tries to follow the
+    SEC guidelines concerning automated access (AFAIK, if I missed something
+    let me know: camelket.develop@gmail.com)
+
+    Attributes:
+        root_path: where to save the downloaded files unless the method has
+                   an argument to specify an alternative
+        user_agent: str of 'name surname email' to comply with sec guidelines
+    Args:
+        retries: how many retries per request are allowed
+    '''
     def __init__(self, root_path: str, retries: int = 10, user_agent: str = None):
         self.root_path = Path(root_path)
-        self.session = self._create_session(retry=retries)
         self.user_agent = user_agent if user_agent else "max musterman max@muster.com"
+        self._is_ratelimiting = True
+        self._session = self._create_session(retry=retries)
         self._next_try_systime_ms = self._get_systime_ms()
+        self._lookuptable_ticker_cik = self._load_or_update_lookuptable_ticker_cik()
 
-        '''
-        params:
-            root_path: where to save the files
-            retries: how many retries per request are allowed
-            user_agent: str of 'name surname email' to comply with sec guidelines
-            save_function: feed a function to alter what happens with the  '''
-  
+
     def get_filings(
         self,
         ticker_or_cik: str,
@@ -103,7 +122,7 @@ class Downloader:
         '''download filings. if param:save is False turns into
         a generator yielding downloaded filing. 
         
-        params:
+        Args:
             ticker_or_cik: either a ticker symbol "AAPL" or a 10digit cik
             form_type: what form you want. valid forms are found in SUPPORTED_FILINGS
             after_date: date from which to consider filings
@@ -145,10 +164,191 @@ class Downloader:
                 yield file
         return
     
+    def get_xbrl_companyconcept(self, ticker_or_cik: str, taxonomy: str, tag: str):
+        '''
+        Args:
+            ticker_or_cik: ticker like "AAPL" or cik like "1852973" or "0001852973"
+            taxonomy: a taxonomy like "us-gaap" 
+            tag: a concept tag like "AccountsPayableCurrent"
+        Returns:
+            python representation of the json file with contents described
+            by the SEC as: "all the XBRL disclosures from a single company
+            (CIK) and concept (a taxonomy and tag) [...] ,with a separate 
+            array of facts for each units on measure that the company has
+            chosen to disclose" 
+            - https://www.sec.gov/edgar/sec-api-documentation
+        '''
+        cik10 = self._convert_to_cik10(ticker_or_cik)
+        filename = tag + ".json"
+        urlcik = "CIK"+cik10
+        url = SEC_API_XBRL_COMPANYCONCEPT_URL
+        for x in [urlcik, taxonomy, filename]:
+            url = urljoin(url, x)
+        print(url)
+        headers = { 
+            "User-Agent": self.user_agent,
+            "Accept-Encoding": "gzip, deflate",
+            "Host": "data.sec.gov"}
+        resp = self._get(url=url, headers=headers)
+        content = resp.json()
+        return content
+    
+    def get_xbrl_companyfacts(self, ticker_or_cik: str) -> dict:
+        '''download a companyfacts file.
+        
+        Args:
+            ticker_or_cik: ticker like "AAPL" or cik like "1852973" or "0001852973"
+        
+        Returns:
+            python representation of the json file with contents described
+            by the SEC as: "all the company concepts data for a company"
+            - https://www.sec.gov/edgar/sec-api-documentation
+        '''     
+        cik10 = self._convert_to_cik10(ticker_or_cik)
+        # build URL
+        filename = "CIK" + cik10 + ".json"
+        url = urljoin(SEC_API_XBRL_COMPANYFACTS_URL, filename)
+        # make call
+        headers = { 
+            "User-Agent": self.user_agent,
+            "Accept-Encoding": "gzip, deflate",
+            "Host": "data.sec.gov"}
+        resp = self._get(url=url, headers=headers)
+        content = resp.json()
+        return content
+        # check for error in resp
 
-    # @_rate_limit
-    # def download_file(self, url):
-    #     '''download any file with sec rate limit. retries on 404 '''
+
+    def get_file_company_tickers(self) -> dict:
+        '''download the cik, tickers file from the sec.
+        
+        The file structure: {index: {"cik_str": CIK, "ticker": ticker}}
+        size: ~1MB
+        '''
+        headers = { 
+            "User-Agent": self.user_agent,
+            "Accept-Encoding": "gzip, deflate",
+            "Host": "www.sec.gov"}
+        resp = self._get(url=SEC_FILES_COMPANY_TICKERS, headers=headers)
+        content = resp.json()
+        if "error" in content:
+            logging.ERROR("Couldnt fetch company_tickers.json file. got: {}", content)
+        return content
+
+
+    def get_file_company_tickers_exchange(self) -> dict:
+        '''download the cik, ticker, exchange file from the sec
+        
+        The file structure: {"fields": [fields], "data": [[entry], [entry],...]}
+        fields are: "cik", "name", "ticker", "exchange"
+        size: ~600KB
+        '''
+        headers = { 
+            "User-Agent": self.user_agent,
+            "Accept-Encoding": "gzip, deflate",
+            "Host": "www.sec.gov"}
+        resp = self._get(url=SEC_FILES_COMPANY_TICKERS_EXCHANGES, headers=headers)
+        content = resp.json()
+        if "error" in content:
+            logging.ERROR("Couldnt fetch company_ticker_exchange.json file. got: {}", content)
+        return content
+
+      
+    def lookup_cik(self, ticker: str) -> str:
+        '''look up the corresponding CIK for ticker and return it or an exception.
+
+            Args:
+                ticker: a symbol/ticker like: "AAPL"
+            Raises:
+                KeyError: ticker not present in lookuptable
+        '''
+        ticker = ticker.upper()
+        cik = None
+        try:
+            cik = self._lookuptable_ticker_cik[ticker]
+            return cik
+        except KeyError as e:
+            logging.ERROR(f"{ticker} caused KeyError when looking up the CIK.")
+            return e
+        except Exception as e:
+            logging.ERROR(f"unhandled exception in lookup_cik: {e}")
+            return e
+
+    
+    def set_session(self, session: requests.Session, sec_rate_limiting: bool = True):
+        '''use a custom session object.
+
+         Args:
+            session: your instantiated session object
+            sec_rate_limiting: toggle internal sec rate limiting,
+                               can result in being locked out.
+                               Not advised to set False.   
+        '''
+        try:
+            self._set_ratelimiting(sec_rate_limiting)
+            if self._session:
+                self._session.close()
+            self._session = session
+        except Exception as e:
+            logging.ERROR((
+                f"Couldnt set new session, encountered {e}"
+                f"Creating new default session"))
+            self._create_session()
+        return
+    
+    def _convert_to_cik10(self, ticker_or_cik: str):
+        '''try to get the 10 digit cik from a ticker or a cik
+        Args:
+            ticker_or_cik: ticker like "AAPL" or cik like "1852973" or "0001852973"
+        Returns:
+            a 10 digit CIK as a string. ex: "0001841800"
+        '''
+        cik = None
+        try:
+            int(ticker_or_cik)
+        except ValueError:
+            #assume it is a ticker and not a cik
+            cik = self.lookup_cik(ticker_or_cik)
+        else:
+            cik = ticker_or_cik
+        if not isinstance(cik, str):
+            cik = str(cik)
+        cik10 = cik.zfill(10)
+        return cik10
+
+    def _set_ratelimiting(self, is_ratelimiting: bool):
+        self._is_ratelimiting = is_ratelimiting
+    
+    def _load_or_update_lookuptable_ticker_cik(self) -> dict:
+        '''load the tickers:cik lookup table and return it'''
+        file = Path(TICKERS_CIK_FILE)
+        if not file.exists():
+            self._update_lookuptable_tickers_cik()
+        with open(file, "r") as f:
+            try:
+                lookup_table = json.load(f)
+                return lookup_table
+            except IOError as e:        
+                logging.ERROR("couldnt load lookup table:  {}", e)
+        return None
+ 
+    def _update_lookuptable_tickers_cik(self):
+        content = self.get_file_company_tickers()
+        if content:
+            try:
+                transformed_content = {}
+                for d in content.values():
+                    transformed_content[d["ticker"]] = d["cik_str"]
+                with open(Path(TICKERS_CIK_FILE), "w") as f:
+                    f.write(json.dumps(transformed_content))
+            except Exception as e:
+                logging.ERROR((
+                    f"couldnt update ticker_cik file."
+                    f"unhandled exception: {e}"))
+            # should add finally clause which restores file to inital state?
+        else:
+            raise ValueError("Didnt get content returned from get_file_company_tickers")
+        return
 
     def _download_filing(self, base_meta):
         '''download a file and fallback on secondary url if 404. adds save_name to base_meta'''
@@ -160,7 +360,7 @@ class Downloader:
             "Accept-Encoding": "gzip, deflate",
             "Host": "www.sec.gov"}
         try:
-            resp = self.session.get(url=base_meta["file_url"], headers=headers)
+            resp = self._get(url=base_meta["file_url"], headers=headers)
             # resp = self._get(url=base_meta["file_url"], headers=headers)
             resp.raise_for_status()
         except requests.HTTPError as e:
@@ -174,8 +374,7 @@ class Downloader:
 
 
     def _save_filing(self, ticker_or_cik, base_meta, file):
-        '''save the file in specified hirarchy and extract 
-        zips. returns nothing'''
+        '''save the filing and extract zips.'''
         save_path = (self.root_path 
                     /ticker_or_cik
                     /base_meta["form_type"]
@@ -235,7 +434,7 @@ class Downloader:
         accession_number, filing_details_filename = hit["_id"].split(":", 1)
         accession_number_no_dash = accession_number.replace("-", "", 2)
         cik = hit["_source"]["ciks"][-1]
-        submission_base_url = urljoin(urljoin(EDGAR_ARCHIVES_BASE_PATH, cik),(accession_number_no_dash))
+        submission_base_url = urljoin(urljoin(EDGAR_ARCHIVES_BASE_URL, cik),(accession_number_no_dash))
         xsl = hit["_source"]["xsl"] if hit["_source"]["xsl"] else None
         return {
             "form_type": hit["_source"]["root_form"],
@@ -271,7 +470,7 @@ class Downloader:
                 "forms": [form_type],
                 "from": start_index,
                 "q": query}
-            resp = self._post(url=EDGAR_SEARCH_API_URL, json=post_body, headers=headers)
+            resp = self._post(url=SEC_SEARCH_API_URL, json=post_body, headers=headers)
             resp.raise_for_status()
             result = resp.json()
             
@@ -304,9 +503,12 @@ class Downloader:
         return gathered_responses[:number_of_filings]
     
     def _rate_limit(func):
-        '''decorate a function to limit call rate in a synchronous program.'''
+        '''decorate a function to limit call rate in a synchronous program.
+        Can be toggled on/off by calling set_ratelimiting(bool)'''
         @wraps(func)
         def wrapper(self, *args, **kwargs):
+            if self._is_ratelimiting is False:
+                return func(self, *args, **kwargs)
             time.sleep(
                 max(0, self._next_try_systime_ms - self._get_systime_ms()
                 ) / 1000) 
@@ -318,29 +520,33 @@ class Downloader:
         
     @_rate_limit
     def _get(self, *args, **kwargs):
-        '''wrapped to comply with sec rate limit'''
-        return self.session.get(*args, **kwargs)
+        '''wrapped to comply with sec rate limit across calls'''
+        return self._session.get(*args, **kwargs)
 
 
     @_rate_limit
     def _post(self, *args, **kwargs):
-        '''wrapped to comply with sec rate limit'''
-        return self.session.post(*args, **kwargs)
+        '''wrapped to comply with sec rate limit across calls'''
+        return self._session.post(*args, **kwargs)
         
 
     def _create_session(self, retry=10) -> requests.Session:
+        '''create a session used by the Downloader with a retry
+        strategy on all urls. retries on status:
+            500, 502, 503, 504, 403 .'''
         r = Retry(
             total=retry,
             read=retry,
             connect=retry,
-            backoff_factor= float(0.7),
+            backoff_factor = float(0.3),
             status_forcelist=(500, 502, 503, 504, 403))
-        '''create a session used by the Downloader'''
+        r.backoff_max = 10
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(max_retries=r) 
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         return session
+
     
 
 
