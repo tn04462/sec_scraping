@@ -5,7 +5,7 @@ PREFERED_FILE_TYPE_MAP = {
     "S-1": "html",
     "S-3": "html",
     "F-1": "html",
-    "F-3": "html"
+    "F-3": "html",
     "10-Q": "xbrl",
     "10-K": "xbrl",
     "424A": "html",

@@ -61,7 +61,7 @@ if debug is True:
 
 
 class Downloader:
-    '''
+    r'''
     usage: 
     dl = Downloader(r"C:\Users\Download_Folder", user_agent={john smith js@test.com})
     dl.get_filings(
@@ -108,15 +108,13 @@ class Downloader:
             form_type: what form you want. valid forms are found in SUPPORTED_FILINGS
             after_date: date from which to consider filings
             before_date: date before which to consider filings
-            query: query according to https://www.sec.gov/edgar/search/efts-faq.html
+            query: query according to https://www.sec.gov/edgar/search/efts-faq.html.
             prefered_file_type: what filetype to prefer when looking for filings, see PREFERED_FILE_TYPES for handled extensions
             number_of_filings: how many filings to download.
             want_amendements: if we want to include amendment files or not
             skip_not_prefered: either download or exclude if prefered_file_type
                                fails to match/download
-            save: if we want to save the files according to the default function
-                  OR not save them and turn this function into a generator, allowing
-                  the implementation of a custom way to process filings.
+            save: toggles saving or yielding of files downloaded.
 
         '''
         if prefered_file_type == (None or ""):
@@ -136,10 +134,10 @@ class Downloader:
             h, prefered_file_type, skip_not_prefered) for h in base_meta]
         
         for m in meta:
-            file = self._download_file(m)
+            file = self._download_filing(m)
             if self.save is True:
                 if file:
-                    self._save_file(ticker_or_cik, m, file)
+                    self._save_filing(ticker_or_cik, m, file)
                 else:
                     logging.debug("didnt save filing despite wanting to. response from request: {}", resp)
                     break
@@ -148,8 +146,12 @@ class Downloader:
         return
     
 
-    def _download_file(self, base_meta):
-        '''download a file and fallback on secondary url if 404'''
+    # @_rate_limit
+    # def download_file(self, url):
+    #     '''download any file with sec rate limit. retries on 404 '''
+
+    def _download_filing(self, base_meta):
+        '''download a file and fallback on secondary url if 404. adds save_name to base_meta'''
         if base_meta["skip"]:
             logging.debug("skipping {}", base_meta)
             return
@@ -171,7 +173,7 @@ class Downloader:
         return filing
 
 
-    def _save_file(self, ticker_or_cik, base_meta, file):
+    def _save_filing(self, ticker_or_cik, base_meta, file):
         '''save the file in specified hirarchy and extract 
         zips. returns nothing'''
         save_path = (self.root_path 

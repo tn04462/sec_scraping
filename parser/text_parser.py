@@ -1,14 +1,9 @@
-from cgitb import html
 import re
 import json
 import logging
 from pathlib import Path
-
 import pandas as pd
-
 from bs4 import BeautifulSoup
-
-from xbrl_parser import XBRLFile, XBRLInstanceDocument, ParserXBRL
 
 
 logging.basicConfig(level=logging.DEBUG)
