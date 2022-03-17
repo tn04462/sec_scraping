@@ -2,8 +2,9 @@
 #URLS
 EDGAR_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data"
 SEC_SEARCH_API_URL = "https://efts.sec.gov/LATEST/search-index"
-SEC_API_XBRL_COMPANYCONCEPT_URL = "https://data.sec.gov/api/xbrl/companyconcept/"
-SEC_API_XBRL_COMPANYFACTS_URL  = "https://data.sec.gov/api/xbrl/companyfacts/"
+SEC_API_XBRL_BASE = "https://data.sec.gov/api/xbrl"
+SEC_API_XBRL_COMPANYCONCEPT_URL = "https://data.sec.gov/api/xbrl/companyconcept"
+SEC_API_XBRL_COMPANYFACTS_URL  = "https://data.sec.gov/api/xbrl/companyfacts"
 SEC_FILES_COMPANY_TICKERS = "https://www.sec.gov/files/company_tickers.json"
 SEC_FILES_COMPANY_TICKERS_EXCHANGES = "https://www.sec.gov/files/company_tickers_exchange.json"
 #INTERNAL FILE LOCATION
@@ -11,22 +12,22 @@ SEC_FILES_COMPANY_TICKERS_EXCHANGES = "https://www.sec.gov/files/company_tickers
 TICKERS_CIK_FILE = "./pysec_downloader/company_tickers.json"
 SEC_RATE_LIMIT_DELAY = 1000 #ms
 PREFERED_FILE_TYPE_MAP = {
-    "S-1": "html",
-    "S-3": "html",
-    "F-1": "html",
-    "F-3": "html",
+    "S-1": "htm",
+    "S-3": "htm",
+    "F-1": "htm",
+    "F-3": "htm",
     "10-Q": "xbrl",
     "10-K": "xbrl",
-    "424A": "html",
-    "424B1": "html",
-    "424B2": "html",
-    "424B3": "html",
-    "424B4": "html",
-    "424B5": "html",
-    "424B7": "html",
-    "424B8": "html",
+    "424A": "htm",
+    "424B1": "htm",
+    "424B2": "htm",
+    "424B3": "htm",
+    "424B4": "htm",
+    "424B5": "htm",
+    "424B7": "htm",
+    "424B8": "htm",
     "4": "xml",
-    "8-K": "html",
+    "8-K": "htm",
     "EFFECT":"xml"
     }
 PREFERED_FILE_TYPES = {"xml", "htm", "html", "xbrl", "txt"}

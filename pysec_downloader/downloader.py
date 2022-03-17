@@ -19,25 +19,28 @@ Flow of Program:
     1) call is made to get_filings("aapl", 10-Q, from_date=2020-01-01, max_amount=10)
     2) get the base-url to the wanted filings by making post request to search-API
     3) get metadata from results 
-    4) try to get the prefered_file_extension by building the url with cosnideration to form type
+    4) try to get the prefered_file_extension by building the url with consideration of form type
     5) downloaded each file and save or yield it
     
 Things to add:
-    use: 
-        https://www.sec.gov/files/company_tickers_exchange.json
-        for a lookup of cik:ticker for getting xbrl data by ticker
-        and
-        https://www.sec.gov/edgar/sec-api-documentation
-        bulk data instead of pulling every 10-Q/10-K and parsing the xbrl
-        compare in case of PHUN for shares outstanding to see if relevant
-        facts are omitted by not linking them to us-gaap or dei
+    * splitting a full text submission and writting individual files 
+
+Things to fix:
+    * "html" as prefered file type doesnt match .htm files same for "htm" and .html
+    * 
+        
 
 Other Notes:
         create an index file that makes lookup by case number faster
 
+        bulk data instead of pulling every 10-Q/10-K and parsing the xbrl
+        compare in case of PHUN for shares outstanding to see if relevant
+        facts are omitted by not linking them to us-gaap or dei
+
         still need to pull individual S-1, S-3, 424B's ect
         and parse those to get information on dilutive data
         like shelves, notes, offerings ect!
+        need to parse those in html...
         
         see below for relevance of filing and specificatiosn:
         https://www.sec.gov/dera/data/dera_edgarfilingcounts
@@ -50,12 +53,13 @@ from tempfile import TemporaryFile
 import requests
 import json
 from urllib3.util import Retry
-from pathlib import Path
 import time
 from functools import wraps
 import re
 import logging
 from posixpath import join as urljoin
+from pathlib import Path
+from urllib.parse import urlparse
 import zipfile
 
 from _constants import *
@@ -80,7 +84,16 @@ r'''download interface for various SEC files.
         number_of_filings=10,
         want_amendments=False,
         skip_not_prefered=True,
-        save=True)   
+        save=True)
+    
+    # when using as generator make sure the save argument is False
+    for filing in dl.get_filings("AAPL", "8-K", number_of_filings=50, save=False):
+        do something with each individual filing...
+        
+
+    file = dl.get_xbrl_companyconcept("AAPL", "us-gaap", "AccountsPayableCurrent") 
+
+    other_file = dl.get_file_company_tickers()
     '''
 
 
@@ -105,6 +118,8 @@ class Downloader:
         self._session = self._create_session(retry=retries)
         self._next_try_systime_ms = self._get_systime_ms()
         self._lookuptable_ticker_cik = self._load_or_update_lookuptable_ticker_cik()
+        self._sec_files_headers = self._construct_sec_files_headers()
+        self._sec_xbrl_api_headers = self._construct_sec_xbrl_api_headers()
 
 
     def get_filings(
@@ -114,7 +129,7 @@ class Downloader:
         after_date: str = "",
         before_date: str = "",
         query: str = "",
-        prefered_file_type: str = "html",
+        prefered_file_type: str = "",
         number_of_filings: int = 100,
         want_amendments: bool = True,
         skip_not_prefered: bool = False,
@@ -137,7 +152,9 @@ class Downloader:
 
         '''
         if prefered_file_type == (None or ""):
-            prefered_file_type = PREFERED_FILE_TYPE_MAP[form_type] if PREFERED_FILE_TYPE_MAP[form_type] else "html"
+            prefered_file_type = (PREFERED_FILE_TYPE_MAP[form_type] 
+                                 if PREFERED_FILE_TYPE_MAP[form_type]
+                                 else "html")
 
         hits = self._json_from_search_api(
             ticker_or_cik=ticker_or_cik,
@@ -154,9 +171,10 @@ class Downloader:
         
         for m in meta:
             file = self._download_filing(m)
-            if self.save is True:
+            if save is True:
                 if file:
                     self._save_filing(ticker_or_cik, m, file)
+                    continue
                 else:
                     logging.debug("didnt save filing despite wanting to. response from request: {}", resp)
                     break
@@ -164,6 +182,7 @@ class Downloader:
                 yield file
         return
     
+
     def get_xbrl_companyconcept(self, ticker_or_cik: str, taxonomy: str, tag: str):
         '''
         Args:
@@ -184,12 +203,7 @@ class Downloader:
         url = SEC_API_XBRL_COMPANYCONCEPT_URL
         for x in [urlcik, taxonomy, filename]:
             url = urljoin(url, x)
-        print(url)
-        headers = { 
-            "User-Agent": self.user_agent,
-            "Accept-Encoding": "gzip, deflate",
-            "Host": "data.sec.gov"}
-        resp = self._get(url=url, headers=headers)
+        resp = self._get(url=url, headers=self._sec_xbrl_api_headers)
         content = resp.json()
         return content
     
@@ -209,14 +223,10 @@ class Downloader:
         filename = "CIK" + cik10 + ".json"
         url = urljoin(SEC_API_XBRL_COMPANYFACTS_URL, filename)
         # make call
-        headers = { 
-            "User-Agent": self.user_agent,
-            "Accept-Encoding": "gzip, deflate",
-            "Host": "data.sec.gov"}
-        resp = self._get(url=url, headers=headers)
+        resp = self._get(url=url, headers=self._sec_xbrl_api_headers)
         content = resp.json()
         return content
-        # check for error in resp
+
 
 
     def get_file_company_tickers(self) -> dict:
@@ -225,11 +235,7 @@ class Downloader:
         The file structure: {index: {"cik_str": CIK, "ticker": ticker}}
         size: ~1MB
         '''
-        headers = { 
-            "User-Agent": self.user_agent,
-            "Accept-Encoding": "gzip, deflate",
-            "Host": "www.sec.gov"}
-        resp = self._get(url=SEC_FILES_COMPANY_TICKERS, headers=headers)
+        resp = self._get(url=SEC_FILES_COMPANY_TICKERS, headers=self._sec_files_headers)
         content = resp.json()
         if "error" in content:
             logging.ERROR("Couldnt fetch company_tickers.json file. got: {}", content)
@@ -296,6 +302,23 @@ class Downloader:
             self._create_session()
         return
     
+    def _construct_sec_xbrl_api_headers(self):
+        parsed = urlparse(SEC_API_XBRL_BASE)
+        host = parsed.netloc
+        return {
+            "User-Agent": self.user_agent,
+            "Accept-Encoding": "gzip, deflate",
+            "Host": host}
+    
+    def _construct_sec_files_headers(self):
+        parsed = urlparse(SEC_FILES_COMPANY_TICKERS)
+        host = parsed.netloc
+        print(host)
+        return {
+            "User-Agent": self.user_agent,
+            "Accept-Encoding": "gzip, deflate",
+            "Host": host}
+    
     def _convert_to_cik10(self, ticker_or_cik: str):
         '''try to get the 10 digit cik from a ticker or a cik
         Args:
@@ -333,6 +356,7 @@ class Downloader:
         return None
  
     def _update_lookuptable_tickers_cik(self):
+        '''update or create the ticker:cik file'''
         content = self.get_file_company_tickers()
         if content:
             try:
@@ -355,10 +379,7 @@ class Downloader:
         if base_meta["skip"]:
             logging.debug("skipping {}", base_meta)
             return
-        headers = { 
-            "User-Agent": self.user_agent,
-            "Accept-Encoding": "gzip, deflate",
-            "Host": "www.sec.gov"}
+        headers = self._sec_files_headers
         try:
             resp = self._get(url=base_meta["file_url"], headers=headers)
             # resp = self._get(url=base_meta["file_url"], headers=headers)
@@ -403,6 +424,7 @@ class Downloader:
         skip = False
         base_url = base_meta["base_url"]
         accession_number = base_meta["accession_number"]
+        base_meta["fallback_url"] = urljoin(base_url, base_meta["main_file_name"])
         if prefered_file_type == "xbrl":
             # only add link to the zip file for xbrl to reduce amount of requests
             base_meta["file_url"] = urljoin(base_url, (accession_number + "-xbrl.zip"))
@@ -418,11 +440,10 @@ class Downloader:
             else:
                 skip = skip_not_prefered
         base_meta["skip"] = skip
-        base_meta["fallback_url"] = urljoin(base_url, base_meta["main_file_name"])
         return base_meta
 
     
-    def _save_from_full_text(self, full_text: str, form_type: str, file_extension: list):
+    def _transform_from_full_text(self, full_text: str, form_type: str, file_extension: list):
         # quick to implement as most code is already in parser
         pass 
     
@@ -448,13 +469,13 @@ class Downloader:
             self,
             ticker_or_cik: str,
             form_type: str,
-            number_of_filings: int = 1,
+            number_of_filings: int = 20,
             want_amendments = False,
             after_date: str = "",
             before_date: str = "",
             query: str = ""
-            ):
-        '''getting a list of all filings of specified ticker_or_cik. returns dict of dicts'''
+            ) -> dict:
+        '''gets a list of filings submitted to the sec.'''
         gathered_responses = []
         headers = { 
             "User-Agent": self.user_agent,
