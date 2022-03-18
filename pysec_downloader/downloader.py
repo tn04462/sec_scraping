@@ -66,15 +66,15 @@ from _constants import *
 
 debug = True
 if debug is True:
+    logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger("downloader")
-    logger.setLevel(logging.DEBUG)
 
 r'''download interface for various SEC files.
 
 
     usage:
     
-    dl = Downloader(r"C:\Users\Download_Folder", user_agent={john smith js@test.com})
+    dl = Downloader(r"C:\Users\Download_Folder", user_agent="john smith js@test.com")
     dl.get_filings(
         ticker_or_cik="AAPL",
         form_type="10-Q",
@@ -117,10 +117,10 @@ class Downloader:
         self._is_ratelimiting = True
         self._session = self._create_session(retry=retries)
         self._next_try_systime_ms = self._get_systime_ms()
-        self._lookuptable_ticker_cik = self._load_or_update_lookuptable_ticker_cik()
         self._sec_files_headers = self._construct_sec_files_headers()
         self._sec_xbrl_api_headers = self._construct_sec_xbrl_api_headers()
-
+        self._lookuptable_ticker_cik = self._load_or_update_lookuptable_ticker_cik()
+        
 
     def get_filings(
         self,
@@ -135,7 +135,7 @@ class Downloader:
         skip_not_prefered: bool = False,
         save: bool = True):
         '''download filings. if param:save is False turns into
-        a generator yielding downloaded filing. 
+        a generator yielding downloaded filing.
         
         Args:
             ticker_or_cik: either a ticker symbol "AAPL" or a 10digit cik
@@ -155,7 +155,7 @@ class Downloader:
             prefered_file_type = (PREFERED_FILE_TYPE_MAP[form_type] 
                                  if PREFERED_FILE_TYPE_MAP[form_type]
                                  else "html")
-
+        logging.debug((f"called get_filings with args: {locals()}"))
         hits = self._json_from_search_api(
             ticker_or_cik=ticker_or_cik,
             form_type=form_type,
@@ -363,9 +363,12 @@ class Downloader:
                 transformed_content = {}
                 for d in content.values():
                     transformed_content[d["ticker"]] = d["cik_str"]
+                if not Path(TICKERS_CIK_FILE).parent.exists():
+                    Path(TICKERS_CIK_FILE).parent.mkdir(parents=True)
                 with open(Path(TICKERS_CIK_FILE), "w") as f:
                     f.write(json.dumps(transformed_content))
             except Exception as e:
+
                 logging.ERROR((
                     f"couldnt update ticker_cik file."
                     f"unhandled exception: {e}"))
@@ -376,6 +379,7 @@ class Downloader:
 
     def _download_filing(self, base_meta):
         '''download a file and fallback on secondary url if 404. adds save_name to base_meta'''
+        logging.debug((f"called _download_filing with base_meta: {base_meta}"))
         if base_meta["skip"]:
             logging.debug("skipping {}", base_meta)
             return
@@ -413,32 +417,42 @@ class Downloader:
         '''infers the filename of a filing and adds it and
         a fallback to the base_meta dict. returns the changed base_meta dict
         '''
-        
+        # rethink this whole skip_not_prefered thing -naming -usefulness -implementation
         base_url = base_meta["base_url"]
         accession_number = base_meta["accession_number"]
         base_meta["fallback_url"] = urljoin(base_url, base_meta["main_file_name"])
-        if prefered_file_type == "xbrl":
-            # only add link to the zip file for xbrl to reduce amount of requests
-            base_meta["file_url"] = urljoin(base_url, (accession_number + "-xbrl.zip"))
-        if not "file_url" in base_meta.keys():
-        # extend for file_types: xml, html/htm, txt
-        # for cases not specified: check if main_file_name has wanted extension
-        # and assume main_file is the one relevant
-            suffix = Path(base_meta["main_file_name"]).suffix.replace(".", "")
-            if suffix == prefered_file_type:
-                base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"])
+        # assume that main_file is the one relevant unless specified (eg: xbrl)
+        
+        suffix = Path(base_meta["main_file_name"]).suffix.replace(".", "")
+        if suffix == prefered_file_type:
+            base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"])
+        else:
+            if prefered_file_type == "xbrl":
+                # only add link to the zip file for xbrl to reduce amount of requests
+                base_meta["file_url"] = urljoin(base_url, (accession_number + "-xbrl.zip"))
             elif prefered_file_type == "txt":
+                # get full text submission
                 base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"].replace(suffix, ".txt"))
             elif suffix == ("html" or "htm") and prefered_file_type == ("html" or "htm"):
-                base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"].replace(suffix, "htm"))
-            elif prefered_file_type == "xml":
-                base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"].replace(suffix, "xml"))
-        if skip_not_prefered and not base_meta["file_url"]:
+                # html is htm therefor treat them as equal
+                if suffix == "html":
+                    base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"].replace(suffix, "htm"))
+                else:
+                    base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"])
+            # xml is implicitly covered
+            elif not skip_not_prefered:
+                base_meta["file_url"] = urljoin(base_url, base_meta["main_file_name"])
+        if skip_not_prefered and "file_url" not in base_meta.keys():
             skip = True
         else:
-            skip = False
-            base_meta["file_url"] = base_meta["fallback_url"]
+            skip = False 
         base_meta["skip"] = skip
+        logging.debug(
+            (f"guessing for main_file_name: {base_meta['main_file_name']} \n"
+             f"with prefered_file_type: {prefered_file_type} and \n"
+             f"skip_not_prefered: {skip_not_prefered} \n"
+             f"created file_url: {base_meta['file_url']} \n"
+             f"created fallback_url:{base_meta['fallback_url']}\n"))
         return base_meta
 
     
