@@ -192,20 +192,20 @@ class Downloader:
             logger.debug("returned without downloading because hits was None")
             return
         base_meta = [self._get_base_metadata_from_hit(h) for h in hits]
-        base_meta = [self._guess_full_url(
+        base_metas = [self._guess_full_url(
             h, prefered_file_type, skip_not_prefered_extension) for h in base_meta]
         
-        for m in base_meta:
+        for m in base_metas:
             file = self._download_filing(m)
-            if resolve_urls and Path(file["save_name"]).suffix == "htm":
-                file = self._resolve_relative_urls(file, base_meta)
+            if resolve_urls and Path(m["save_name"]).suffix == "htm":
+                file = self._resolve_relative_urls(file, m)
             if save is True:
                 if file:
                     self._save_filing(ticker_or_cik, m, file)
                 else:
                     logger.debug("didnt save filing despite that it should have.")
             if callback != None:
-                callback({"file": file, "meta": meta})           
+                callback({"file": file, "meta": m})           
         return
     
 
@@ -264,7 +264,7 @@ class Downloader:
         resp = self._get(url=SEC_FILES_COMPANY_TICKERS, headers=self._sec_files_headers)
         content = resp.json()
         if "error" in content:
-            logger.ERROR("Couldnt fetch company_tickers.json file. got: {}", content)
+            logger.error("Couldnt fetch company_tickers.json file. got: {}", content)
         return content
 
 
@@ -282,7 +282,7 @@ class Downloader:
         resp = self._get(url=SEC_FILES_COMPANY_TICKERS_EXCHANGES, headers=headers)
         content = resp.json()
         if "error" in content:
-            logger.ERROR("Couldnt fetch company_ticker_exchange.json file. got: {}", content)
+            logger.error("Couldnt fetch company_ticker_exchange.json file. got: {}", content)
         return content
 
       
@@ -300,10 +300,10 @@ class Downloader:
             cik = self._lookuptable_ticker_cik[ticker]
             return cik
         except KeyError as e:
-            logger.ERROR(f"{ticker} caused KeyError when looking up the CIK.")
+            logger.error(f"{ticker} caused KeyError when looking up the CIK.")
             return e
         except Exception as e:
-            logger.ERROR(f"unhandled exception in lookup_cik: {e}")
+            logger.error(f"unhandled exception in lookup_cik: {e}")
             return e
 
     
@@ -322,7 +322,7 @@ class Downloader:
                 self._session.close()
             self._session = session
         except Exception as e:
-            logger.ERROR((
+            logger.error((
                 f"Couldnt set new session, encountered {e}"
                 f"Creating new default session"))
             self._create_session()
@@ -377,7 +377,7 @@ class Downloader:
                 lookup_table = json.load(f)
                 return lookup_table
             except IOError as e:        
-                logger.ERROR("couldnt load lookup table:  {}", e)
+                logger.error("couldnt load lookup table:  {}", e)
         return None
  
     def _update_lookuptable_tickers_cik(self):
@@ -394,7 +394,7 @@ class Downloader:
                     f.write(json.dumps(transformed_content))
             except Exception as e:
 
-                logger.ERROR((
+                logger.error((
                     f"couldnt update ticker_cik file."
                     f"unhandled exception: {e}"))
             # should add finally clause which restores file to inital state?
@@ -637,7 +637,6 @@ class Downloader:
 
     
 
-dl = Downloader(r"C:\Users\Olivi\Testing\sec_scraping\pysec_downloader\dummy_folder")
-dl.get_filings("KO", "10-K", number_of_filings=2)
+
 
 
