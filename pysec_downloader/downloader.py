@@ -50,6 +50,7 @@ Other Notes:
 
 '''
 from tempfile import TemporaryFile
+from bs4 import BeautifulSoup
 import requests
 import json
 from urllib3.util import Retry
@@ -151,6 +152,7 @@ class Downloader:
         want_amendments: bool = True,
         skip_not_prefered_extension: bool = False,
         save: bool = True,
+        resolve_urls: bool = True,
         callback = None):
         '''download filings.
         
@@ -165,15 +167,19 @@ class Downloader:
             want_amendements: if we want to include amendment files or not
             skip_not_prefered_extension: either download or exclude if prefered_file_type
                                fails to match/download
-            save: toggles saving files downloaded. $
+            save: toggles saving the files downloaded.
+            resolve_url: resolves relative urls to absolute ones in "htm"/"html" files 
             callback: pass a function that expects a dict of {"file": file, "meta": meta}
-                      meta includes the metadata .
+                      meta includes the metadata.
         '''
         if prefered_file_type == (None or ""):
-            prefered_file_type = (PREFERED_FILE_TYPE_MAP[form_type] 
-                                 if PREFERED_FILE_TYPE_MAP[form_type]
-                                 else "htm")
-        logger.debug((f"called get_filings with args: {locals()}"))
+            if form_type not in PREFERED_FILE_TYPE_MAP.keys():
+                logger.info(f"No Default file_type set for this form_type: {form_type}. trying 'htm'")
+                prefered_file_type = "htm"
+            else:
+                prefered_file_type = PREFERED_FILE_TYPE_MAP[form_type] 
+                                
+        logger.debug((f"\n Called get_filings with args: {locals()}"))
         hits = self._json_from_search_api(
             ticker_or_cik=ticker_or_cik,
             form_type=form_type,
@@ -186,11 +192,13 @@ class Downloader:
             logger.debug("returned without downloading because hits was None")
             return
         base_meta = [self._get_base_metadata_from_hit(h) for h in hits]
-        meta = [self._guess_full_url(
+        base_meta = [self._guess_full_url(
             h, prefered_file_type, skip_not_prefered_extension) for h in base_meta]
         
-        for m in meta:
+        for m in base_meta:
             file = self._download_filing(m)
+            if resolve_urls and Path(file["save_name"]).suffix == "htm":
+                file = self._resolve_relative_urls(file, base_meta)
             if save is True:
                 if file:
                     self._save_filing(ticker_or_cik, m, file)
@@ -479,7 +487,22 @@ class Downloader:
              f"created file_url: {base_meta['file_url']} \n"
              f"created fallback_url:{base_meta['fallback_url']}\n"))
         return base_meta
-
+    
+    def _resolve_relative_urls(self, filing: str, base_meta: dict):
+        # soup content then resolve relative links and image locations
+        soup = BeautifulSoup(filing)
+        base = base_meta["base_url"]
+        for rurl in soup.find_all("a", href=True):
+            href = rurl["href"]
+            if href.startswith("http") or href.startswith("#"):
+                pass
+            else:
+                rurl["href"] = urljoin(base, href)
+        
+        for image in soup.find_all("img", src=True):
+            image["src"] = urljoin(base, image["src"])
+        
+        return soup.encode(soup.original_encoding) if soup.original_encoding else soup
     
     def _transform_from_full_text(self, full_text: str, form_type: str, file_extension: list):
         # quick to implement as most code is already in parser
