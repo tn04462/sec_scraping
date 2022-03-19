@@ -2,3 +2,4 @@ filings/
 datasets/
 test_eq.py
 pysec_downloader/dummy_folder
+.vscode/launch.json
