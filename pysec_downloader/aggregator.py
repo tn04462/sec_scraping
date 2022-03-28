@@ -45,6 +45,14 @@ class Fact:
         self.instant = None
         self.period = None
         self.filing_date = None
+        self.fp = None
+        self.fy = None
+        self.accn = None
+        self.form = None
+    
+    def __repr__(self):
+        return self.name +":"+ str(self.value) +":"+ self.unit +"\n"
+
 
 def get_fact_data(companyfacts, name, taxonomy, unit="USD"):
     facts = []
@@ -62,11 +70,23 @@ def get_fact_data(companyfacts, name, taxonomy, unit="USD"):
                 fstring = fname.string
                 for unit in companyfacts["facts"][taxonomy][fstring]["units"]:
                     for single_fact in companyfacts["facts"][taxonomy][fstring]["units"][unit]:
+                        print(single_fact)
                         f = Fact()
                         f.taxonomy = taxonomy
                         f.name = fstring
+                        f.value = single_fact["val"]
+                        f.unit = unit
+                        f.filing_date = single_fact["filed"]
+                        f.fy = single_fact["fy"]
+                        f.fp = single_fact["fp"]
+                        f.form = single_fact["form"]
+                        f.accn = single_fact["accn"]
+                        if "start" in single_fact.keys():
+                            f.period = {"start": single_fact["start"], "end": single_fact["end"]}
+                        else:
+                            f.instant = single_fact["instant"]
                         
-                facts.append(companyfacts["facts"][taxonomy][fname.string])
+                        facts.append(f)
             # f = Fact()
             # f.taxonomy = taxonomy
             # f.name = name
@@ -99,18 +119,23 @@ def get_fact_data(companyfacts, name, taxonomy, unit="USD"):
 '''
 
 
-
-
-# dl = Downloader(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts", user_agent="john smith js@test.com")
-
-# symb = ["PHUN", "GNUS", "IMPP"]
+        
 import json
 import re
 from pathlib import Path
-with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\pysec_downloader\companyfacts") / ("PHUN" + ".json"), "r") as f:
-    j = json.load(f)
-    f = get_fact_data(j, "ProceedsFromIssuance", "us-gaap")
-    print(len(f))
+
+dl = Downloader(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts", user_agent="john smith js@test.com")
+print(len(dl._lookuptable_ticker_cik.keys()))
+# symb = ["PHUN", "GNUS", "IMPP"]
+# for s in symb:
+#     j = dl.get_xbrl_companyfacts(s)
+#     with open((dl.root_path / (s +".json")), "w") as f:
+#         json.dump(j, f)
+
+# with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\pysec_downloader\companyfacts") / ("PHUN" + ".json"), "r") as f:
+#     j = json.load(f)
+#     f = get_fact_data(j, "ProceedsFromIssuance", "us-gaap")
+#     print(f)
 
 # for s in symb:
 #         # j = dl.get_xbrl_companyfacts(s)
