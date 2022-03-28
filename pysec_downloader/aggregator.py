@@ -34,23 +34,48 @@ Unit key I want is USD so a fact i want is accessed by using json["facts"][taxon
 for issuance of inital public offering take the filing date as the instant of the value
 for issuance of 
 '''
-from parser.xbrl_structure import Instant, Period
+import re
+
 class Fact:
     def __init__(self):
         self.taxonomy = None
         self.name = None
         self.value = None
         self.unit = None
+        self.instant = None
         self.period = None
         self.filing_date = None
 
-def get_fact_data(self, companyfacts, name, taxonomy, unit="USD"):
+def get_fact_data(companyfacts, name, taxonomy, unit="USD"):
     facts = []
-    data_points = companyfacts["facts"][taxonomy][name][unit]
-    for d in data_points:
-        f = Fact()
-        if ("start" and "end") in d.keys():
-            f.period = Period(start=d["start"], end=d["end"])
+    data_points = companyfacts["facts"][taxonomy] #[name] #[unit]
+    searchterm = None
+    if isinstance(name, re.Pattern):
+        for d in data_points:
+            fname = re.search(name, d)
+            if fname:
+                facts.append(companyfacts["facts"][taxonomy][fname])
+    else:
+        for d in data_points:
+            fname = re.search(re.compile("(.*)("+name+")(.*)", re.I), d)
+            if fname:
+                fstring = fname.string
+                for unit in companyfacts["facts"][taxonomy][fstring]["units"]:
+                    for single_fact in companyfacts["facts"][taxonomy][fstring]["units"][unit]:
+                        f = Fact()
+                        f.taxonomy = taxonomy
+                        f.name = fstring
+                        
+                facts.append(companyfacts["facts"][taxonomy][fname.string])
+            # f = Fact()
+            # f.taxonomy = taxonomy
+            # f.name = name
+            # f.unit = unit
+            # if ("start" and "end") in d.keys():
+            #     f.period = {"start": d["start"], "end": d["end"]}
+            #     # f.period = Period(start=d["start"], end=d["end"])
+            # print(d)
+    return facts
 
 '''what: a fact that contains taxonomy, name, value, period, filing_date
 --> how will i use it?
@@ -75,27 +100,28 @@ def get_fact_data(self, companyfacts, name, taxonomy, unit="USD"):
 
 
 
-    return 
 
+# dl = Downloader(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts", user_agent="john smith js@test.com")
 
-dl = Downloader(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts", user_agent="john smith js@test.com")
-
-symb = ["PHUN", "GNUS", "IMPP"]
-
-
+# symb = ["PHUN", "GNUS", "IMPP"]
 import json
 import re
 from pathlib import Path
-for s in symb:
-        # j = dl.get_xbrl_companyfacts(s)
-        # with open((dl.root_path / (s +".json")), "w") as f:
-        #     json.dump(j, f)
-        with open(Path(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts") / (s + ".json"), "r") as f:
-            j = json.load(f)
-            matches = []
-            for each in j["facts"].keys():
-                for possible in j["facts"][each]:
+with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\pysec_downloader\companyfacts") / ("PHUN" + ".json"), "r") as f:
+    j = json.load(f)
+    f = get_fact_data(j, "ProceedsFromIssuance", "us-gaap")
+    print(len(f))
+
+# for s in symb:
+#         # j = dl.get_xbrl_companyfacts(s)
+#         # with open((dl.root_path / (s +".json")), "w") as f:
+#         #     json.dump(j, f)
+#         with open(Path(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts") / (s + ".json"), "r") as f:
+#             j = json.load(f)
+#             matches = []
+#             for each in j["facts"].keys():
+#                 for possible in j["facts"][each]:
                     
-                    if re.search(re.compile("ProceedsFromIssuance(.*)", re.I), possible):
-                        matches.append(possible)
-            print([j["facts"]["us-gaap"][p] for p in matches])
+#                     if re.search(re.compile("ProceedsFromIssuance(.*)", re.I), possible):
+#                         matches.append(possible)
+#             print([j["facts"]["us-gaap"][p] for p in matches])
