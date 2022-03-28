@@ -1,0 +1,3 @@
+import db_handler.base_data_aggregation as base_data
+
+base_data.update_bulk_files

@@ -2,6 +2,8 @@
 #URLS
 EDGAR_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data"
 SEC_SEARCH_API_URL = "https://efts.sec.gov/LATEST/search-index"
+SEC_BULK_COMPANYFACTS = "https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip"
+SEC_BULK_SUBMISSIONS = "https://www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip"
 SEC_API_XBRL_BASE = "https://data.sec.gov/api/xbrl"
 SEC_API_XBRL_COMPANYCONCEPT_URL = "https://data.sec.gov/api/xbrl/companyconcept"
 SEC_API_XBRL_COMPANYFACTS_URL  = "https://data.sec.gov/api/xbrl/companyfacts"

@@ -1,7 +1,8 @@
 '''
 Aim: Be able to download any SEC file type in every(as long as available
  on website) file format for every filer identified either by
- CIK or ticker symbol. While respecting the sec guidelines:
+ CIK or ticker symbol and found on the ticker:cik map of the sec. 
+ While respecting the sec guidelines:
   https://www.sec.gov/privacy.htm#security
   
   the most important are:
@@ -13,62 +14,29 @@ Sec information:
     https://www.sec.gov/os/accessing-edgar-data
     https://www.sec.gov/os/webmaster-faq#developers
 
-Flow of Program:
-    * Downloader creates session
-    * 
-    1) call is made to get_filings("aapl", 10-Q, from_date=2020-01-01, max_amount=10)
-    2) get the base-url to the wanted filings by making post request to search-API
-    3) get metadata from results 
-    4) try to get the prefered_file_extension by building the url with consideration of form type
-    5) downloaded each file and save and/or pass to callback
     
 Things to add:
     * splitting a full text submission and writting individual files 
-
-Things to fix:
-    * "html" as prefered file type doesnt match .htm files same for "htm" and .html
-    * 
-        
-
-Other Notes:
-        create an index file that makes lookup by case number faster
-
-        bulk data instead of pulling every 10-Q/10-K and parsing the xbrl
-        compare in case of PHUN for shares outstanding to see if relevant
-        facts are omitted by not linking them to us-gaap or dei
-
-        still need to pull individual S-1, S-3, 424B's ect
-        and parse those to get information on dilutive data
-        like shelves, notes, offerings ect!
-        need to parse those in html...
-        
-        see below for relevance of filing and specificatiosn:
-        https://www.sec.gov/dera/data/dera_edgarfilingcounts
-        https://www.sec.gov/edgar/filer-information/current-edgar-filer-manual
-
-   
+ 
 
 '''
-from tempfile import TemporaryFile
 from bs4 import BeautifulSoup
 import requests
 import json
 from urllib3.util import Retry
 import time
 from functools import wraps
-import re
 import logging
 from posixpath import join as urljoin
 from pathlib import Path
 from urllib.parse import urlparse
 from zipfile import ZipFile
-
 from _constants import *
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-debug = True
+debug = False
 if debug is True:
     logger.setLevel(logging.DEBUG)
     
@@ -252,7 +220,48 @@ class Downloader:
         resp = self._get(url=url, headers=self._sec_xbrl_api_headers)
         content = resp.json()
         return content
-
+    
+    def get_bulk_companyfacts(self, extract=True):
+        '''get all the companyfacts in one zip file
+        
+        Args:
+            extract: extract the zip into /companyfacts or just save the zip
+                     in the root_path
+        '''
+        resp = self._get(url=SEC_BULK_COMPANYFACTS, headers=self._sec_files_headers)
+        resp.raise_for_status()
+        if resp:
+            resp = resp.content
+        save_path = None
+        if extract is True:
+            save_path = self.root_path / "companyfacts"
+            save_path.mkdir(parents=True, exist_ok=True)
+            with ZipFile(save_path, "r") as z:
+                z.extractall(save_path)
+        else:
+            save_path = self.root_path
+            save_path.write_bytes(resp)
+    
+    def get_bulk_submissions(self, extract=True):
+        '''get a file of all the sec submissions for every company in one zip file
+        
+        Args:
+            extract: extract the zip into /submissions or just save the zip
+                     in the root_path
+        '''
+        resp = self._get(url=SEC_BULK_SUBMISSIONS, headers=self._sec_files_headers)
+        resp.raise_for_status()
+        if resp:
+            resp = resp.content
+        save_path = None
+        if extract is True:
+            save_path = self.root_path / "submissions"
+            save_path.mkdir(parents=True, exist_ok=True)
+            with ZipFile(save_path, "r") as z:
+                z.extractall(save_path)
+        else:
+            save_path = self.root_path
+            save_path.write_bytes(resp)
 
 
     def get_file_company_tickers(self) -> dict:
