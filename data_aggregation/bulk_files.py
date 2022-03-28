@@ -10,7 +10,4 @@ def update_bulk_files():
     return
 
 if __name__ == "__main__":
-    import time
-    print("running....", time.time())
     update_bulk_files()
-    print("done", time.time())
