@@ -18,4 +18,11 @@ def update_bulk_files():
     return
 
 if __name__ == "__main__":
+    '''
+    entry point for what tickers to extract and update down the line will be config[general][tracked_tickers]
+    get bulk company data from sbmissions.zip
+    might want to make this per ticker, so ican reuse when adding more tickers later on
+    
+    '''
+    
     pass    # update_bulk_files()

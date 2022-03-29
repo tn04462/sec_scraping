@@ -7,6 +7,8 @@ name = "pypi"
 pandas = "*"
 matplotlib = "*"
 pysec-downloader = "*"
+psycopg-pool = "*"
+psycopg = {extras = ["binary"], version = "*"}
 
 [dev-packages]
 
