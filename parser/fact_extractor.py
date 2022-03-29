@@ -69,35 +69,35 @@ def get_fact_data(companyfacts, name, taxonomy, unit="USD"):
     return facts
 
 
-
+if __name__ == "__main__":
         
-import json
-import re
-from pathlib import Path
+    import json
+    import re
+    from pathlib import Path
 
-# dl = Downloader(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts", user_agent="john smith js@test.com")
-# print(len(dl._lookuptable_ticker_cik.keys()))
-# symb = ["PHUN", "GNUS", "IMPP"]
-# for s in symb:
-#     j = dl.get_xbrl_companyfacts(s)
-#     with open((dl.root_path / (s +".json")), "w") as f:
-#         json.dump(j, f)
+    # dl = Downloader(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts", user_agent="john smith js@test.com")
+    # print(len(dl._lookuptable_ticker_cik.keys()))
+    # symb = ["PHUN", "GNUS", "IMPP"]
+    # for s in symb:
+    #     j = dl.get_xbrl_companyfacts(s)
+    #     with open((dl.root_path / (s +".json")), "w") as f:
+    #         json.dump(j, f)
 
-with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\pysec_downloader\companyfacts") / ("PHUN" + ".json"), "r") as f:
-    j = json.load(f)
-    f = get_fact_data(j, "sharesIssued", "us-gaap")
-    print(f)
+    with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\pysec_downloader\companyfacts") / ("PHUN" + ".json"), "r") as f:
+        j = json.load(f)
+        f = get_fact_data(j, "sharesIssued", "us-gaap")
+        print(f)
 
-# for s in symb:
-#         # j = dl.get_xbrl_companyfacts(s)
-#         # with open((dl.root_path / (s +".json")), "w") as f:
-#         #     json.dump(j, f)
-#         with open(Path(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts") / (s + ".json"), "r") as f:
-#             j = json.load(f)
-#             matches = []
-#             for each in j["facts"].keys():
-#                 for possible in j["facts"][each]:
-                    
-#                     if re.search(re.compile("ProceedsFromIssuance(.*)", re.I), possible):
-#                         matches.append(possible)
-#             print([j["facts"]["us-gaap"][p] for p in matches])
+    # for s in symb:
+    #         # j = dl.get_xbrl_companyfacts(s)
+    #         # with open((dl.root_path / (s +".json")), "w") as f:
+    #         #     json.dump(j, f)
+    #         with open(Path(r"C:\Users\Olivi\Testing\sec_scraping_testing\pysec_downloader\companyfacts") / (s + ".json"), "r") as f:
+    #             j = json.load(f)
+    #             matches = []
+    #             for each in j["facts"].keys():
+    #                 for possible in j["facts"][each]:
+                        
+    #                     if re.search(re.compile("ProceedsFromIssuance(.*)", re.I), possible):
+    #                         matches.append(possible)
+    #             print([j["facts"]["us-gaap"][p] for p in matches])

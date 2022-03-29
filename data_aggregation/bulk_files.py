@@ -1,7 +1,15 @@
 from pysec_downloader.downloader import Downloader
-from config import ROOT_PATH, SEC_USER_AGENT
 
-dl = Downloader(ROOT_PATH, user_agent=SEC_USER_AGENT)
+from configparser import ConfigParser
+from os import path
+config_path = path.normpath(path.join(path.dirname(path.abspath(__file__)), '..', "config.cfg"))
+config = ConfigParser()
+config.read(config_path)
+
+
+
+
+dl = Downloader(config["downloader"]["bulk_file_root_path"], user_agent=config["downloader"]["sec_user_agent"])
 
 def update_bulk_files():
     '''update submissions and companyfacts bulk files'''
@@ -10,4 +18,4 @@ def update_bulk_files():
     return
 
 if __name__ == "__main__":
-    update_bulk_files()
+    pass    # update_bulk_files()
