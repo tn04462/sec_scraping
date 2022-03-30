@@ -1,6 +1,7 @@
 from psycopg.rows import dict_row
-from psycopg import ProgrammingError
+from psycopg.errors import ProgrammingError, UniqueViolation
 from psycopg_pool import ConnectionPool
+from json import load
 from os import path
 import pandas as pd
 import logging
@@ -23,6 +24,11 @@ class DilutionDB:
         self.connectionString = connectionString
         self.pool = ConnectionPool(self.connectionString, kwargs={"row_factory": dict_row})
         self.conn = self.pool.connection
+        self.tracked_tickers = self._init_tracked_tickers()
+    
+    def _init_tracked_tickers(self):
+        # add try except when needed for good error message
+            return [t.strip() for t in config["general"]["tracked_tickers"].strip("[]").split(",")]
     
     def execute_sql_file(self, path):
         with self.conn() as c:
@@ -60,19 +66,43 @@ class DilutionDB:
             with c.cursor().copy("COPY sics(sic, industry, sector, division) FROM STDIN") as copy:
                 for val in sics.values:
                     copy.write_row(val)
-            # c.execute(r"COPY sics FROM 'c:\Users\Olivi\Testing\sec_scraping\resources\sics.csv' WITH DELIMITER ','  CSV HEADER")
+    
+    def create_sic(self, sic, sector, industry, division):
+        with self.conn() as c:
+            c.execute("INSERT INTO sics(sic, industry, sector, division) VALUES(%s, %s, %s, %s)",
+            [sic, sector, industry, division])
+    
+    def create_company(self, cik, sic, symbol, name, description):
+        with self.conn() as c:
+                c.execute("INSERT INTO companies(cik, sic, symbol, name_, description_) VALUES(%s, %s, %s, %s, %s)",
+                [cik, sic, symbol, name, description])
 
-
+    def create_tracked_companies(self):
+        base_path = config["polygon"]["overview_files_path"]
+        for ticker in self.tracked_tickers:
+            company_overview_file_path = path.join(base_path, f"{ticker}.json")
+            with open(company_overview_file_path, "r") as company:
+                corp = load(company)
+                try:
+                    self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
+                except UniqueViolation:
+                    pass
+                except Exception as e:
+                    if "fk_sic" in str(e):
+                        self.create_sic(corp["sic_code"], "unclassfied", corp["sic_description"], "unclassified")
+                        self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
 if __name__ == "__main__":
     
     db = DilutionDB(config["dilution_db"]["connectionString"])
     # with db.conn() as c:
-    #     res = c.execute("SELECT * FROM sics")
+    #     res = c.execute("SELECT * FROM companies JOIN sics ON companies.sic = sics.sic")
     #     for r in res:
     #         print(r)
     # db._delete_all_tables()
     # db._create_tables()
-    db.create_sics()
+    # db.create_sics()
+    db.create_tracked_companies()
+
 
 
 

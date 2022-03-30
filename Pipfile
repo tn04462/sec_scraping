@@ -9,6 +9,7 @@ matplotlib = "*"
 pysec-downloader = "*"
 psycopg-pool = "*"
 psycopg = {extras = ["binary"], version = "*"}
+polygon-api-client = "*"
 
 [dev-packages]
 
