@@ -1,10 +1,8 @@
-
-
-
 CREATE TABLE IF NOT EXISTS sics (
     sic INT PRIMARY KEY,
     sector VARCHAR(255) NOT NULL,
     industry VARCHAR(255) NOT NULL,
+    division VARCHAR(255) NOT NULL,
 
     UNIQUE(sector, industry)
 );
