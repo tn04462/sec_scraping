@@ -1,11 +1,13 @@
 from psycopg.rows import dict_row
 from psycopg import ProgrammingError
 from psycopg_pool import ConnectionPool
+from os import path
 import pandas as pd
 import logging
+
 from configparser import ConfigParser
 
-logger = logging.get_logger(__package__)
+logger = logging.getLogger(__package__)
 
 config = ConfigParser()
 config.read("./config.cfg")
@@ -52,18 +54,27 @@ class DilutionDB:
             return rows
     
     def create_sics(self):
-        sics = pd.read_csv("./resources/sics.csv")
-        print(sics)
+        sics_path = path.normpath(path.join(path.dirname(path.abspath(__file__)), '.', "resources/sics.csv"))
+        sics = pd.read_csv(sics_path)
+        with self.conn() as c:
+            with c.cursor().copy("COPY sics(sic, industry, sector, division) FROM STDIN") as copy:
+                for val in sics.values:
+                    copy.write_row(val)
+            # c.execute(r"COPY sics FROM 'c:\Users\Olivi\Testing\sec_scraping\resources\sics.csv' WITH DELIMITER ','  CSV HEADER")
 
 
 if __name__ == "__main__":
     
     db = DilutionDB(config["dilution_db"]["connectionString"])
     # with db.conn() as c:
-    #     c.execute("CREATE TABLE IF NOT EXISTS test_table (test_field INT)")
+    #     res = c.execute("SELECT * FROM sics")
+    #     for r in res:
+    #         print(r)
     # db._delete_all_tables()
-    db._create_tables()
-    # db.create_sics()
+    # db._create_tables()
+    db.create_sics()
+
+
 
 
 

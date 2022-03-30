@@ -20,9 +20,6 @@ CREATE TABLE IF NOT EXISTS companies (
             REFERENCES sics(sic)
 );
 
-
-
-
 CREATE TABLE IF NOT EXISTS outstanding_shares(
     company_id SERIAL,
     instant DATE,
@@ -62,7 +59,6 @@ CREATE TABLE IF NOT EXISTS cash_burn_rate(
     burn_rate_trailing12 FLOAT,
     burn_rate_forward12 FLOAT,
     last_update DATE
-
 );
 
 CREATE TABLE IF NOT EXISTS form_types(
