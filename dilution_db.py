@@ -86,11 +86,15 @@ class DilutionDB:
                 try:
                     self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
                 except UniqueViolation:
+                    logger.debug("couldnt create {}:company, already present in db.", ticker)
                     pass
                 except Exception as e:
                     if "fk_sic" in str(e):
                         self.create_sic(corp["sic_code"], "unclassfied", corp["sic_description"], "unclassified")
                         self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
+                    else:
+                        raise e
+
 if __name__ == "__main__":
     
     db = DilutionDB(config["dilution_db"]["connectionString"])

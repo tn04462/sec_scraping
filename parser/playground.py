@@ -109,29 +109,37 @@
 # #     print(parser.get_dilution_table())
 # #         # print(parser.get_tables())
 
-from site import PREFIXES
-import pandas
-
-sic2 =  pandas.read_csv(r"C:\Users\Olivi\Desktop\sic-codes4.csv")
-sic1 =  pandas.read_csv(r"C:\Users\Olivi\Desktop\sic-codes2.csv")
-sic0 =  pandas.read_csv(r"C:\Users\Olivi\Desktop\sic-codes1.csv")
-industry_groups = pandas.read_csv(r"C:\Users\Olivi\Desktop\industry-groups.csv")
 
 
-print(sic0.columns, sic1.columns, sic2.columns)
+# import pandas
 
-sic3 = sic2.merge(sic1, on=["Major Group", "Division"])
+# sic2 =  pandas.read_csv(r"C:\Users\Olivi\Desktop\sic-codes4.csv")
+# sic1 =  pandas.read_csv(r"C:\Users\Olivi\Desktop\sic-codes2.csv")
+# sic0 =  pandas.read_csv(r"C:\Users\Olivi\Desktop\sic-codes1.csv")
+# industry_groups = pandas.read_csv(r"C:\Users\Olivi\Desktop\industry-groups.csv")
 
-sic3 = sic3.merge(sic0, on="Division")
-sic3 = sic3.merge(industry_groups, on=["Major Group", "Division", "Industry Group"], suffixes=["sic3", "ig"])
-print(sic3.head())
 
-# print(sic4.head())
-sic3.drop("Division", axis=1, inplace=True)
-sic5 = sic3.rename({"Description_y": "Sector", "Descriptionsic3": "Division", "Description_x": "Industry"}, axis=1)
-sic6 = sic5[["SIC", "Industry", "Sector", "Division"]]
-sic6.set_index("SIC", inplace=True)
-print(sic6.head())
-sic6.to_csv(r"C:\Users\Olivi\Desktop\sics.csv")
+# print(sic0.columns, sic1.columns, sic2.columns)
+
+# sic3 = sic2.merge(sic1, on=["Major Group", "Division"])
+
+# sic3 = sic3.merge(sic0, on="Division")
+# sic3 = sic3.merge(industry_groups, on=["Major Group", "Division", "Industry Group"], suffixes=["sic3", "ig"])
+# print(sic3.head())
+
+# # print(sic4.head())
+# sic3.drop("Division", axis=1, inplace=True)
+# sic5 = sic3.rename({"Description_y": "Sector", "Descriptionsic3": "Division", "Description_x": "Industry"}, axis=1)
+# sic6 = sic5[["SIC", "Industry", "Sector", "Division"]]
+# sic6.set_index("SIC", inplace=True)
+# print(sic6.head())
+# sic6.to_csv(r"C:\Users\Olivi\Desktop\sics.csv")
+
+import pysec_downloader.downloader
+
+print(pysec_downloader)
+
+dl = pysec_downloader.downloader.Downloader(r"C:\Users\Olivi\Downloads")
+dl._json_from_search_api("PHUN", "S-3")
 
 
