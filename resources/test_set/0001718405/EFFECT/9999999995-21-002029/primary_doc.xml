@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<edgarSubmission>
+
+    <schemaVersion>X0101</schemaVersion>
+
+    <submissionType>EFFECT</submissionType>
+
+    <act>33</act>
+
+    <testOrLive>LIVE</testOrLive>
+
+    <effectiveData>
+        <finalEffectivenessDispDate>2021-05-20</finalEffectivenessDispDate>
+        <accessionNumber>0001104659-21-069453</accessionNumber>
+        <submissionType>POS AM</submissionType>
+        <filer>
+            <cik>0001718405</cik>
+            <entityName>HYCROFT MINING HOLDING CORP</entityName>
+            <fileNumber>333-248516</fileNumber>
+        </filer>
+    </effectiveData>
+</edgarSubmission>
