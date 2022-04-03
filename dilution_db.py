@@ -72,28 +72,84 @@ class DilutionDB:
             c.execute("INSERT INTO sics(sic, industry, sector, division) VALUES(%s, %s, %s, %s)",
             [sic, sector, industry, division])
     
-    def create_company(self, cik, sic, symbol, name, description):
+    def create_company(self, cik, sic, symbol, name, description, sic_description=None):
         with self.conn() as c:
-                c.execute("INSERT INTO companies(cik, sic, symbol, name_, description_) VALUES(%s, %s, %s, %s, %s)",
+            try:
+                id = c.execute("INSERT INTO companies(cik, sic, symbol, name_, description_) VALUES(%s, %s, %s, %s, %s) RETURNING id",
                 [cik, sic, symbol, name, description])
-
-    def create_tracked_companies(self):
-        base_path = config["polygon"]["overview_files_path"]
-        for ticker in self.tracked_tickers:
-            company_overview_file_path = path.join(base_path, f"{ticker}.json")
-            with open(company_overview_file_path, "r") as company:
-                corp = load(company)
-                try:
-                    self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
-                except UniqueViolation:
-                    logger.debug("couldnt create {}:company, already present in db.", ticker)
-                    pass
-                except Exception as e:
-                    if "fk_sic" in str(e):
-                        self.create_sic(corp["sic_code"], "unclassfied", corp["sic_description"], "unclassified")
-                        self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
-                    else:
+                return id.fetchone()["id"]
+            except UniqueViolation:
+                logger.debug(f"couldnt create {symbol}:company, already present in db.")
+                logger.debug(f"querying and returning the company_id instead of creating it")
+                c.rollback()
+                id = c.execute("SELECT id from companies WHERE symbol = %s AND cik = %s",
+                [symbol, cik])
+                return id.fetchone()["id"]
+            except Exception as e:
+                if "fk_sic" in str(e):
+                    if sic_description is None:
+                        raise ValueError(f"couldnt create missing sic without sic_description, create_company called with: {locals()}")
+                    try:
+                        self.create_sic(sic, "unclassfied", sic_description, "unclassified")
+                    except Exception as e:
+                        logger.debug(f"failed to missing sic in create_company: e{e}")
                         raise e
+                    id = self.create_company(cik, sic, symbol, name, description)
+                else:
+                    raise e
+    
+    def create_outstanding_shares(self, company_id, instant, amount):
+        with self.conn() as c:
+            try:
+                c.execute("INSERT INTO outstanding_shares(company_id, instant, amount) VALUES(%s, %s, %s)",
+                [company_id, instant, amount])
+            except UniqueViolation as e:
+                logger.debug(e)
+                pass
+            except Exception as e:
+                raise e
+    
+    def create_net_cash_and_equivalents(self, company_id, instant, amount):
+        with self.conn() as c:
+            try:
+                c.execute("INSERT INTO net_cash_and_equivalents(company_id, instant, amount) VALUES(%s, %s, %s)",
+                [company_id, instant, amount])
+            except UniqueViolation as e:
+                logger.debug(e)
+                pass
+            except Exception as e:
+                raise e
+    
+    def create_net_cash_and_equivalents_excluding_restricted_noncurrent(self, company_id, instant, amount):
+        with self.conn() as c:
+            try:
+                c.execute("INSERT INTO net_cash_and_equivalents_excluding_restricted_noncurrent(company_id, instant, amount) VALUES(%s, %s, %s)",
+                [company_id, instant, amount])
+            except UniqueViolation as e:
+                logger.debug(e)
+                pass
+            except Exception as e:
+                raise e
+
+
+
+    # def create_tracked_companies(self):
+    #     base_path = config["polygon"]["overview_files_path"]
+    #     for ticker in self.tracked_tickers:
+    #         company_overview_file_path = path.join(base_path, f"{ticker}.json")
+    #         with open(company_overview_file_path, "r") as company:
+    #             corp = load(company)
+    #             try:
+    #                 self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
+    #             except UniqueViolation:
+    #                 logger.debug("couldnt create {}:company, already present in db.", ticker)
+    #                 pass
+    #             except Exception as e:
+    #                 if "fk_sic" in str(e):
+    #                     self.create_sic(corp["sic_code"], "unclassfied", corp["sic_description"], "unclassified")
+    #                     self.create_company(corp["cik"], corp["sic_code"], ticker, corp["name"], corp["description"])
+    #                 else:
+    #                     raise e
 
 if __name__ == "__main__":
     
@@ -105,7 +161,7 @@ if __name__ == "__main__":
     # db._delete_all_tables()
     # db._create_tables()
     # db.create_sics()
-    db.create_tracked_companies()
+    # db.create_tracked_companies()
 
 
 

@@ -135,11 +135,116 @@
 # print(sic6.head())
 # sic6.to_csv(r"C:\Users\Olivi\Desktop\sics.csv")
 
-import pysec_downloader.downloader
+# import pysec_downloader.downloader
 
-print(pysec_downloader)
+# print(pysec_downloader)
 
-dl = pysec_downloader.downloader.Downloader(r"C:\Users\Olivi\Downloads")
-dl._json_from_search_api("PHUN", "S-3")
+# dl = pysec_downloader.downloader.Downloader(r"C:\Users\Olivi\Downloads")
+# dl._json_from_search_api("PHUN", "S-3")
 
+from re import search
+import time
+from contextlib import ContextDecorator
+from dataclasses import dataclass, field
+from typing import Any, Callable, ClassVar, Dict, Optional
+
+class TimerError(Exception):
+    """A custom exception used to report errors in use of Timer class"""
+
+@dataclass
+class Timer(ContextDecorator):
+    """Time your code using a class, context manager, or decorator"""
+
+    timers: ClassVar[Dict[str, float]] = {}
+    name: Optional[str] = None
+    text: str = "Elapsed time: {:0.4f} seconds"
+    logger: Optional[Callable[[str], None]] = print
+    _start_time: Optional[float] = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Initialization: add timer to dict of timers"""
+        if self.name:
+            self.timers.setdefault(self.name, 0)
+
+    def start(self) -> None:
+        """Start a new timer"""
+        if self._start_time is not None:
+            raise TimerError(f"Timer is running. Use .stop() to stop it")
+
+        self._start_time = time.perf_counter()
+
+    def stop(self) -> float:
+        """Stop the timer, and report the elapsed time"""
+        if self._start_time is None:
+            raise TimerError(f"Timer is not running. Use .start() to start it")
+
+        # Calculate elapsed time
+        elapsed_time = time.perf_counter() - self._start_time
+        self._start_time = None
+
+        # Report elapsed time
+        if self.logger:
+            self.logger(self.text.format(elapsed_time))
+        if self.name:
+            self.timers[self.name] += elapsed_time
+
+        return elapsed_time
+
+    def __enter__(self) -> "Timer":
+        """Start a new timer as a context manager"""
+        self.start()
+        return self
+
+    def __exit__(self, *exc_info: Any) -> None:
+        """Stop the context manager timer"""
+        self.stop()
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+    import json
+    import re
+    after = "2022-03-01"
+    submissions = r"E:\dilution_scout_testing_data_and_db\submissions"
+    with Timer() as t:
+        paths = [r for r in Path(submissions).glob("*.json")][0:1]
+
+
+    @Timer()
+    def open_and_close_all(paths):
+        for p in paths:
+            with open(p, "r") as f:
+                j = json.load(f)
+            del j
+
+    @Timer()
+    def search_new_filings(paths, after):
+        new_filings = {}
+        for p in paths:
+            with open(p, "r") as f:
+                j = json.load(f)
+                print(j)
+                stop_idx = None
+                try:
+                    filing_dates = j["filings"]["recent"]["filingDate"]
+                    len_f_dates = len(filing_dates)
+
+                    for r in range(0, len_f_dates, 1):
+                        if filing_dates[r] <= after:
+                            if r == len_f_dates:
+                                break
+                            stop_idx = r
+                            print(stop_idx, len(filing_dates), filing_dates[stop_idx])
+                            break
+                    if stop_idx is not None:
+                        new_filings[j["cik"]] = [[j["filings"]["recent"]["accessionNumber"][idx], j["filings"]["recent"]["filingDate"][idx]
+                        ] for idx in range(0, stop_idx, 1)]
+                except KeyError as e:
+                    pass #second filing not handled yet
+                finally:
+                    del j
+        print(new_filings, "____________________________________")
+
+    # open_and_close_all(paths)
+    search_new_filings(paths, "1998-03-02")
 

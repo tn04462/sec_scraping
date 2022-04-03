@@ -1,3 +1,11 @@
+
+
+CREATE TABLE IF NOT EXISTS files_last_update(
+    filing_links_lud DATE,
+    submissions_zip_lud DATE,
+    companyfacts_zip_lud DATE
+);
+
 CREATE TABLE IF NOT EXISTS sics (
     sic INT PRIMARY KEY,
     sector VARCHAR(255) NOT NULL,
@@ -20,6 +28,18 @@ CREATE TABLE IF NOT EXISTS companies (
             REFERENCES sics(sic)
 );
 
+CREATE TABLE IF NOT EXISTS company_last_update(
+    company_id SERIAL,
+    outstanding_shares_lud DATE,
+    net_cash_and_equivalents_lud DATE,
+    cash_burn_rate_lud DATE,
+    
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id)
+);
+
+-- maybe add taxonomy, name and accn to know source
 CREATE TABLE IF NOT EXISTS outstanding_shares(
     company_id SERIAL,
     instant DATE,
@@ -42,7 +62,7 @@ CREATE TABLE IF NOT EXISTS net_cash_and_equivalents(
     UNIQUE(company_id, instant)
 );
 
-CREATE TABLE IF NOT EXISTS net_cash_and_equivalents_excluding_financing(
+CREATE TABLE IF NOT EXISTS net_cash_and_equivalents_excluding_restricted_noncurrent(
     company_id SERIAL,
     instant DATE,
     amount BIGINT,
@@ -73,6 +93,7 @@ CREATE TABLE IF NOT EXISTS filing_links(
     form_type SERIAL,
     filing_date DATE,
     description_ VARCHAR(2000),
+    file_number VARCHAR(1000),
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
