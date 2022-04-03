@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS sics (
 
 CREATE TABLE IF NOT EXISTS companies (
     id SERIAL PRIMARY KEY,
-    cik BIGINT NOT NULL,
+    cik VARCHAR(80) NOT NULL,
     sic INT,
     symbol VARCHAR(10) UNIQUE,
     name_ VARCHAR(255),
@@ -49,7 +49,29 @@ CREATE TABLE IF NOT EXISTS outstanding_shares(
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
     UNIQUE(company_id, instant)
-); 
+);
+
+CREATE TABLE IF NOT EXISTS market_cap(
+    company_id SERIAL,
+    instant DATE,
+    amount BIGINT,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    UNIQUE(company_id, instant)
+)
+
+-- CREATE TABLE IF NOT EXISTS free_float(
+--     company_id SERIAL,
+--     instant DATE,
+--     amount BIGINT,
+
+--     CONSTRAINT fk_company_id
+--         FOREIGN KEY (company_id)
+--             REFERENCES companies(id),
+--     UNIQUE(company_id, instant)
+-- )
 
 CREATE TABLE IF NOT EXISTS net_cash_and_equivalents(
     company_id SERIAL,

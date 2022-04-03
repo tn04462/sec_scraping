@@ -35,7 +35,7 @@ def format_submissions_json_for_db(base_url, cik, sub):
         for field in wanted_fields:
             entry[field] = filings[field][r]
         entry["filing_html"] = build_submission_link(base_url, cik, entry["accessionNumber"].replace("-", ""), entry["primaryDocument"])
-        print(entry["filing_html"])
+        # print(entry.keys())
         cleaned.append(entry)
     return cleaned
 
@@ -44,7 +44,7 @@ def build_submission_link(base_url, cik, accession_number, primary_document):
 
 
 if __name__ == "__main__":
-    format_submissions_json_for_db("https://www.sec.gov/Archives/edgar/data", "00001718405",sub)
+    format_submissions_json_for_db("https://www.sec.gov/Archives/edgar/data", "00001718405", sub)
     '''
     entry point for what tickers to extract and update down the line will be config[general][tracked_tickers]
     get bulk company data from sbmissions.zip

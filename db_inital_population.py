@@ -73,7 +73,7 @@ def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, pol
             raise ValueError("couldnt get the company id from create_company")
         # load the xbrl facts 
         companyfacts_file_path = Path(bulk_file_path) / "companyfacts" / ("CIK"+ov["cik"]+".json")
-        recent_submissions_file_path = Path(bulk_file_path) / "submissions" / "CIK"+ov["cik"]+".json"
+        recent_submissions_file_path = Path(bulk_file_path) / "submissions" / ("CIK"+ov["cik"]+".json")
         with open(companyfacts_file_path, "r") as f:
             companyfacts = json.load(f)
             
@@ -92,10 +92,11 @@ def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, pol
                     db.create_net_cash_and_equivalents_excluding_restricted_noncurrent(
                         id, fact["end"], fact["val_excluding_restrictednoncurrent"])
             
-        # download the last 2 years of relevant filings
-        after = str((datetime.now() - timedelta(weeks=104)).date())
-        for form in tracked_forms:
-            dl.get_filings(ticker, form, after, number_of_filings=1000)
+        # # download the last 2 years of relevant filings
+        # after = str((datetime.now() - timedelta(weeks=104)).date())
+        # for form in tracked_forms:
+        #     # add check for existing file in pysec_donwloader so i dont download file twice
+        #     dl.get_filings(ticker, form, after, number_of_filings=1000)
             
         # populate filing_links table from submissions.zip
         with open(recent_submissions_file_path, "r") as f:
@@ -109,7 +110,7 @@ def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, pol
                     s["filing_html"],
                     s["form"],
                     s["filingDate"],
-                    s["DocDescription"],
+                    s["primaryDocDescription"],
                     s["fileNumber"])
 
 
@@ -120,10 +121,10 @@ def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, pol
 
 if __name__ == "__main__":
     db = DilutionDB(config["dilution_db"]["connectionString"])
-    db._delete_all_tables()
-    db._create_tables()
-    db.create_sics()
-    db.create_form_types()
+    # db._delete_all_tables()
+    # db._create_tables()
+    # db.create_sics()
+    # db.create_form_types()
     inital_population(db, bulk_file_path, dl_root_path, polygon_overview_files_path, polygon_key, ["HYMC"])
 
 

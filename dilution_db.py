@@ -1,5 +1,5 @@
 from psycopg.rows import dict_row
-from psycopg.errors import ProgrammingError, UniqueViolation
+from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
 from psycopg_pool import ConnectionPool
 from json import load
 from os import path
@@ -60,6 +60,10 @@ class DilutionDB:
                 c.execute("INSERT INTO form_types(form_name, category) VALUES(%s, %s)",
                 [name, category])
 
+    def create_form_type(self, form_name, category):
+        with self.conn() as c:
+            c.execute("INSERT INTO form_types(form_name, category) VALUES(%s, %s)",
+            [form_name, category])
 
     def read(self, query, values):
         with self.conn() as c:
@@ -81,6 +85,8 @@ class DilutionDB:
             [sic, sector, industry, division])
     
     def create_company(self, cik, sic, symbol, name, description, sic_description=None):
+        if len(cik) < 10:
+            raise ValueError("cik needs to be in 10 digit form")
         with self.conn() as c:
             try:
                 id = c.execute("INSERT INTO companies(cik, sic, symbol, name_, description_) VALUES(%s, %s, %s, %s, %s) RETURNING id",
@@ -103,6 +109,7 @@ class DilutionDB:
                         logger.debug(f"failed to add missing sic in create_company: e{e}")
                         raise e
                     id = self.create_company(cik, sic, symbol, name, description)
+                    return id
                 else:
                     raise e
     
@@ -141,9 +148,14 @@ class DilutionDB:
     
     def create_filing_link(self, company_id, filing_html, form_type, filing_date, description, file_number):
         with self.conn() as c:
-            c.execute("INSERT INTO filing_links(company_id, filing_html, form_type, filing_date, description, file_number) VALUES(%s, %s, %s, %s, %s, %s)",
-            [company_id, filing_html, form_type, filing_date, description, file_number])
-
+            try:
+                c.execute("INSERT INTO filing_links(company_id, filing_html, form_type, filing_date, description_, file_number) VALUES(%s, %s, %s, %s, %s, %s)",
+                [company_id, filing_html, form_type, filing_date, description, file_number])
+            except ForeignKeyViolation as e:
+                if "fk_form_type" in str(e):
+                    self.create_form_type(form_type, "unclassified")
+                else:
+                    raise e
 
 
 
