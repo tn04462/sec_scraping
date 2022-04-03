@@ -7,6 +7,7 @@ import pandas as pd
 import logging
 
 from configparser import ConfigParser
+from _constants import FORM_TYPES_INFO
 
 logger = logging.getLogger(__package__)
 
@@ -52,7 +53,14 @@ class DilutionDB:
                 c.execute(sql.read())
 
 
-    # CU for 
+    def create_form_types(self):
+        with self.conn() as c:
+            for name, values in FORM_TYPES_INFO.items():
+                category = values["category"]
+                c.execute("INSERT INTO form_types(form_name, category) VALUES(%s, %s)",
+                [name, category])
+
+
     def read(self, query, values):
         with self.conn() as c:
             res = c.execute(query, values)
@@ -79,8 +87,8 @@ class DilutionDB:
                 [cik, sic, symbol, name, description])
                 return id.fetchone()["id"]
             except UniqueViolation:
-                logger.debug(f"couldnt create {symbol}:company, already present in db.")
-                logger.debug(f"querying and returning the company_id instead of creating it")
+                # logger.debug(f"couldnt create {symbol}:company, already present in db.")
+                # logger.debug(f"querying and returning the company_id instead of creating it")
                 c.rollback()
                 id = c.execute("SELECT id from companies WHERE symbol = %s AND cik = %s",
                 [symbol, cik])
@@ -92,7 +100,7 @@ class DilutionDB:
                     try:
                         self.create_sic(sic, "unclassfied", sic_description, "unclassified")
                     except Exception as e:
-                        logger.debug(f"failed to missing sic in create_company: e{e}")
+                        logger.debug(f"failed to add missing sic in create_company: e{e}")
                         raise e
                     id = self.create_company(cik, sic, symbol, name, description)
                 else:
@@ -130,6 +138,12 @@ class DilutionDB:
                 pass
             except Exception as e:
                 raise e
+    
+    def create_filing_link(self, company_id, filing_html, form_type, filing_date, description, file_number):
+        with self.conn() as c:
+            c.execute("INSERT INTO filing_links(company_id, filing_html, form_type, filing_date, description, file_number) VALUES(%s, %s, %s, %s, %s, %s)",
+            [company_id, filing_html, form_type, filing_date, description, file_number])
+
 
 
 

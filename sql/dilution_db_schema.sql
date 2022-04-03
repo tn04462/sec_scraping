@@ -82,15 +82,15 @@ CREATE TABLE IF NOT EXISTS cash_burn_rate(
 );
 
 CREATE TABLE IF NOT EXISTS form_types(
-    id SERIAL PRIMARY KEY,
-    form_name VARCHAR(200),
+    form_name VARCHAR(200) PRIMARY KEY,
     category VARCHAR(200)
 );
 
+-- check performance with index and without 
 CREATE TABLE IF NOT EXISTS filing_links(
     company_id SERIAL,
     filing_html VARCHAR(500),
-    form_type SERIAL,
+    form_type VARCHAR(200),
     filing_date DATE,
     description_ VARCHAR(2000),
     file_number VARCHAR(1000),
@@ -98,10 +98,9 @@ CREATE TABLE IF NOT EXISTS filing_links(
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    
     CONSTRAINT fk_form_type
         FOREIGN KEY (form_type)
-            REFERENCES form_types(id)
+            REFERENCES form_types(form_name)
 );
 
 
@@ -111,13 +110,16 @@ CREATE TABLE IF NOT EXISTS capital_raise(
     shelf_id SERIAL,
     kind VARCHAR(255),
     amount_usd BIGINT,
-    form_type VARCHAR(255),
+    form_type VARCHAR(200),
     form_acn VARCHAR(255),
     
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
-            REFERENCES companies(id)
+            REFERENCES companies(id),
+    CONSTRAINT fk_form_type
+        FOREIGN KEY (form_type)
+            REFERENCES form_types(form_name)
 );
 
 CREATE TABLE IF NOT EXISTS underwriters(
@@ -129,7 +131,7 @@ CREATE TABLE IF NOT EXISTS shelfs(
     shelf_id SERIAL PRIMARY KEY,
     company_id SERIAL,
     acn_number VARCHAR(255) NOT NULL,
-    form_type VARCHAR(255) NOT NULL,
+    form_type VARCHAR(200) NOT NULL,
     shelf_capacity BIGINT,
     underwriter_id SERIAL,
     total_amount_raised BIGINT,
@@ -144,7 +146,10 @@ CREATE TABLE IF NOT EXISTS shelfs(
             REFERENCES companies(id),
     CONSTRAINT fk_underwriter_id
         FOREIGN KEY (underwriter_id)
-            REFERENCES underwriters(underwriter_id)
+            REFERENCES underwriters(underwriter_id),
+    CONSTRAINT fk_form_type
+        FOREIGN KEY (form_type)
+            REFERENCES form_types(form_name)
 );
 
 
@@ -173,7 +178,10 @@ CREATE TABLE IF NOT EXISTS offerings(
             REFERENCES underwriters(underwriter_id),
     CONSTRAINT fk_filing_status_id
         FOREIGN KEY (filing_status)
-            REFERENCES filing_status(id)
+            REFERENCES filing_status(id),
+    CONSTRAINT fk_form_type
+        FOREIGN KEY (inital_form_type)
+            REFERENCES form_types(form_name)
 );
 
 

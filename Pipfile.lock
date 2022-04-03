@@ -342,11 +342,11 @@
         },
         "pysec-downloader": {
             "hashes": [
-                "sha256:53f87463b03c49244133808e85f048cb0153af910007e41a616166f64e183642",
-                "sha256:57e989fc5a341917ac06be187822814d2b8dcc2de9151b87ef8ed0c0b47f7041"
+                "sha256:37327842261a09e66853da8b2e3b081388606227288e1cc3c16e5561446d1426",
+                "sha256:6a04bdca73ebb54e6d945661b2bab5e265d2d90eb8ab1fc4a8597ca60a2d7d24"
             ],
             "index": "pypi",
-            "version": "==0.0.23"
+            "version": "==0.0.24"
         },
         "python-dateutil": {
             "hashes": [
