@@ -31,7 +31,6 @@ dl_root_path = config["downloader"]["filings_root_path"]
 polygon_overview_files_path = config["polygon"]["overview_files_path"]
 tickers = [t.strip() for t in config["general"]["tracked_tickers"].strip("[]").split(",")]
 tracked_forms = [t.strip() for t in config["general"]["tracked_forms"].strip("[]").split(",")]
-bulk_file_path = config["downloader"]["bulk_file_root_path"]
 
 '''
 1) download the bulk files if they havnt been downloaded yet (check db lud)
@@ -51,7 +50,7 @@ bulk_file_path = config["downloader"]["bulk_file_root_path"]
 
 3) think how i can update daily    
 '''
-def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
+def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
     polygon_client = PolygonClient(polygon_api_key)
     dl = Downloader(dl_root_path)
     if not Path(polygon_overview_files_path).exists():
@@ -72,8 +71,8 @@ def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, pol
         if not id:
             raise ValueError("couldnt get the company id from create_company")
         # load the xbrl facts 
-        companyfacts_file_path = Path(bulk_file_path) / "companyfacts" / ("CIK"+ov["cik"]+".json")
-        recent_submissions_file_path = Path(bulk_file_path) / "submissions" / ("CIK"+ov["cik"]+".json")
+        companyfacts_file_path = Path(dl_root_path) / "companyfacts" / ("CIK"+ov["cik"]+".json")
+        recent_submissions_file_path = Path(dl_root_path) / "submissions" / ("CIK"+ov["cik"]+".json")
         with open(companyfacts_file_path, "r") as f:
             companyfacts = json.load(f)
             
@@ -92,12 +91,6 @@ def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, pol
                     db.create_net_cash_and_equivalents_excluding_restricted_noncurrent(
                         id, fact["end"], fact["val_excluding_restrictednoncurrent"])
             
-        # # download the last 2 years of relevant filings
-        # after = str((datetime.now() - timedelta(weeks=104)).date())
-        # for form in tracked_forms:
-        #     # add check for existing file in pysec_donwloader so i dont download file twice
-        #     dl.get_filings(ticker, form, after, number_of_filings=1000)
-            
         # populate filing_links table from submissions.zip
         with open(recent_submissions_file_path, "r") as f:
             submissions = format_submissions_json_for_db(
@@ -113,6 +106,15 @@ def inital_population(db: DilutionDB, bulk_file_path:str, dl_root_path: str, pol
                     s["primaryDocDescription"],
                     s["fileNumber"])
 
+def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str):
+    # # download the last 2 years of relevant filings
+    if after is None:
+        after = str((datetime.now() - timedelta(weeks=104)).date())
+    for form in forms:
+    #     # add check for existing file in pysec_donwloader so i dont download file twice
+        downloader.get_filings(ticker, form, after, number_of_filings=1000)
+
+
 
 
 
@@ -125,7 +127,7 @@ if __name__ == "__main__":
     # db._create_tables()
     # db.create_sics()
     # db.create_form_types()
-    inital_population(db, bulk_file_path, dl_root_path, polygon_overview_files_path, polygon_key, ["HYMC"])
+    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, tickers)
 
 
 
