@@ -11,7 +11,7 @@ config.read(config_path)
 
 from dilution_db import DilutionDB
 from data_aggregation.polygon_basic import PolygonClient
-from data_aggregation.fact_extractor import _get_fact_data, get_cash_and_equivalents, get_outstanding_shares
+from data_aggregation.fact_extractor import _get_fact_data, get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
 from data_aggregation.bulk_files import format_submissions_json_for_db
 from pysec_downloader.downloader import Downloader
 from _constants import EDGAR_BASE_ARCHIVE_URL
@@ -91,6 +91,24 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                     db.create_net_cash_and_equivalents_excluding_restricted_noncurrent(
                         id, fact["end"], fact["val_excluding_restrictednoncurrent"])
             
+            #untested
+            cash_financing = get_cash_financing(companyfacts)
+            for fact in cash_financing:
+                db.create_cash_financing(
+                    id, fact["start"], fact["end"], fact["val"]
+                )
+            cash_operating = get_cash_operating(companyfacts)
+            logger.debug(cash_operating)
+            for fact in cash_operating:
+                db.create_cash_operating(
+                    id, fact["start"], fact["end"], fact["val"]
+                )
+            cash_investing = get_cash_investing(companyfacts)
+            for fact in cash_investing:
+                db.create_cash_investing(
+                    id, fact["start"], fact["end"], fact["val"]
+                )
+            
         # populate filing_links table from submissions.zip
         with open(recent_submissions_file_path, "r") as f:
             submissions = format_submissions_json_for_db(
@@ -106,7 +124,7 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                     s["primaryDocDescription"],
                     s["fileNumber"])
 
-def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str):
+def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str):
     # # download the last 2 years of relevant filings
     if after is None:
         after = str((datetime.now() - timedelta(weeks=104)).date())
@@ -116,8 +134,7 @@ def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str)
 
 
 
-def get_cash_data():
-    pass
+
 
 
 

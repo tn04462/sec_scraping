@@ -35,10 +35,15 @@ for issuance of
 '''
 import re
 import pandas as pd
+import logging
+logger = logging.getLogger(__package__)
 
 
 def _clean_outstanding_shares(facts: dict):
-    df = pd.DataFrame(facts["CommonStockSharesOutstanding"])
+    try:
+        df = pd.DataFrame(facts["CommonStockSharesOutstanding"])
+    except KeyError:
+        df = pd.DataFrame(facts["EntityCommonStockSharesOutstanding"])
     cleaned = df.drop_duplicates(["end", "val"])
     return cleaned.to_dict("records")
 
@@ -67,8 +72,41 @@ def get_cash_and_equivalents(companyfacts):
         raise AttributeError(
             (f"unhandled case of cash and equivalents: \n"
              f"facts (keys) found: {keys}"))
-    
-    
+
+def get_cash_financing(companyfacts):
+    cash_financing = _get_fact_data(companyfacts, re.compile("netcash(.*)financ(.*)",  re.I), "us-gaap")
+    if cash_financing == {}:
+        raise(ValueError(f"couldnt get cash from financing for company, manually find the right name or taxonomy: {companyfacts['facts'].keys()}"))
+    else:
+        try:
+            cash_financing = cash_financing["NetCashProvidedByUsedInFinancingActivities"]
+        except KeyError as e:
+            raise e
+        return cash_financing
+
+def get_cash_investing(companyfacts):
+    cash_investing = _get_fact_data(companyfacts, re.compile("netcash(.*)invest(.*)", re.I), "us-gaap")
+    if cash_investing == {}:
+        raise(ValueError(f"couldnt get cash from investing for company, manually find the right name or taxonomy: {companyfacts['facts'].keys()}"))
+    else:
+        try:
+            cash_investing = cash_investing["NetCashProvidedByUsedInInvestingActivities"]
+        except KeyError as e:
+            raise e
+        return cash_investing
+
+def get_cash_operating(companyfacts):
+    cash_operations = _get_fact_data(companyfacts, re.compile("netcash(.*)operat(.*)", re.I), "us-gaap")
+    if cash_operations == {}:
+        raise(ValueError(f"couldnt get cash from operations for company, manually find the right name or taxonomy: {companyfacts['facts'].keys()}"))
+    else:
+        try:
+            cash_operations = cash_operations["NetCashProvidedByUsedInOperatingActivities"]
+        except KeyError as e:
+            raise e
+        return cash_operations
+
+
 def _get_fact_data(companyfacts, name, taxonomy, unit="USD"):
     facts = {}
     data_points = companyfacts["facts"][taxonomy]
@@ -119,11 +157,11 @@ if __name__ == "__main__":
     #     with open((dl.root_path / (s +".json")), "w") as f:
     #         json.dump(j, f)
 
-    with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\bulk\companyfacts") / ("CIK0001718405" + ".json"), "r") as f:
+    with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\companyfacts") / ("CIK0001718405" + ".json"), "r") as f:
         j = json.load(f)
         # facts = _get_fact_data(j, "CommonStockSharesOutstanding", "us-gaap")
         # _clean_outstanding_shares(facts)
-        facts = get_cash_and_equivalents(j)
+        facts = get_cash_financing(j)
 
     # for s in symb:
     #         # j = dl.get_xbrl_companyfacts(s)

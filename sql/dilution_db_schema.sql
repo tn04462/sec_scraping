@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS cash_burn_rate(
 );
 
 CREATE TABLE IF NOT EXISTS form_types(
-    form_name VARCHAR(200) PRIMARY KEY,
+    form_type VARCHAR(200) PRIMARY KEY,
     category VARCHAR(200)
 );
 
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS filing_links(
             REFERENCES companies(id),
     CONSTRAINT fk_form_type
         FOREIGN KEY (form_type)
-            REFERENCES form_types(form_name)
+            REFERENCES form_types(form_type)
 );
 
 
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS capital_raise(
             REFERENCES companies(id),
     CONSTRAINT fk_form_type
         FOREIGN KEY (form_type)
-            REFERENCES form_types(form_name)
+            REFERENCES form_types(form_type)
 );
 
 CREATE TABLE IF NOT EXISTS underwriters(
@@ -211,7 +211,7 @@ CREATE TABLE IF NOT EXISTS shelfs(
             REFERENCES underwriters(underwriter_id),
     CONSTRAINT fk_form_type
         FOREIGN KEY (form_type)
-            REFERENCES form_types(form_name)
+            REFERENCES form_types(form_type)
 );
 
 
@@ -243,7 +243,7 @@ CREATE TABLE IF NOT EXISTS offerings(
             REFERENCES filing_status(id),
     CONSTRAINT fk_form_type
         FOREIGN KEY (inital_form_type)
-            REFERENCES form_types(form_name)
+            REFERENCES form_types(form_type)
 );
 
 

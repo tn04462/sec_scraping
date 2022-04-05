@@ -57,13 +57,13 @@ class DilutionDB:
         with self.conn() as c:
             for name, values in FORM_TYPES_INFO.items():
                 category = values["category"]
-                c.execute("INSERT INTO form_types(form_name, category) VALUES(%s, %s)",
+                c.execute("INSERT INTO form_types(form_type, category) VALUES(%s, %s)",
                 [name, category])
 
-    def create_form_type(self, form_name, category):
+    def create_form_type(self, form_type, category):
         with self.conn() as c:
-            c.execute("INSERT INTO form_types(form_name, category) VALUES(%s, %s)",
-            [form_name, category])
+            c.execute("INSERT INTO form_types(form_type, category) VALUES(%s, %s)",
+            [form_type, category])
 
     def read(self, query, values):
         with self.conn() as c:
@@ -104,7 +104,7 @@ class DilutionDB:
                     if sic_description is None:
                         raise ValueError(f"couldnt create missing sic without sic_description, create_company called with: {locals()}")
                     try:
-                        self.create_sic(sic, "unclassfied", sic_description, "unclassified")
+                        self.create_sic(sic, "unclassified", sic_description, "unclassified")
                     except Exception as e:
                         logger.debug(f"failed to add missing sic in create_company: e{e}")
                         raise e
@@ -161,7 +161,7 @@ class DilutionDB:
     def create_cash_operating(self, company_id, from_date, to_date, amount):
         with self.conn() as c:
             try:
-                c.execute("INSERT INTO net_cash_and_equivalents(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
+                c.execute("INSERT INTO cash_operating(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
                 [company_id, from_date, to_date, amount])
             except UniqueViolation as e:
                 logger.debug(e)
@@ -172,7 +172,7 @@ class DilutionDB:
     def create_cash_financing(self, company_id, from_date, to_date, amount):
         with self.conn() as c:
             try:
-                c.execute("INSERT INTO net_cash_and_equivalents(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
+                c.execute("INSERT INTO cash_financing(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
                 [company_id, from_date, to_date, amount])
             except UniqueViolation as e:
                 logger.debug(e)
@@ -183,7 +183,7 @@ class DilutionDB:
     def create_cash_investing(self, company_id, from_date, to_date, amount):
         with self.conn() as c:
             try:
-                c.execute("INSERT INTO net_cash_and_equivalents(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
+                c.execute("INSERT INTO cash_investing(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
                 [company_id, from_date, to_date, amount])
             except UniqueViolation as e:
                 logger.debug(e)
