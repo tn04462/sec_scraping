@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS market_cap(
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
     UNIQUE(company_id, instant)
-)
+);
 
 -- CREATE TABLE IF NOT EXISTS free_float(
 --     company_id SERIAL,
@@ -72,6 +72,42 @@ CREATE TABLE IF NOT EXISTS market_cap(
 --             REFERENCES companies(id),
 --     UNIQUE(company_id, instant)
 -- )
+
+CREATE TABLE IF NOT EXISTS cash_operating(
+    company_id SERIAL,
+    from_date DATE,
+    to_date DATE,
+    amount BIGINT,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    UNIQUE(company_id, from_date)
+);
+
+CREATE TABLE IF NOT EXISTS cash_financing(
+    company_id SERIAL,
+    from_date DATE,
+    to_date DATE,
+    amount BIGINT,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    UNIQUE(company_id, from_date)
+);
+
+CREATE TABLE IF NOT EXISTS cash_investing(
+    company_id SERIAL,
+    from_date DATE,
+    to_date DATE,
+    amount BIGINT,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    UNIQUE(company_id, from_date)
+);
 
 CREATE TABLE IF NOT EXISTS net_cash_and_equivalents(
     company_id SERIAL,
@@ -98,9 +134,13 @@ CREATE TABLE IF NOT EXISTS net_cash_and_equivalents_excluding_restricted_noncurr
 CREATE TABLE IF NOT EXISTS cash_burn_rate(
     company_id SERIAL,
     burn_rate FLOAT,
-    burn_rate_trailing12 FLOAT,
-    burn_rate_forward12 FLOAT,
-    last_update DATE
+    from_date DATE,
+    to_date DATE,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    UNIQUE(company_id, from_date, to_date)
 );
 
 CREATE TABLE IF NOT EXISTS form_types(

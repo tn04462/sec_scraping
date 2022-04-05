@@ -15,8 +15,9 @@ dl = Downloader(config["downloader"]["filings_root_path"], user_agent=config["do
 
 def update_bulk_files():
     '''update submissions and companyfacts bulk files'''
-    dl.get_bulk_companyfacts()
+    # dl.get_bulk_companyfacts()
     dl.get_bulk_submissions()
+    
     return
 
 
@@ -51,5 +52,5 @@ if __name__ == "__main__":
     might want to make this per ticker, so ican reuse when adding more tickers later on
     
     '''
-    
-    pass    # update_bulk_files()
+        
+    update_bulk_files()

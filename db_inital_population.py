@@ -106,7 +106,7 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                     s["primaryDocDescription"],
                     s["fileNumber"])
 
-def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str):
+def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str):
     # # download the last 2 years of relevant filings
     if after is None:
         after = str((datetime.now() - timedelta(weeks=104)).date())
@@ -116,18 +116,19 @@ def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after
 
 
 
-
+def get_cash_data():
+    pass
 
 
 
 
 if __name__ == "__main__":
     db = DilutionDB(config["dilution_db"]["connectionString"])
-    # db._delete_all_tables()
-    # db._create_tables()
-    # db.create_sics()
-    # db.create_form_types()
-    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, tickers)
+    db._delete_all_tables()
+    db._create_tables()
+    db.create_sics()
+    db.create_form_types()
+    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["HYMC"])
 
 
 

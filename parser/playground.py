@@ -246,5 +246,13 @@ if __name__ == "__main__":
         print(new_filings, "____________________________________")
 
     # open_and_close_all(paths)
-    search_new_filings(paths, "1998-03-02")
+    # search_new_filings(paths, "1998-03-02")
+
+    #_______
+    from zipfile import ZipFile
+    from pathlib import Path
+    temp_path = r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\temp.zip"
+    with ZipFile(temp_path, "r") as z:
+        print(type(z))
+        z.extractall(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\companyfacts")
 

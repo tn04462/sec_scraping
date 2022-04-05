@@ -158,6 +158,50 @@ class DilutionDB:
                     raise e
 
 
+    def create_cash_operating(self, company_id, from_date, to_date, amount):
+        with self.conn() as c:
+            try:
+                c.execute("INSERT INTO net_cash_and_equivalents(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
+                [company_id, from_date, to_date, amount])
+            except UniqueViolation as e:
+                logger.debug(e)
+                pass
+            except Exception as e:
+                raise e
+
+    def create_cash_financing(self, company_id, from_date, to_date, amount):
+        with self.conn() as c:
+            try:
+                c.execute("INSERT INTO net_cash_and_equivalents(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
+                [company_id, from_date, to_date, amount])
+            except UniqueViolation as e:
+                logger.debug(e)
+                pass
+            except Exception as e:
+                raise e
+    
+    def create_cash_investing(self, company_id, from_date, to_date, amount):
+        with self.conn() as c:
+            try:
+                c.execute("INSERT INTO net_cash_and_equivalents(company_id, from_date, to_date, amount) VALUES(%s, %s, %s, %s)",
+                [company_id, from_date, to_date, amount])
+            except UniqueViolation as e:
+                logger.debug(e)
+                pass
+            except Exception as e:
+                raise e
+
+    def create_cash_burn(self, company_id, burn_rate, from_date, to_date):
+        with self.conn() as c:
+            try:
+                c.execute("INSERT INTO cash_burn_rate(company_id, burn_rate, from_date, to_date) VALUES(%s, %s, %s, %s)",
+                [company_id, burn_rate, from_date, to_date])
+            except UniqueViolation as e:
+                logger.debug(e)
+                pass
+            except Exception as e:
+                raise e
+
 
     # def create_tracked_companies(self):
     #     base_path = config["polygon"]["overview_files_path"]
