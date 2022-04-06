@@ -78,11 +78,11 @@ class PolygonClient:
     #     sleep_time = rate_limit - duration
 
     
-if __name__ == "__main__":
-    test_tickers = ["HYMC", "AAPL"]
-    poly = PolygonClient(key)
-    for t in test_tickers:
-        res = poly.get_overview_single_ticker(t)
-        print(res)
+# if __name__ == "__main__":
+#     test_tickers = ["HYMC", "AAPL"]
+#     poly = PolygonClient(key)
+#     for t in test_tickers:
+#         res = poly.get_overview_single_ticker(t)
+#         print(res)
     
     # get_overview_for_tracked_tickers()

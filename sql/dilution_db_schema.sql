@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS cash_operating(
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    UNIQUE(company_id, from_date)
+    UNIQUE(company_id, from_date, to_date)
 );
 
 CREATE TABLE IF NOT EXISTS cash_financing(
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS cash_financing(
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    UNIQUE(company_id, from_date)
+    UNIQUE(company_id, from_date, to_date)
 );
 
 CREATE TABLE IF NOT EXISTS cash_investing(
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS cash_investing(
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    UNIQUE(company_id, from_date)
+    UNIQUE(company_id, from_date, to_date)
 );
 
 CREATE TABLE IF NOT EXISTS net_cash_and_equivalents(

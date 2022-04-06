@@ -60,14 +60,39 @@ def get_cash_and_equivalents(companyfacts):
     cash = _get_fact_data(companyfacts, re.compile("Cash(.*)"), "us-gaap")
     # cash = _get_fact_data(companyfacts, re.compile("^Cash(?!.*Restrict)(.*)eriodIncreaseDecrease$"), "us-gaap")
     keys = cash.keys()
-    if ("CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"
-        and "RestrictedCashNoncurrent") in  keys:
-        c = pd.DataFrame(cash["CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"]).drop_duplicates(["end", "val"])
-        r = pd.DataFrame(cash["RestrictedCashNoncurrent"]).drop_duplicates(["end", "val"])
-        df = c.merge(r[["end", "val"]], on="end")
-        df["val"] = df["val_x"] - df["val_y"]
-        return df[["end", "val", "val_x"]].rename(
-            {"val": "val_excluding_restrictednoncurrent", "val_x": "val"}, axis=1).to_dict("records")
+    net_including_restricted_cash_keys = [
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"
+        ]
+    net_excluding_restricted_cash_keys = [
+        'CashAndCashEquivalentsAtCarryingValue'
+        ]
+
+    restricted_cash_keys = [
+        "RestrictedCashNoncurrent",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+        'RestrictedCashAndCashEquivalentsAtCarryingValue',
+        "RestrictedCashAndCashEquivalents"]
+    for net_not_restricted_cash_key in net_excluding_restricted_cash_keys:
+        if net_not_restricted_cash_key in keys:
+            return pd.DataFrame(cash[net_not_restricted_cash_key]).drop_duplicates(["end", "val"]).to_dict("records")
+    for net_restricted_cash_key in net_including_restricted_cash_keys:
+        if  net_restricted_cash_key in keys:
+            for restricted_cash_key in restricted_cash_keys:
+                if restricted_cash_key in keys:
+                    try:
+                        c = pd.DataFrame(cash[net_restricted_cash_key]).drop_duplicates(["end", "val"])
+                        r = pd.DataFrame(cash[restricted_cash_key]).drop_duplicates(["end", "val"])
+                        df = c.merge(r[["end", "val"]], on="end")
+                        df["val"] = df["val_x"] - df["val_y"]
+                        logger.debug(f"net_cash_and_equivalents used following keys to get data: {net_restricted_cash_key, restricted_cash_key}")
+                        return df[["end", "val", "val_x"]].rename(
+                            {"val": "val_excluding_restrictednoncurrent", "val_x": "val"}, axis=1).to_dict("records")
+                    except KeyError as  e:
+                        logger.debug(f"unhandled parsing of cash and equivalents dataframe: c.columns: {c.columns} \n r.columns: {r.columns} \n df.columns: {df.columns}")
+                        raise e
+            raise AttributeError(f"unhandled restricted cash key: {keys}")
+        else:
+            raise AttributeError(f"unhandled cash_key or cash_key not present: {keys}")
     else:
         raise AttributeError(
             (f"unhandled case of cash and equivalents: \n"
@@ -80,9 +105,15 @@ def get_cash_financing(companyfacts):
     else:
         try:
             cash_financing = cash_financing["NetCashProvidedByUsedInFinancingActivities"]
+            df = pd.DataFrame(cash_financing)
+            # if there are two entries left it is probably from a merger/aquisition 
+            # so we take the newer entry
+            df.sort_values(by=["fy"], axis=0).drop_duplicates(["start", "end"], keep="last")
+            logger.debug(f"cash_financing: {df}")
+            return df.to_dict("records")
         except KeyError as e:
             raise e
-        return cash_financing
+        
 
 def get_cash_investing(companyfacts):
     cash_investing = _get_fact_data(companyfacts, re.compile("netcash(.*)invest(.*)", re.I), "us-gaap")
@@ -91,9 +122,15 @@ def get_cash_investing(companyfacts):
     else:
         try:
             cash_investing = cash_investing["NetCashProvidedByUsedInInvestingActivities"]
+            df = pd.DataFrame(cash_investing)
+            # if there are two entries left it is probably from a merger/aquisition 
+            # so we take the newer entry
+            df = df.sort_values(by=["fy"], axis=0).drop_duplicates(["start", "end"], keep="last")
+            logger.debug(f"cash_investing: {df}")
+            return df.to_dict("records")
         except KeyError as e:
             raise e
-        return cash_investing
+        
 
 def get_cash_operating(companyfacts):
     cash_operations = _get_fact_data(companyfacts, re.compile("netcash(.*)operat(.*)", re.I), "us-gaap")
@@ -102,9 +139,15 @@ def get_cash_operating(companyfacts):
     else:
         try:
             cash_operations = cash_operations["NetCashProvidedByUsedInOperatingActivities"]
+            df = pd.DataFrame(cash_operations)
+            # if there are two entries left it is probably from a merger/aquisition 
+            # so we take the newer entry
+            df = df.sort_values(by=["fy"], axis=0).drop_duplicates(["start", "end"], keep="last")
+            logger.debug(f"cash_operations: {df}")
+            return df.to_dict("records")
         except KeyError as e:
             raise e
-        return cash_operations
+       
 
 
 def _get_fact_data(companyfacts, name, taxonomy, unit="USD"):

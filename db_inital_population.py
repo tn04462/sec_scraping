@@ -62,6 +62,13 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
         ov = polygon_client.get_overview_single_ticker(ticker)
         with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
             json.dump(ov, f)
+        logger.debug(f"overview_data: {ov}")
+        # check that we have a sic otherwise assign  9999 --> nonclassifable
+        try:
+            ov["sic_code"]
+        except KeyError:
+            ov["sic_code"] = "9999"
+            ov["sic_description"] = "Nonclassifiable"
         id = db.create_company(
                     ov["cik"],
                     ov["sic_code"],
@@ -91,7 +98,7 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                     db.create_net_cash_and_equivalents_excluding_restricted_noncurrent(
                         id, fact["end"], fact["val_excluding_restrictednoncurrent"])
             
-            #untested
+            #partially tested
             cash_financing = get_cash_financing(companyfacts)
             for fact in cash_financing:
                 db.create_cash_financing(
@@ -145,7 +152,7 @@ if __name__ == "__main__":
     db._create_tables()
     db.create_sics()
     db.create_form_types()
-    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["HYMC"])
+    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["IMPP"])
 
 
 
