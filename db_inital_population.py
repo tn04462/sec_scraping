@@ -105,7 +105,6 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                     id, fact["start"], fact["end"], fact["val"]
                 )
             cash_operating = get_cash_operating(companyfacts)
-            logger.debug(cash_operating)
             for fact in cash_operating:
                 db.create_cash_operating(
                     id, fact["start"], fact["end"], fact["val"]
@@ -152,7 +151,7 @@ if __name__ == "__main__":
     db._create_tables()
     db.create_sics()
     db.create_form_types()
-    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["IMPP"])
+    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["CEI"])
 
 
 

@@ -29,9 +29,12 @@ look for us-gaap elements that represent atms, warrants, notes ect.
  CommonStockSharesIssued
 - 
 
-Unit key I want is USD so a fact i want is accessed by using json["facts"][taxonomy][fact_name][unit]
-for issuance of inital public offering take the filing date as the instant of the value
-for issuance of 
+other terms to check and maybe implement: 
+    re.compile("(.*)proceedsfromissu(.*)", re.I) -> proceeds from issuance of all kind of stock, warrant, preferred series ect
+
+other notes relating to filings:
+    stock splits: 8-k, 10-q, 10-k
+    
 '''
 import re
 import pandas as pd
@@ -49,10 +52,12 @@ def _clean_outstanding_shares(facts: dict):
 
 def get_outstanding_shares(companyfacts):
     outstanding_shares = _get_fact_data(companyfacts, "CommonStockSharesOutstanding", "us-gaap")
+    df = pd.DataFrame(outstanding_shares["CommonStockSharesOutstanding"])
+    logger.debug(f"outstanding shares according to CommonStockSharesOutstanding: {df}")
     if outstanding_shares == {}:
         outstanding_shares = _get_fact_data(companyfacts, "EntityCommonStockSharesOutstanding", "us-gaap")
         if outstanding_shares == {}:
-            raise ValueError(f"couldnt get outstanding shares for company, manually find the right name or taxonomy: {companyfacts_file_path}")
+            raise ValueError(f"couldnt get outstanding shares for company, manually find the right name or taxonomy")
     outstanding_shares = _clean_outstanding_shares(outstanding_shares)
     return outstanding_shares
 
@@ -60,10 +65,12 @@ def get_cash_and_equivalents(companyfacts):
     cash = _get_fact_data(companyfacts, re.compile("Cash(.*)"), "us-gaap")
     # cash = _get_fact_data(companyfacts, re.compile("^Cash(?!.*Restrict)(.*)eriodIncreaseDecrease$"), "us-gaap")
     keys = cash.keys()
+    logger.debug(keys)
     net_including_restricted_cash_keys = [
         "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"
         ]
     net_excluding_restricted_cash_keys = [
+        "Cash",
         'CashAndCashEquivalentsAtCarryingValue'
         ]
 
@@ -200,11 +207,30 @@ if __name__ == "__main__":
     #     with open((dl.root_path / (s +".json")), "w") as f:
     #         json.dump(j, f)
 
-    with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\companyfacts") / ("CIK0001718405" + ".json"), "r") as f:
+    with open(Path(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\companyfacts") / ("CIK0001309082" + ".json"), "r") as f:
         j = json.load(f)
-        # facts = _get_fact_data(j, "CommonStockSharesOutstanding", "us-gaap")
+
+        for search_term in [
+            re.compile("(.*)sharesoutstanding(.*)", re.I)]:
+            facts = _get_fact_data(j, search_term, "us-gaap")
+            for key in facts.keys():
+                df = pd.DataFrame(facts[key]).sort_values(by=["fy"]).drop_duplicates(["end", "val"])
+                print(f"{key}: {df}")
+        # facts1 = _get_fact_data(j, re.compile("(.*)outstanding(.*)", re.I), "us-gaap")
+        # facts2 = _get_fact_data(j, re.compile("(.*)outstanding(.*)", re.I), "dei")
+        # facts3 = _get_fact_data(j, "PreferredStockValueOutstanding", "us-gaap")
+        # facts4 = _get_fact_data(j, "WeightedAverageNumberOfDilutedSharesOutstanding", "us-gaap")
+        # keys = _get_fact_data(j, re.compile("(.*)share(.*)", re.I), "us-gaap")
+        # for key in keys.keys():
+        #     print(key, "\n")
+        # # facts3 = _get_fact_data(j, re.compile("(.*)outstanding(.*)"), "cei")
+        # df1 = pd.DataFrame(facts3["PreferredStockValueOutstanding"]).sort_values(by=["fy"], axis=0).drop_duplicates(["end"], keep="last")
+        # df2 = pd.DataFrame(facts4["WeightedAverageNumberOfDilutedSharesOutstanding"]).sort_values(by=["start"], axis=0).drop_duplicates(["end"], keep="last")
+
+        # print(df1, df2)
+            
         # _clean_outstanding_shares(facts)
-        facts = get_cash_financing(j)
+        # facts = get_outstanding_shares(j)
 
     # for s in symb:
     #         # j = dl.get_xbrl_companyfacts(s)

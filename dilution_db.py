@@ -25,9 +25,9 @@ class DilutionDB:
         self.connectionString = connectionString
         self.pool = ConnectionPool(self.connectionString, kwargs={"row_factory": dict_row})
         self.conn = self.pool.connection
-        self.tracked_tickers = self._init_tracked_tickers()
+        self.tracked_tickers = self._get_tracked_tickers_from_config()
     
-    def _init_tracked_tickers(self):
+    def _get_tracked_tickers_from_config(self):
         # add try except when needed for good error message
             return [t.strip() for t in config["general"]["tracked_tickers"].strip("[]").split(",")]
     
