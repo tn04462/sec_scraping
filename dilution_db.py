@@ -66,8 +66,9 @@ class DilutionDB:
                 category = values["category"]
                 c.execute(
                     "INSERT INTO form_types(form_type, category) VALUES(%s, %s)",
-                    [name, category],
+                    [name, category]
                 )
+                print(category)
 
     def create_form_type(self, form_type, category):
         with self.conn() as c:
@@ -199,7 +200,7 @@ class DilutionDB:
                 )
             except ForeignKeyViolation as e:
                 if "fk_form_type" in str(e):
-                    self.create_form_type(form_type, "unclassified")
+                    self.create_form_type(form_type, "unspecified")
                 else:
                     raise e
 
