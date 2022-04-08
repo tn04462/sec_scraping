@@ -133,14 +133,34 @@ CREATE TABLE IF NOT EXISTS net_cash_and_equivalents_excluding_restricted_noncurr
 
 CREATE TABLE IF NOT EXISTS cash_burn_rate(
     company_id SERIAL,
-    burn_rate FLOAT,
+    burn_rate_operating FLOAT,
+    burn_rate_financing FLOAT,
+    burn_rate_investing FLOAT,
+    burn_rate_total FLOAT,
     from_date DATE,
     to_date DATE,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    UNIQUE(company_id, from_date, to_date)
+    UNIQUE(company_id, from_date, to_date),
+    CONSTRAINT unique_from_date UNIQUE(company_id, from_date)
+);
+
+CREATE TABLE IF NOT EXISTS cash_burn_summary(
+    company_id SERIAL,
+    burn_rate FLOAT,
+    burn_rate_date DATE,
+    net_cash FLOAT,
+    net_cash_date DATE,
+    days_of_cash FLOAT,
+    days_of_cash_date DATE,
+
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    CONSTRAINT unique_company_id UNIQUE(company_id)
 );
 
 CREATE TABLE IF NOT EXISTS form_types(

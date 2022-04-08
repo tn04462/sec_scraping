@@ -98,7 +98,7 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                     db.create_net_cash_and_equivalents_excluding_restricted_noncurrent(
                         id, fact["end"], fact["val_excluding_restrictednoncurrent"])
             
-            #partially tested
+            # get the cash flow, partially tested
             cash_financing = get_cash_financing(companyfacts)
             for fact in cash_financing:
                 db.create_cash_financing(
@@ -114,6 +114,9 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                 db.create_cash_investing(
                     id, fact["start"], fact["end"], fact["val"]
                 )
+            # calculate cash burn per day 
+            db.init_cash_burn_rate(id)
+            db.init_cash_burn_summary(id)
             
         # populate filing_links table from submissions.zip
         with open(recent_submissions_file_path, "r") as f:
