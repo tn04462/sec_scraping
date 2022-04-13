@@ -10,6 +10,7 @@ psycopg-pool = "*"
 psycopg = {extras = ["binary"], version = "*"}
 polygon-api-client = "*"
 pysec-downloader = "*"
+pydantic = "*"
 
 [dev-packages]
 black = "*"
