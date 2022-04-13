@@ -3,6 +3,7 @@ datasets/
 test_eq.py
 pysec_downloader/dummy_folder
 .vscode/launch.json
-parser/unused_ignore/
-resources/test_set
+main/parser/unused_ignore/
+main/resources/test_set
+main/configuration/secret.env
 

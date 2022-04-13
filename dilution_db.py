@@ -8,22 +8,37 @@ from os import path
 import pandas as pd
 import logging
 
-from configparser import ConfigParser
+from posixpath import join as urljoin
+
+from main.configs import cnf
 from _constants import FORM_TYPES_INFO
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 
-config = ConfigParser()
-config.read("./config.cfg")
-if config.getboolean("environment", "production") is False:
+
+if cnf.ENV_STATE != "prod":
     logger.setLevel(logging.DEBUG)
 else:
     logger.setLevel(logging.INFO)
 
 
-# make Database class a singleton
+class DilutionDBHelpers:
+    def format_submissions_json_for_db(base_url, cik, sub):
+        def build_submission_link(base_url, cik, accession_number, primary_document):
+            return urljoin(urljoin(urljoin(base_url, cik), accession_number), primary_document)
+        filings = sub["filings"]["recent"]
+        wanted_fields = ["accessionNumber", "filingDate", "form", "fileNumber", "primaryDocument", "primaryDocDescription", "primaryDocument"]
+        cleaned = []
+        for r in range(0, len(filings["accessionNumber"]), 1):
+            entry = {}
+            for field in wanted_fields:
+                entry[field] = filings[field][r]
+            entry["filing_html"] = build_submission_link(base_url, cik, entry["accessionNumber"].replace("-", ""), entry["primaryDocument"])
+            cleaned.append(entry)
+        return cleaned
+
 class DilutionDB:
     def __init__(self, connectionString):
         self.connectionString = connectionString
@@ -34,11 +49,7 @@ class DilutionDB:
         self.tracked_tickers = self._get_tracked_tickers_from_config()
 
     def _get_tracked_tickers_from_config(self):
-        # add try except when needed for good error message
-        return [
-            t.strip()
-            for t in config["general"]["tracked_tickers"].strip("[]").split(",")
-        ]
+        return cnf.APP_CONFIG.TRACKED_TICKERS
 
     def execute_sql_file(self, path):
         with self.conn() as c:
@@ -469,11 +480,11 @@ class DilutionDB:
 
 if __name__ == "__main__":
 
-    db = DilutionDB(config["dilution_db"]["connectionString"])
+    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     # fake_args1 = [1, 0, 0, 0, 0, "2010-04-01", "2011-02-27"]
     # fake_args2 = [1, 0, 0, 0, 0, "2010-04-01", "2011-04-27"]
     # db.init_cash_burn_summary(1)
-    print(db.read("SELECT * FROM cash_burn_summary", []))
+    # print(db.read("SELECT * FROM cash_burn_summary", []))
     # db.init_cash_burn_rate(1)
     
 

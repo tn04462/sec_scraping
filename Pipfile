@@ -5,12 +5,12 @@ name = "pypi"
 
 [packages]
 pandas = "*"
-matplotlib = "*"
 psycopg-pool = "*"
 psycopg = {extras = ["binary"], version = "*"}
 polygon-api-client = "*"
 pysec-downloader = "*"
 pydantic = "*"
+python-dotenv = "*"
 
 [dev-packages]
 black = "*"
