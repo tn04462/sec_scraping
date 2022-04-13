@@ -470,9 +470,9 @@ class DilutionDB:
 if __name__ == "__main__":
 
     db = DilutionDB(config["dilution_db"]["connectionString"])
-    fake_args1 = [1, 0, 0, 0, 0, "2010-04-01", "2011-02-27"]
-    fake_args2 = [1, 0, 0, 0, 0, "2010-04-01", "2011-04-27"]
-    db.init_cash_burn_summary(1)
+    # fake_args1 = [1, 0, 0, 0, 0, "2010-04-01", "2011-02-27"]
+    # fake_args2 = [1, 0, 0, 0, 0, "2010-04-01", "2011-04-27"]
+    # db.init_cash_burn_summary(1)
     print(db.read("SELECT * FROM cash_burn_summary", []))
     # db.init_cash_burn_rate(1)
     

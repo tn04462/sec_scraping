@@ -4,10 +4,35 @@ import logging
 from pathlib import Path
 import pandas as pd
 from bs4 import BeautifulSoup
+import re
+import soupsieve
 
 
 logging.basicConfig(level=logging.DEBUG)
 
+class Parser8K: 
+    def __init__(self):
+        self.soup = None
+    
+    def make_soup(self, doc):
+        self.soup = BeautifulSoup(doc, "html.parser")
+    
+    def get_text_content(self, filing=None):
+        if filing is None:
+            filing = self.soup
+        [s.extract() for s in filing(['style', 'script', '[document]', 'head', 'title'])]
+        return filing.getText()
+
+    def get_items(self, filing):
+        if isinstance(filing, BeautifulSoup):
+            self.soup = filing
+        else:
+            self.make_soup(filing)
+        text = self.get_text_content()
+        matches = re.findall(re.compile("^(item(\s){1,3}(\d){1,3}\.(\d){2,3}[(^.) | (^,)](.*))", re.I), text)
+        return matches
+
+    
 class HtmlFilingParser():
     def __init__(self):
         self.soup = None
@@ -238,7 +263,19 @@ class Parser424B5(HtmlFilingParser):
                 else:
                     current_distance += 1
         return table
-    
+
+
+parser = Parser8K()
+print()
+items = {}
+for p in [[s for s in r.glob("*.htm")][0] for r in Path(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\0001718405\8-K").glob("*")]:
+    with open(p, "r") as f:
+        h = f.read()
+        matches = parser.get_items(h)
+        for m in matches:
+            print(m)
+            print(re.search("item(.*)((/d){0,3}\.(/d){0,3})", m[0]))
+        
             
 
 
