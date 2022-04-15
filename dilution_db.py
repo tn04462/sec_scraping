@@ -24,10 +24,11 @@ else:
     logger.setLevel(logging.INFO)
 
 
-class DilutionDBHelpers:
-    def format_submissions_json_for_db(base_url, cik, sub):
-        def build_submission_link(base_url, cik, accession_number, primary_document):
-            return urljoin(urljoin(urljoin(base_url, cik), accession_number), primary_document)
+class DilutionDBUtil:
+    def __init__(self):
+        pass
+
+    def format_submissions_json_for_db(self, base_url, cik, sub):
         filings = sub["filings"]["recent"]
         wanted_fields = ["accessionNumber", "filingDate", "form", "fileNumber", "primaryDocument", "primaryDocDescription", "primaryDocument"]
         cleaned = []
@@ -35,9 +36,12 @@ class DilutionDBHelpers:
             entry = {}
             for field in wanted_fields:
                 entry[field] = filings[field][r]
-            entry["filing_html"] = build_submission_link(base_url, cik, entry["accessionNumber"].replace("-", ""), entry["primaryDocument"])
+            entry["filing_html"] = self.build_submission_link(base_url, cik, entry["accessionNumber"].replace("-", ""), entry["primaryDocument"])
             cleaned.append(entry)
         return cleaned
+    
+    def build_submission_link(self, base_url, cik, accession_number, primary_document):
+        return urljoin(urljoin(urljoin(base_url, cik), accession_number), primary_document)
 
 class DilutionDB:
     def __init__(self, connectionString):
@@ -47,6 +51,7 @@ class DilutionDB:
         )
         self.conn = self.pool.connection
         self.tracked_tickers = self._get_tracked_tickers_from_config()
+        self.util = DilutionDBUtil()
 
     def _get_tracked_tickers_from_config(self):
         return cnf.APP_CONFIG.TRACKED_TICKERS
@@ -70,6 +75,15 @@ class DilutionDB:
         with self.conn() as c:
             with open("./sql/dilution_db_schema.sql", "r") as sql:
                 c.execute(sql.read())
+    
+    def read(self, query, values):
+        with self.conn() as c:
+            res = c.execute(query, values)
+            rows = [row for row in res]
+            return rows
+    
+    def read_all_companies(self):
+        return self.read("SELECT id, cik, symbol, name_ as name FROM companies", [])
 
     def create_form_types(self):
         with self.conn() as c:
@@ -87,12 +101,6 @@ class DilutionDB:
                 "INSERT INTO form_types(form_type, category) VALUES(%s, %s)",
                 [form_type, category],
             )
-
-    def read(self, query, values):
-        with self.conn() as c:
-            res = c.execute(query, values)
-            rows = [row for row in res]
-            return rows
 
     def create_sics(self):
         sics_path = path.normpath(
@@ -125,7 +133,7 @@ class DilutionDB:
                 return id.fetchone()["id"]
             except UniqueViolation:
                 # logger.debug(f"couldnt create {symbol}:company, already present in db.")
-                # logger.debug(f"querying and returning the company_id instead of creating it")
+                # logger.debug(f"querying and the company_id instead of creating it")
                 c.rollback()
                 id = c.execute(
                     "SELECT id from companies WHERE symbol = %s AND cik = %s",
@@ -362,13 +370,14 @@ class DilutionDB:
                     days_of_cash = abs(prorated_cash_left)/burn_rate
                 else:
                     days_of_cash = prorated_cash_left/burn_rate
+                print(days_of_cash)
             self.create_cash_burn_summary(
                 company_id,
                 burn_rate,
                 cash_burn["to_date"],
                 net_cash["amount"],
                 net_cash["instant"],
-                round(days_of_cash,2),
+                round(float(days_of_cash),2),
                 days_of_cash_date
             )                
                 
@@ -481,6 +490,8 @@ class DilutionDB:
 if __name__ == "__main__":
 
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    with db.conn() as c:
+        print(type(c))
     # fake_args1 = [1, 0, 0, 0, 0, "2010-04-01", "2011-02-27"]
     # fake_args2 = [1, 0, 0, 0, 0, "2010-04-01", "2011-04-27"]
     # db.init_cash_burn_summary(1)

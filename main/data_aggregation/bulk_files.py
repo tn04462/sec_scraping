@@ -8,7 +8,7 @@ dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, user_agent=cnf.SEC_USER_AGENT)
 
 def update_bulk_files():
     '''update submissions and companyfacts bulk files'''
-    # dl.get_bulk_companyfacts()
+    dl.get_bulk_companyfacts()
     dl.get_bulk_submissions()
 
 

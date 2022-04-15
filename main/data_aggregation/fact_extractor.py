@@ -52,12 +52,13 @@ def _clean_outstanding_shares(facts: dict):
 
 def get_outstanding_shares(companyfacts):
     outstanding_shares = _get_fact_data(companyfacts, "CommonStockSharesOutstanding", "us-gaap")
-    df = pd.DataFrame(outstanding_shares["CommonStockSharesOutstanding"])
-    logger.debug(f"outstanding shares according to CommonStockSharesOutstanding: {df}")
-    if outstanding_shares == {}:
+    try:
+        df = pd.DataFrame(outstanding_shares["CommonStockSharesOutstanding"])
+    except KeyError:
         outstanding_shares = _get_fact_data(companyfacts, "EntityCommonStockSharesOutstanding", "us-gaap")
         if outstanding_shares == {}:
             raise ValueError(f"couldnt get outstanding shares for company, manually find the right name or taxonomy")
+    logger.debug(f"outstanding shares according to CommonStockSharesOutstanding: {df}")
     outstanding_shares = _clean_outstanding_shares(outstanding_shares)
     return outstanding_shares
 

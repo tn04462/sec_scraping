@@ -28,7 +28,60 @@ class AppConfig(BaseModel):
     
     TRACKED_TICKERS: list[str] = [
         "CEI",
-        "IMPP"
+        "IMPP",
+        "NEW",
+        "CELP",
+        "ZVO",
+        "RNWK",
+        "WEI",
+        "IVC",
+        "XIN",
+        "FREQ",
+        "NBW",
+        "MTEX",
+        "GEOS",
+        "PCF",
+        "VLT",
+        "CRT",
+        "ASMB",
+        "GLU",
+        "PNI",
+        "CMU",
+        "ANVS",
+        "KIRK",
+        "HOOK",
+        "KSM",
+        "EVF",
+        "HARP",
+        "DRTT",
+        "TAST",
+        "PROV",
+        "SBI",
+        "NIM",
+        "MNP",
+        "ERH",
+        "BGSF",
+        "PHD",
+        "BCV",
+        "MVO",
+        "VOC",
+        "BMEA",
+        "APRN",
+        "MPV",
+        "USAK",
+        "MHF",
+        "NAZ",
+        "DMF",
+        "RVLP",
+        "FFNW",
+        "CTG",
+        "CTMX",
+        "LEE",
+        "BBQ",
+        "RVSB",
+        "NRT",
+        "MCN",
+        "IMMR"
     ]
 
 class GlobalConfig(BaseSettings):
@@ -59,7 +112,7 @@ class GlobalConfig(BaseSettings):
     USERS_DB_PORT: Optional[int] = None
     USERS_DB_USER: Optional[str] = None
     USERS_DB_DATABASE_NAME: Optional[str] = None
-    USERS_DB_CONNECTION_STRING = f"postgres://{USERS_DB_USER}:{USERS_DB_PASSWORD}@{USERS_DB_HOST}:{USERS_DB_PORT}/{USERS_DB_DATABASE_NAME}"
+    USERS_DB_CONNECTION_STRING: Optional[str] = None
 
 
     DOWNLOADER_ROOT_PATH: Optional[str] = None
@@ -71,7 +124,7 @@ class GlobalConfig(BaseSettings):
     class Config:
         """Loads the dotenv file."""
 
-        env_file: str = "./main/configuration/public.env"
+        env_file: str = "./main/configuration/secret.env"
 
 
 class DevConfig(GlobalConfig):
@@ -103,3 +156,4 @@ class FactoryConfig:
 
 
 cnf = FactoryConfig(GlobalConfig().ENV_STATE)()
+
