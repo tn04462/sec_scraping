@@ -110,6 +110,8 @@ def get_cash_and_equivalents(companyfacts):
         except KeyError:
             continue
     # merge all together
+    if dfs == []:
+        return None
     cash = reduce(
         lambda l, r: pd.merge(l, r, on=["end"], how="outer"),
         dfs,

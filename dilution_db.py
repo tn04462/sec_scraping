@@ -155,7 +155,7 @@ class DilutionDB:
                         f"failed to add missing sic in create_company: e{e}"
                     )
                     raise e
-                id = self.create_company(cik, sic, symbol, name, description)
+                id = self.create_company(c, cik, sic, symbol, name, description)
                 return id
             else:
                 raise e
@@ -362,7 +362,7 @@ class DilutionDB:
             if prorated_cash_left < 0:
                 days_of_cash = abs(prorated_cash_left)/burn_rate
             else:
-                days_of_cash = prorated_cash_left/burn_rate
+                days_of_cash = prorated_cash_left/abs_br
         self.create_cash_burn_summary(
             c,
             company_id,
