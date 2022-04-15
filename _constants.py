@@ -50,6 +50,7 @@ FORM_TYPES_INFO = {
     "253G3": {"category": "unspecified"},
     "253G4": {"category": "unspecified"},
     "3": {"category": "Ownership"},
+    "3/A": {"category": "Ownership"},
     "305B2": {"category": "unspecified"},
     "34-12H": {"category": "unspecified"},
     "4": {"category": "Ownership"},

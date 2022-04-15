@@ -57,8 +57,10 @@ def force_cashBurn_update(db: DilutionDB):
     for company in companies:
         id = company["id"]
         try:
-            db.init_cash_burn_rate(id)
-            db.init_cash_burn_summary(id)
+            with db.conn() as connection:
+                with connection.transaction():
+                    db.init_cash_burn_rate(connection, id)
+                    db.init_cash_burn_summary(connection, id)
         except KeyError as e:
             logger.info((e, company))
     
@@ -82,14 +84,7 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
         except KeyError:
             ov["sic_code"] = "9999"
             ov["sic_description"] = "Nonclassifiable"
-        id = db.create_company(
-                    ov["cik"],
-                    ov["sic_code"],
-                    ticker, ov["name"],
-                    ov["description"],
-                    ov["sic_description"])
-        if not id:
-            raise ValueError("couldnt get the company id from create_company")
+        
         # load the xbrl facts 
         companyfacts_file_path = Path(dl_root_path) / "companyfacts" / ("CIK"+ov["cik"]+".json")
         recent_submissions_file_path = Path(dl_root_path) / "submissions" / ("CIK"+ov["cik"]+".json")
@@ -107,67 +102,120 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
                     logger.critical((e, ticker))
                     continue
                 logger.debug(f"outstanding_shares: {outstanding_shares}")
-                for fact in outstanding_shares:
-                    db.create_outstanding_shares(
-                        id, fact["end"], fact["val"])
-                try:
+                # start db transaction to ensure only complete companies get added
+                id = None
+                with db.conn() as connection:
                     try:
-                        net_cash = get_cash_and_equivalents(companyfacts)
-                    except ValueError as e:
-                        logger.critical((e, ticker))
-                        continue
-                    except KeyError as e:
-                        logger.critical((e, ticker))
-                        continue
-                    logger.debug(f"net_cash: {net_cash}")
-                    for fact in net_cash:
-                        db.create_net_cash_and_equivalents(
-                            id, fact["end"], fact["val"])
-                        if "val_excluding_restrictednoncurrent" in fact.keys():
-                            db.create_net_cash_and_equivalents_excluding_restricted_noncurrent(
-                                id, fact["end"], fact["val_excluding_restrictednoncurrent"])
+                        id = db.create_company(
+                            connection,
+                            ov["cik"],
+                            ov["sic_code"],
+                            ticker, ov["name"],
+                            ov["description"],
+                            ov["sic_description"])
+                        if not id:
+                            raise ValueError("couldnt get the company id from create_company")
+                        for fact in outstanding_shares:
+                            db.create_outstanding_shares(
+                                connection,
+                                id, fact["end"], fact["val"])
+                        try:
+                            net_cash = get_cash_and_equivalents(companyfacts)
+                        except ValueError as e:
+                            logger.critical((e, ticker))
+                            raise e
+                        except KeyError as e:
+                            logger.critical((e, ticker))
+                            raise e
+                        logger.debug(f"net_cash: {net_cash}")
+                        for fact in net_cash:
+                            db.create_net_cash_and_equivalents(
+                                connection,
+                                id, fact["end"], fact["val"])
+                        # get the cash flow, partially tested
+                        try:
+                            cash_financing = get_cash_financing(companyfacts)
+                            for fact in cash_financing:
+                                db.create_cash_financing(
+                                    connection,
+                                    id, fact["start"], fact["end"], fact["val"]
+                                )
+                            cash_operating = get_cash_operating(companyfacts)
+                            for fact in cash_operating:
+                                db.create_cash_operating(
+                                    connection,
+                                    id, fact["start"], fact["end"], fact["val"]
+                                )
+                            cash_investing = get_cash_investing(companyfacts)
+                            for fact in cash_investing:
+                                db.create_cash_investing(
+                                    connection,
+                                    id, fact["start"], fact["end"], fact["val"]
+                                )
+                        except ValueError as e:
+                            logger.critical((e, ticker))
+                            logger.debug((e, ticker))
+                            raise e 
+                        # calculate cash burn per day
+                    except Exception as e:
+                        logger.critical(("Phase1", e, ticker))
+                        connection.rollback()
+                        raise e
+                    else:
+                        connection.commit()
                     
-                    # get the cash flow, partially tested
+                    
+                with db.conn() as connection:
                     try:
-                        cash_financing = get_cash_financing(companyfacts)
-                        for fact in cash_financing:
-                            db.create_cash_financing(
-                                id, fact["start"], fact["end"], fact["val"]
-                            )
-                        cash_operating = get_cash_operating(companyfacts)
-                        for fact in cash_operating:
-                            db.create_cash_operating(
-                                id, fact["start"], fact["end"], fact["val"]
-                            )
-                        cash_investing = get_cash_investing(companyfacts)
-                        for fact in cash_investing:
-                            db.create_cash_investing(
-                                id, fact["start"], fact["end"], fact["val"]
-                            )
-                    except ValueError as e:
-                        logger.critical((e, ticker))
-                        continue
-                    # calculate cash burn per day 
-                    db.init_cash_burn_rate(id)
-                    db.init_cash_burn_summary(id)
-                except KeyError as e:
-                    logger.critical((e, ticker))
-                    continue
-                
-            # populate filing_links table from submissions.zip
-            with open(recent_submissions_file_path, "r") as f:
-                submissions = db.util.format_submissions_json_for_db(
-                    EDGAR_BASE_ARCHIVE_URL,
-                    ov["cik"],
-                    json.load(f))
-                for s in submissions:
-                    db.create_filing_link(
-                        id,
-                        s["filing_html"],
-                        s["form"],
-                        s["filingDate"],
-                        s["primaryDocDescription"],
-                        s["fileNumber"])
+                        db.init_cash_burn_rate(connection, id)
+                    except KeyError as e:
+                        logger.critical(("Phase2.1", e, ticker))
+                        logger.debug((e, ticker))
+                        connection.rollback()
+                        raise e
+                    else:
+                        connection.commit()
+                    try:
+                        db.init_cash_burn_summary(connection, id)
+                    except KeyError as e:
+                        logger.critical(("Phase2.2", e, ticker))
+                        logger.debug((e, ticker))
+                        connection.rollback()
+                        raise e
+                    else:
+                        connection.commit()
+                    
+                with db.conn() as connection1:      
+                    # populate filing_links table from submissions.zip
+                    try:
+                        with open(recent_submissions_file_path, "r") as f:
+                            submissions = db.util.format_submissions_json_for_db(
+                                EDGAR_BASE_ARCHIVE_URL,
+                                ov["cik"],
+                                json.load(f))
+                            for s in submissions:
+                                with db.conn() as connection2:
+                                    try:
+                                        db.create_filing_link(
+                                            connection2,
+                                            id,
+                                            s["filing_html"],
+                                            s["form"],
+                                            s["filingDate"],
+                                            s["primaryDocDescription"],
+                                            s["fileNumber"])
+                                    except Exception as e:
+                                        logger.debug((e, s))
+                                        connection2.rollback()
+                                    else:
+                                        connection2.commit()
+                    except Exception as e:
+                        logger.critical(("Phase3", e, ticker))
+                        logger.debug((e, ticker))
+                        connection1.rollback()
+                        raise e
+                    else:
+                        connection1.commit()
         except FileNotFoundError as e:
             logger.critical((e,"This is mostlikely a fund or trust and not a company.", ticker))
             continue
@@ -183,21 +231,115 @@ def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after
         downloader.get_filings(ticker, form, after, number_of_filings=1000)
 
 
-
-
-
-
-
-
-if __name__ == "__main__":
-    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    # db._delete_all_tables()
-    # db._create_tables()
-    # db.create_sics()
-    # db.create_form_types()
+import pandas as pd
+import re
+from functools import reduce
+import numpy as np
+from main.data_aggregation.fact_extractor import  _get_fact_data
+class ReviewUtility:
+    def test_outstanding_shares_from_facts(self, dl_root_path, cik):
+        companyfacts_file_path = Path(dl_root_path) / "companyfacts" / ("CIK"+cik+".json")
+        with open(companyfacts_file_path, "r") as f:
+            companyfacts = json.load(f)
+            dfs = []
+            # copy of get_outstanding shares function in fact_extractor
+            for key, i in {"us-gaap": [
+        "Cash",
+        'CashAndCashEquivalentsAtCarryingValue',
+        "RestrictedCashAndCashEquivalentsAtCarryingValue",
+        "RestrictedCash"
+        ],
+                            "dei": [
+        "Cash",
+        'CashAndCashEquivalentsAtCarryingValue',
+        "RestrictedCashAndCashEquivalentsAtCarryingValue"
+        ]}.items():
+                if len(i) > 1:
+                    for tag in i:
+                        facts = _get_fact_data(companyfacts, tag, key)
+                        for fact in facts:
+                            df = pd.DataFrame(facts[fact])
+                            try:
+                                df = df.sort_values(by=["val"], ascending=True).drop_duplicates(["end"], keep="last")[["end", "val", "name"]]
+                                df = df.rename({"val": fact}, axis=1).drop("name", axis=1)
+                            except Exception as e:
+                                raise e
+                            dfs.append(df)
+                elif len(i) == 1:
+                    facts = _get_fact_data(companyfacts, i[0], key)
+                    for fact in facts:
+                        df = pd.DataFrame(facts[fact])
+                        try:
+                            df = df.sort_values(by=["val"], ascending=True).drop_duplicates(["end"], keep="last")[["end", "val", "name"]]
+                        except Exception as e:
+                            raise e
+                        dfs.append(df)
+                elif len(i) == 0:
+                    continue 
+            os = reduce(
+                lambda l, r: pd.merge(l, r, on=["end"], how="outer"),
+                dfs,
+                )
+            # return (os.sort_values(by="end"), os["name"].unique())
+            return os.sort_values(by="end")
     
-    force_cashBurn_update(db)
+    def test_cash_and_equivalents_from_facts(self, dl_root_path, cik):
+        companyfacts_file_path = Path(dl_root_path) / "companyfacts" / ("CIK"+cik+".json")
+        with open(companyfacts_file_path, "r") as f:
+            companyfacts = json.load(f)
+            # net_including_restricted_cash_keys = [
+            #     "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+            #     'RestrictedCashAndCashEquivalentsAtCarryingValue'
+            #     ]
+            # net_excluding_restricted_cash_keys = [
+            #     "Cash",
+            #     'CashAndCashEquivalentsAtCarryingValue'
+            #     ]
+            net_cash_keys_all = [
+                "Cash",
+                'CashAndCashEquivalentsAtCarryingValue',
+                "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+                'RestrictedCashAndCashEquivalentsAtCarryingValue'
+                ]
+            dfs = []
+            for key in net_cash_keys_all:
+                try:
+                    facts = _get_fact_data(companyfacts, key, "us-gaap")
+                    df = pd.DataFrame(facts[key])
+                    # clean and sort
+                    df = df.sort_values(by=["val"], ascending=True).drop_duplicates(["end"], keep="last")[["end", "val", "name"]]
+                    # rename val and drop name column
+                    df = df.rename({"val": key}, axis=1).drop("name", axis=1)
+                    dfs.append(df)
+                except KeyError:
+                    continue
+            # merge all together
+            cash = reduce(
+                lambda l, r: pd.merge(l, r, on=["end"], how="outer"),
+                dfs,
+                )
+            cash["val"] = cash.loc[:, cash.columns != "end"].agg(lambda x: np.nanmax(x.values), axis=1)
+            return cash[["end", "val"]].to_dict("records")
+            
+if __name__ == "__main__":
+    ru = ReviewUtility()
+    # os = ru.test_outstanding_shares_from_facts(cnf.DOWNLOADER_ROOT_PATH, '0000883945')
+    # dollars = ru.test_cash_and_equivalents_from_facts(cnf.DOWNLOADER_ROOT_PATH, '0000883945')
+    # print(dollars)
+    # print(os)
+    # print(os[os["name"] == "RestrictedCashAndCashEquivalentsAtCarryingValue"] - os[os["name"] == "RestrictedCash"])
+    
+    
+    
+    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    db._delete_all_tables()
+    db._create_tables()
+    db.create_sics()
+    db.create_form_types()
+    
+    # force_cashBurn_update(db)
     # inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, cnf.APP_CONFIG.TRACKED_TICKERS)
+    inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["CEI", "USAK", "BBQ"])
 
 
     # db.create_tracked_companies()

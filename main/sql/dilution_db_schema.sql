@@ -120,16 +120,6 @@ CREATE TABLE IF NOT EXISTS net_cash_and_equivalents(
     UNIQUE(company_id, instant)
 );
 
-CREATE TABLE IF NOT EXISTS net_cash_and_equivalents_excluding_restricted_noncurrent(
-    company_id SERIAL,
-    instant DATE,
-    amount BIGINT,
-
-    CONSTRAINT fk_company_id
-        FOREIGN KEY (company_id)
-            REFERENCES companies(id),
-    UNIQUE(company_id, instant)
-);
 
 CREATE TABLE IF NOT EXISTS cash_burn_rate(
     company_id SERIAL,

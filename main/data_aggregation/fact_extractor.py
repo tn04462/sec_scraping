@@ -39,6 +39,8 @@ other notes relating to filings:
 import re
 import pandas as pd
 import logging
+from functools import reduce
+import numpy as np
 logger = logging.getLogger(__package__)
 
 
@@ -51,60 +53,69 @@ def _clean_outstanding_shares(facts: dict):
     return cleaned.to_dict("records")
 
 def get_outstanding_shares(companyfacts):
-    outstanding_shares = _get_fact_data(companyfacts, "CommonStockSharesOutstanding", "us-gaap")
-    try:
-        df = pd.DataFrame(outstanding_shares["CommonStockSharesOutstanding"])
-    except KeyError:
-        outstanding_shares = _get_fact_data(companyfacts, "EntityCommonStockSharesOutstanding", "us-gaap")
-        if outstanding_shares == {}:
-            raise ValueError(f"couldnt get outstanding shares for company, manually find the right name or taxonomy")
-    logger.debug(f"outstanding shares according to CommonStockSharesOutstanding: {df}")
-    outstanding_shares = _clean_outstanding_shares(outstanding_shares)
-    return outstanding_shares
+    dfs = []
+    # first get all possible facts for outstanding shares
+    for key, i in {"us-gaap": ["CommonStockSharesOutstanding", "EntityCommonStockSharesOutstanding"],
+                    "dei": ["CommonStockSharesOutstanding", "EntityCommonStockSharesOutstanding"]}.items():
+        if len(i) > 1:
+            for tag in i:
+                facts = _get_fact_data(companyfacts, tag, key)
+                for fact in facts:
+                    df = pd.DataFrame(facts[fact])
+                    try:
+                        df = df.sort_values(by=["val"], ascending=True).drop_duplicates(["end"], keep="last")[["end", "val", "name"]]
+                    except Exception as e:
+                        raise e
+                    dfs.append(df)
+        elif len(i) == 1:
+            facts = _get_fact_data(companyfacts, i[0], key)
+            try:
+                df = pd.DataFrame(facts[key])
+                try:
+                    df = df.sort_values(by=["val"], ascending=True).drop_duplicates(["end"], keep="last")[["end", "val", "name"]]
+                except Exception as e:
+                    raise e
+                dfs.append(df)
+            except KeyError:
+                pass
+        elif len(i) == 0:
+            continue
+    if dfs == []:
+        return None
+    os = reduce(
+        lambda l, r: pd.merge(l, r, on=["end", "val", "name"], how="outer"),
+        dfs,
+        )
+    logger.debug(f"outstanding shares according to get_outstanding_shares: {os}")
+    return os.to_dict("records")
+    
 
 def get_cash_and_equivalents(companyfacts):
-    cash = _get_fact_data(companyfacts, re.compile("Cash(.*)"), "us-gaap")
-    # cash = _get_fact_data(companyfacts, re.compile("^Cash(?!.*Restrict)(.*)eriodIncreaseDecrease$"), "us-gaap")
-    keys = cash.keys()
-    logger.debug(keys)
-    net_including_restricted_cash_keys = [
-        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"
-        ]
-    net_excluding_restricted_cash_keys = [
+    net_cash_keys_all = [
         "Cash",
-        'CashAndCashEquivalentsAtCarryingValue'
-        ]
-
-    restricted_cash_keys = [
-        "RestrictedCashNoncurrent",
+        'CashAndCashEquivalentsAtCarryingValue',
         "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
-        'RestrictedCashAndCashEquivalentsAtCarryingValue',
-        "RestrictedCashAndCashEquivalents"]
-    for net_not_restricted_cash_key in net_excluding_restricted_cash_keys:
-        if net_not_restricted_cash_key in keys:
-            return pd.DataFrame(cash[net_not_restricted_cash_key]).drop_duplicates(["end", "val"]).to_dict("records")
-    for net_restricted_cash_key in net_including_restricted_cash_keys:
-        if  net_restricted_cash_key in keys:
-            for restricted_cash_key in restricted_cash_keys:
-                if restricted_cash_key in keys:
-                    try:
-                        c = pd.DataFrame(cash[net_restricted_cash_key]).drop_duplicates(["end", "val"])
-                        r = pd.DataFrame(cash[restricted_cash_key]).drop_duplicates(["end", "val"])
-                        df = c.merge(r[["end", "val"]], on="end")
-                        df["val"] = df["val_x"] - df["val_y"]
-                        logger.debug(f"net_cash_and_equivalents used following keys to get data: {net_restricted_cash_key, restricted_cash_key}")
-                        return df[["end", "val", "val_x"]].rename(
-                            {"val": "val_excluding_restrictednoncurrent", "val_x": "val"}, axis=1).to_dict("records")
-                    except KeyError as  e:
-                        logger.debug(f"unhandled parsing of cash and equivalents dataframe: c.columns: {c.columns} \n r.columns: {r.columns} \n df.columns: {df.columns}")
-                        raise e
-            raise AttributeError(f"unhandled restricted cash key: {keys}")
-        else:
-            raise AttributeError(f"unhandled cash_key or cash_key not present: {keys}")
-    else:
-        raise AttributeError(
-            (f"unhandled case of cash and equivalents: \n"
-             f"facts (keys) found: {keys}"))
+        'RestrictedCashAndCashEquivalentsAtCarryingValue'
+        ]
+    dfs = []
+    for key in net_cash_keys_all:
+        try:
+            facts = _get_fact_data(companyfacts, key, "us-gaap")
+            df = pd.DataFrame(facts[key])
+            # clean and sort
+            df = df.sort_values(by=["val"], ascending=True).drop_duplicates(["end"], keep="last")[["end", "val", "name"]]
+            # rename val and drop name column
+            df = df.rename({"val": key}, axis=1).drop("name", axis=1)
+            dfs.append(df)
+        except KeyError:
+            continue
+    # merge all together
+    cash = reduce(
+        lambda l, r: pd.merge(l, r, on=["end"], how="outer"),
+        dfs,
+        )
+    cash["val"] = cash.loc[:, cash.columns != "end"].agg(lambda x: np.nanmax(x.values), axis=1)
+    return cash[["end", "val"]].to_dict("records")
 
 def get_cash_financing(companyfacts):
     cash_financing = _get_fact_data(companyfacts, re.compile("netcash(.*)financ(.*)",  re.I), "us-gaap")
@@ -158,7 +169,7 @@ def get_cash_operating(companyfacts):
        
 
 
-def _get_fact_data(companyfacts, name, taxonomy, unit="USD"):
+def _get_fact_data(companyfacts, name, taxonomy):
     facts = {}
     data_points = companyfacts["facts"][taxonomy]
     if isinstance(name, re.Pattern):
@@ -177,7 +188,7 @@ def _get_fact_data(companyfacts, name, taxonomy, unit="USD"):
                             facts[fstring] = [single_fact]
     else:
         for d in data_points:
-            fname = re.search(re.compile("(.*)("+name+")(.*)", re.I), d)
+            fname = re.search(re.compile("^("+name+")$", re.I), d)
             if fname:
                 fstring = fname.string
                 for unit in companyfacts["facts"][taxonomy][fstring]["units"]:
