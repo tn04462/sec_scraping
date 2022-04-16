@@ -9,6 +9,42 @@ from main.parser.text_parser import Parser8K
 from pathlib import Path
 parser = Parser8K()
 
+from psycopg import Connection
+from psycopg.rows import dict_row
+from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
+from psycopg_pool import ConnectionPool
+class GenericDB:
+    def __init__(self, connectionString):
+        self.connectionString = connectionString
+        self.pool = ConnectionPool(
+            self.connectionString, kwargs={"row_factory": dict_row}
+        )
+        self.conn = self.pool.connection
+    
+    def execute_sql(self, path):
+        with self.conn() as c:
+            with open(path, "r") as sql:
+                res = c.execute(sql.read())
+                try:
+                    for row in res:
+                        print(row)
+                except ProgrammingError:
+                    pass
+    
+    def read(self, query, values):
+        with self.conn() as c:
+            res = c.execute(query, values)
+            rows = [row for row in res]
+            return rows
+
+class FilingDB(GenericDB):
+    def __init__(self, *args):
+        super.__init__(*args)
+    
+    def add_8k_item
+    
+    
+    
 # first get all 8ks
 def get_all_8k(cnf):
     paths_folder = [r.glob("8-K") for r in Path(cnf.DOWNLOADER_ROOT_PATH).glob("*")]
@@ -20,6 +56,7 @@ def get_all_8k(cnf):
             for r in each:
                 paths.append(r)
     return paths
+
 
 i = []
 failures = []
