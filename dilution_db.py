@@ -86,6 +86,9 @@ class DilutionDB:
     def read_all_companies(self):
         return self.read("SELECT id, cik, symbol, name_ as name FROM companies", [])
 
+    def read_company_by_symbol(self, symbol: str):
+        return self.read("SELECT * FROM companies WHERE symbol = %s", [symbol.upper()])
+
     def create_form_types(self):
         with self.conn() as c:
             for name, values in FORM_TYPES_INFO.items():
@@ -354,13 +357,14 @@ class DilutionDB:
         days_of_cash_date = datetime.now()
         cash_date = pd.to_datetime(net_cash["instant"]).date()
         burn_rate = cash_burn["burn_rate_total"]
+        print(burn_rate)
         if burn_rate >= 0:
             days_of_cash = "infinity"
         else:
             abs_br = abs(burn_rate)
             prorated_cash_left = net_cash["amount"] - (abs_br*(datetime.now().date() - cash_date).days)
             if prorated_cash_left < 0:
-                days_of_cash = abs(prorated_cash_left)/burn_rate
+                days_of_cash = abs(prorated_cash_left)/abs_br
             else:
                 days_of_cash = prorated_cash_left/abs_br
         self.create_cash_burn_summary(
@@ -405,6 +409,50 @@ class DilutionDB:
             except Exception as e:
                 logger.debug(e)
                 raise e
+    
+    def force_cashBurn_update(self, ticker: str):
+        '''clear cash burn rate and summary data and recalculate for one company
+        based on the available data from the database. Doesnt pull new data.'''
+        company = db.read_company_by_symbol(ticker)[0]
+        id = company["id"]
+        try:
+            with self.conn() as connection:
+                try:
+                    connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
+                    connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
+                    self.init_cash_burn_rate(connection, id)
+                    self.init_cash_burn_summary(connection, id)
+                except Exception as e:
+                    connection.rollback()
+                    logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
+                    print(e)
+                    pass
+                else:
+                    connection.commit()
+        except KeyError as e:
+            logger.info((e, company))
+
+    def force_cashBurn_update_all(self):
+        '''clear cash burn rate and summary data and recalculate for all companies
+        based on the available data from the database. Doesnt pull new data.'''
+        companies = self.read_all_companies()
+        for company in companies:
+            id = company["id"]
+            try:
+                with self.conn() as connection:
+                    try:
+                        connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
+                        connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
+                        self.init_cash_burn_rate(connection, id)
+                        self.init_cash_burn_summary(connection, id)
+                    except Exception as e:
+                        connection.rollback()
+                        logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
+                        pass
+                    else:
+                        connection.commit()
+            except KeyError as e:
+                logger.info((e, company))
 
     def _clean_df_cash_burn(self, cash_burn: pd.DataFrame):
         cash_burn["burn_rate_total"] = cash_burn[

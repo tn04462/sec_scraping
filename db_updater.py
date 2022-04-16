@@ -53,17 +53,6 @@ tracked_forms = cnf.APP_CONFIG.TRACKED_FORMS
 3) think how i can update daily    
 '''
 
-def force_cashBurn_update(db: DilutionDB):
-    companies = db.read_all_companies()
-    for company in companies:
-        id = company["id"]
-        try:
-            with db.conn() as connection:
-                with connection.transaction():
-                    db.init_cash_burn_rate(connection, id)
-                    db.init_cash_burn_summary(connection, id)
-        except KeyError as e:
-            logger.info((e, company))
     
 
 def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
@@ -235,7 +224,7 @@ def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_
         
 
 
-def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str):
+def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
     # # download the last 2 years of relevant filings
     if after is None:
         after = str((datetime.now() - timedelta(weeks=104)).date())
@@ -345,15 +334,15 @@ if __name__ == "__main__":
     
     
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    for ticker in cnf.APP_CONFIG.TRACKED_TICKERS:
-        get_filing_set(Downloader(dl_root_path), ticker, cnf.APP_CONFIG.TRACKED_FORMS, "2018-01-01")
+    # for ticker in cnf.APP_CONFIG.TRACKED_TICKERS:
+    #     get_filing_set(Downloader(dl_root_path), ticker, cnf.APP_CONFIG.TRACKED_FORMS, "2018-01-01")
     # db._delete_all_tables()
     # db._create_tables()
     # db.create_sics()
     # db.create_form_types()
 
 
-    # inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, cnf.APP_CONFIG.TRACKED_TICKERS)
+    # inital_population(db, cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, cnf.APP_CONFIG.TRACKED_TICKERS)
     # inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["CEI", "USAK", "BBQ"])
 
 

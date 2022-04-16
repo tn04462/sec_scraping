@@ -27,9 +27,9 @@ Items8k = {
 "Item3.02":"Item(?:\s*|.)3\.02(?:\s*|\.|.)Unregistered\s*Sales\s*of\s*Equity\s*Securities",
 "Item3.03":"Item(?:\s*|.)3\.03(?:\s*|\.|.)Material\s*Modification\s*to\s*Rights\s*of\s*Security\s*Holders",
 "Item4.01":"Item(?:\s*|.)4\.01(?:\s*|\.|.)Changes\s*in\s*Registrant's\s*Certifying\s*Accountant",
-"Item4.02":"Item(?:\s*|.)4\.02(?:\s*|\.|.)Non-Reliance\s*on\s*Previously\s*Issued\s*(Financial\s*Statements)|(.Related\s*Audit\s*Report)|(.Completed\s*Interim\s*Review)",
+"Item4.02":"Item(?:\s*|.)4\.02(?:\s*|\.|.)Non-Reliance\s*on\s*Previously\s*Issued(?:\s* | \.)((Financial\s*Statements)|(Related\s*Audit\s*Report)|(Completed\s*Interim\s*Review))",
 "Item5.01":"Item(?:\s*|.)5\.01(?:\s*|\.|.)Changes\s*in\s*Control\s*of\s*Registrant",
-"Item5.02":"Item(?:\s*|.)5\.02(?:\s*|\.|.)(Departure\s*of\s*Directors\s*or\s*Certain\s*Officers)|(.Election\s*of\s*Directors)|(.Appointment\s*of\s*Certain\s*Officers)|(.Compensatory\s*Arrangements\s*of\s*Certain\s*Officers)",
+"Item5.02":"Item(?:\s*|.)5\.02(?:\s*|\.|.)(?:(Departure\s*of\s*Directors\s*or\s*Certain\s*Officers)|(.Election\s*of\s*Directors)|(.Appointment\s*of\s*Certain\s*Officers)|(.Compensatory\s*Arrangements\s*of\s*Certain\s*Officers))",
 "Item5.03":"Item(?:\s*|.)5\.03(?:\s*|\.|.)Amendments\s*to\s*Articles\s*of\s*Incorporation\s*or\s*Bylaws;\s*Change\s*in\s*Fiscal\s*Year",
 "Item5.04":"Item(?:\s*|.)5\.04(?:\s*|\.|.)Temporary\s*Suspension\s*of\s*Trading\s*Under\s*Registrant's\s*Employee\s*Benefit\s*Plans",
 "Item5.05":"Item(?:\s*|.)5\.05(?:\s*|\.|.)Amendment\s*to\s*Registrant's\s*Code\s*of\s*Ethics,\s*or\s*Waiver\s*of\s*a\s*Provision\s*of\s*the\s*Code\s*of\s*Ethics",
@@ -59,9 +59,9 @@ class Parser8K:
     '''
     def __init__(self):
         self.soup = None
-        self.first_match_group = self.create_first_match_group()
+        self.first_match_group = self._create_match_group()
 
-    def create_first_match_group(self):
+    def _create_match_group(self):
         reg_items = "("
         for key, val in Items8k.items():
             reg_items = reg_items + "("+val+")|"
@@ -92,7 +92,7 @@ class Parser8K:
     def get_signature_matches(self, filing: str):
         '''get matches for the signatures'''
         signature_matches = []
-        for smatch in re.finditer(re.compile("signatures", re.I), filing):
+        for smatch in re.finditer(re.compile("(signatures|signature)", re.I), filing):
             signature_matches.append([smatch.start(), smatch.end(), smatch.start() - smatch.end()])
         return signature_matches
 
@@ -108,22 +108,33 @@ class Parser8K:
         # ensure that there is one signature which comes after all the items
         # otherwise discard the signature
         last_idx = len(items)-1
-        for sig in signatures:
+        for idx, sig in enumerate(signatures):
+            # print(sig)
             for item in items:
                 if sig[1] < item[1]:
-                    signatures.pop(sig)
+                    try:
+                        signatures.pop(idx)
+                    except TypeError as e:
+                        print(f"unhandled exception type error: ", sig, signatures)
+                        print(e)
             if len(signatures) == 0:
-                raise AttributeError
+                continue
         for idx, item in enumerate(items):
             # last item
             if idx == last_idx:
-                body = filing[item[1]:signatures[0][0]]
+                try:
+                    body = filing[item[1]:signatures[0][0]]
+                except Exception as e:
+                    # print(f"filing{filing}, item: {item}, signatures: {signatures}")
+                    if len(signatures) == 0:
+                        # didnt find a signature so just assume content is until EOF
+                        body = filing[item[1]:]
                 #normalize item
-                normalized_item = item[2].lower().replace(" ", "").replace(".", "")
+                normalized_item = item[2].lower().replace(" ", "").replace(".", "").replace("\xa0", " ")
                 extracted_items.append({normalized_item: body})
             else:
                 body = filing[item[1]:items[idx+1][0]]
-                normalized_item = item[2].lower().replace(" ", "").replace(".", "")
+                normalized_item = item[2].lower().replace(" ", "").replace(".", "").replace("\xa0", " ")
                 extracted_items.append({normalized_item: body})
         return extracted_items
 

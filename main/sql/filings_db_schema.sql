@@ -4,12 +4,11 @@ CREATE TABLE IF NOT EXISTS items8k(
 );
 
 CREATE TABLE IF NOT EXISTS form8k(
-    file_date DATE,
     cik VARCHAR(20),
     item_id SERIAL,
-    content TEXT NOT NULL
+    content TEXT NOT NULL,
     
     CONSTRAINT fk_item_id
         FOREIGN KEY (item_id)
-            REFERENCES items8k(id),
+            REFERENCES items8k(id)
 );
