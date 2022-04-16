@@ -326,6 +326,7 @@ FORM_TYPES_INFO = {
     "SC 13E1": {"category": "unspecified"},
     "SC 13E3": {"category": "unspecified"},
     "SC 13G": {"category": "Ownership"},
+    "SC 13G/A": {"category": "Ownership"},
     "SC 14D9": {"category": "unspecified"},
     "SC 14F1": {"category": "unspecified"},
     "SC 14N": {"category": "unspecified"},

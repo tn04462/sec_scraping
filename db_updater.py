@@ -244,6 +244,8 @@ def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str)
         downloader.get_filings(ticker, form, after, number_of_filings=100)
 
 
+
+# __________experimenting___________
 import pandas as pd
 import re
 from functools import reduce
@@ -343,15 +345,15 @@ if __name__ == "__main__":
     
     
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    for ticker in cnf.APP_CONFIG.TRACKED_TICKERS[1:]:
-        get_filing_set(Downloader(dl_root_path), ticker, ["8-K"], "2020-01-01")
+    for ticker in cnf.APP_CONFIG.TRACKED_TICKERS:
+        get_filing_set(Downloader(dl_root_path), ticker, cnf.APP_CONFIG.TRACKED_FORMS, "2018-01-01")
     # db._delete_all_tables()
     # db._create_tables()
     # db.create_sics()
     # db.create_form_types()
-    
-    # force_cashBurn_update(db)dl = Downloader(dl_root_path)
-    # inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, cnf.APP_CONFIG.TRACKED_TICKERS[31:])
+
+
+    # inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, cnf.APP_CONFIG.TRACKED_TICKERS)
     # inital_population(db, dl_root_path, polygon_overview_files_path, polygon_key, ["CEI", "USAK", "BBQ"])
 
 

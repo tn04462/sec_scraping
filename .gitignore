@@ -6,4 +6,8 @@ pysec_downloader/dummy_folder
 main/parser/unused_ignore/
 main/resources/test_set
 main/configuration/secret.env
+__pycache__/
+main/__pycache__/
+main/parser/__pycache__/
+main/data_aggregation/__pycache__/
 
