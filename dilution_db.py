@@ -1,13 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
 from psycopg_pool import ConnectionPool
 from psycopg import Connection
 from json import load
 from functools import reduce
-from os import path
+from os import PathLike, path
 import pandas as pd
 import logging
+from pysec_downloader.downloader import Downloader
 
 from posixpath import join as urljoin
 
@@ -15,7 +16,7 @@ from main.configs import cnf
 from _constants import FORM_TYPES_INFO
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 
@@ -27,7 +28,12 @@ else:
 
 class DilutionDBUtil:
     def __init__(self):
-        pass
+        self.logging_file = cnf.DEFAULT_LOGGING_FILE
+        self.logger = logging.getLogger("DilutionDBUtil")
+        self.logger_handler = logging.FileHandler(self.logging_file)
+        self.logger_handler.setFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.logger_handler.setLevel(logging.INFO)
+        self.logger.addHandler(self.logger_handler)
 
     def format_submissions_json_for_db(self, base_url, cik, sub):
         filings = sub["filings"]["recent"]
@@ -43,6 +49,18 @@ class DilutionDBUtil:
     
     def build_submission_link(self, base_url, cik, accession_number, primary_document):
         return urljoin(urljoin(urljoin(base_url, cik), accession_number), primary_document)
+    
+    def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
+        # # download the last 2 years of relevant filings
+        if after is None:
+            after = str((datetime.now() - timedelta(weeks=104)).date())
+        for form in forms:
+        #     # add check for existing file in pysec_donwloader so i dont download file twice
+            try:
+                downloader.get_filings(ticker, form, after, number_of_filings=100)
+            except Exception as e:
+                self.logger.info((ticker, form, e))
+                pass
 
 class DilutionDB:
     def __init__(self, connectionString):

@@ -1,3 +1,4 @@
+from os import PathLike
 from typing import Optional
 from pydantic import BaseSettings, Field, BaseModel
 
@@ -95,11 +96,13 @@ class GlobalConfig(BaseSettings):
     USERS_DB_CONNECTION_STRING: Optional[str] = None
 
 
+    DEFAULT_LOGGING_FILE: str or PathLike = None
     DOWNLOADER_ROOT_PATH: Optional[str] = None
     POLYGON_ROOT_PATH: Optional[str] = None
     POLYGON_OVERVIEW_FILES_PATH: Optional[str] = None
     POLYGON_API_KEY: Optional[str] = None
     SEC_USER_AGENT: Optional[str] = None
+    
 
     class Config:
         """Loads the dotenv file."""

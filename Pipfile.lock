@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c35e1237d8af2df13d03647366707eff4e543debb06cac8cfeec1053f5704f4a"
+            "sha256": "f4d5f68d29e8357a6bc3d97f3ba207eca9328d6281f1d3145455cfc24fb973cd"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -217,11 +217,11 @@
         },
         "pysec-downloader": {
             "hashes": [
-                "sha256:908ada41d783332961a8f4bf51e437c9c46cef599169450f289ba27266c20737",
-                "sha256:d6d9de753be4fb8a95321de2b2d9bc13f73ee2a6182d54ca5a4694f6a7d6a40c"
+                "sha256:7c78abab03acc23f9d542210ecbbbd76917079208f6f3be71ebc2dc68c040e0c",
+                "sha256:dd6bb5b49b08e13b25def414226438fc849a96e932abea7247296b12b00ee783"
             ],
             "index": "pypi",
-            "version": "==0.0.25"
+            "version": "==0.0.26"
         },
         "python-dateutil": {
             "hashes": [
@@ -424,6 +424,14 @@
             ],
             "markers": "python_version < '3.11'",
             "version": "==2.0.1"
+        },
+        "tqdm": {
+            "hashes": [
+                "sha256:40be55d30e200777a307a7585aee69e4eabb46b4ec6a4b4a5f2d9f11e7d5408d",
+                "sha256:74a2cdefe14d11442cedf3ba4e21a3b84ff9a2dbdc6cfae2c34addb2a14a5ea6"
+            ],
+            "index": "pypi",
+            "version": "==4.64.0"
         }
     }
 }
