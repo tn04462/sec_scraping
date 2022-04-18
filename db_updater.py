@@ -19,7 +19,8 @@ from requests.exceptions import HTTPError
 
 
 logger = logging.getLogger(__package__)
-fh = logging.FileHandler(r"E:\sec_scraping\resources\datasets\population_errors.txt")
+# fh = logging.FileHandler(r"E:\sec_scraping\resources\datasets\population_errors.txt")
+fh = logging.FileHandler(Path(cnf.DEFAULT_LOGGING_FILE).parent / "population_errors.txt")
 fh.setLevel(logging.CRITICAL)
 logger.addHandler(fh)
 if cnf.ENV_STATE != "prod":

@@ -86,6 +86,7 @@ class FilingDB(GenericDB):
             for i in self.items8k:
                 connection.execute("INSERT INTO items8k(item_name) VALUES(%s)",[i])
     
+    
     def add_8k_content(self, cik, file_date, item, content):
         normalized_item = self.normalize_8kitem(item)
         with self.conn() as connection:
@@ -101,9 +102,9 @@ class FilingDB(GenericDB):
             fdb.add_8k_content(f[0], f[1], f[2], f[3])
 
 
-def get_all_8k(cnf):
+def get_all_8k(root_path):
         '''get all .htm files in the 8-k subdirectories. entry point is the root path of /filings'''
-        paths_folder = [r.glob("8-K") for r in ((Path(cnf.DOWNLOADER_ROOT_PATH))/"filings").glob("*")]
+        paths_folder = [r.glob("8-K") for r in (Path(root_path)).glob("*")]
         paths_folder = [[f for f in r] for r in paths_folder]
         # print(paths_folder)
         paths_files = [[f.rglob("*.htm") for f in r] for r in paths_folder]
@@ -118,14 +119,14 @@ def get_all_8k(cnf):
         return paths
 
 def parse_all_8k(paths):
-    paths = get_all_8k(cnf)
+    '''paths: list of paths to the 8-k filing'''
     discard_count_other = 0
     discard_count_attr = 0
     discard_count_date = 0
     discard_keys = []
     for p in paths:
         with open(p, "r", encoding="utf-8") as f:
-            cik = p.parent.parent.parent.name
+            cik = p.parent.name.split("-")[0]
             file = f.read()
             filing = parser.preprocess_filing(file)
             try:
@@ -136,9 +137,10 @@ def parse_all_8k(paths):
                 continue
             try:
                 date = parser.parse_date_of_report(filing)
+                print(f"date: {date}")
             except AttributeError:
-                print(p)
                 discard_count_date += 1
+                print(e)
                 continue
             for item in items:
                 for key, value in item.items():
@@ -156,7 +158,8 @@ def parse_all_8k(paths):
                     #     discard_count_other += 1
                     #     discard_keys.append(key)
                     #     pass
-    print(f"discarded -> (other:{discard_count_other}, attr: {discard_count_attr}) of a total of {len(paths)}")
+    total_discard = discard_count_attr + discard_count_date + discard_count_other
+    print(f"discarded -> (other:{discard_count_other}, attr: {discard_count_attr}, date: {discard_count_date}) total: {total_discard} of {len(paths)}")
     print(set(discard_keys))
 
 
@@ -172,32 +175,33 @@ if __name__ == "__main__":
     from tqdm import tqdm
     import json
 
-    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
-    
+    # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
     # import logging
     # logging.basicConfig(level=logging.INFO)
     # dlog = logging.getLogger("urllib3.connectionpool")
     # dlog.setLevel(logging.CRITICAL)
     # with open("./resources/company_tickers.json", "r") as f:
     #     tickers = list(json.load(f).keys())
-    #     for ticker in tqdm(tickers[606:]):
+    #     for ticker in tqdm(tickers[:5]):
     #         db.util.get_filing_set(dl, ticker, ["8-K"], "2017-01-01", number_of_filings=250)
 
-    with open("./resources/company_tickers.json", "r") as f:
-        tickers = list(json.load(f).keys())
-        db.util.get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
+    # with open("./resources/company_tickers.json", "r") as f:
+    #     tickers = list(json.load(f).keys())
+    #     db.util.get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
 
-# # delete and recreate tables, populate 8-k item names
-# # extract item:content pairs from all 8-k filings in the downloader_root_path
-# # and add them to the database (currently not having filing_date, 
-# # important for querying the results later) if not other way, get filing date 
-# # by using cik and accn to query the submissions file 
-    # fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
-    # fdb.execute_sql("./main/sql/filings_db_schema.sql")
-    # fdb.init_8k_items()
-    # paths = get_all_8k(cnf)
-    # # parse_all_8k(paths)
+# delete and recreate tables, populate 8-k item names
+# extract item:content pairs from all 8-k filings in the downloader_root_path
+# and add them to the database (currently not having filing_date, 
+# important for querying the results later) if not other way, get filing date 
+# by using cik and accn to query the submissions file 
+    fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
+    fdb.execute_sql("./main/sql/filings_db_schema.sql")
+    fdb.init_8k_items()
+    paths = get_all_8k(r"C:\Users\Public\Desktop\sec_scraping_testsets\test_set_8k\filings")
+    for k in parse_all_8k(paths):
+        # print(k)
+        pass
     # fdb.parse_and_add_all_8k_content(paths)
 
 # # item count in all 8-k's of the filings-database

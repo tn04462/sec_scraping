@@ -11,3 +11,10 @@ main/__pycache__/
 main/parser/__pycache__/
 main/data_aggregation/__pycache__/
 
+main/__pycache__/configs.cpython-310.pyc
+main/data_aggregation/__pycache__/bulk_files.cpython-310.pyc
+main/data_aggregation/__pycache__/fact_extractor.cpython-310.pyc
+main/data_aggregation/__pycache__/polygon_basic.cpython-310.pyc
+main/parser/__pycache__/text_parser.cpython-310.pyc
+__pycache__/_constants.cpython-310.pyc
+__pycache__/dilution_db.cpython-310.pyc

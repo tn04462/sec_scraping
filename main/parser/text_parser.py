@@ -88,6 +88,11 @@ class Parser8K:
         for match in re.finditer(self.first_match_group, filing):
             matches.append([match.start(), match.end(), match.group(0)])
         return matches
+
+    def parse_date_of_report(self, filing: str):
+        print(filing)
+        date = re.search(re.compile("Date of Report (Date of earliest event reported): (.*)", re.I), filing)
+        return date
     
     def get_signature_matches(self, filing: str):
         '''get matches for the signatures'''

@@ -11,6 +11,6 @@ CREATE TABLE IF NOT EXISTS form8k(
     
     CONSTRAINT fk_item_id
         FOREIGN KEY (item_id)
-            REFERENCES items8k(id)
+            REFERENCES items8k(id),
     CONSTRAINT unique_entry UNIQUE(cik, file_date, content)
 );
