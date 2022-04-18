@@ -3,15 +3,18 @@ from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
 from psycopg_pool import ConnectionPool
 from psycopg import Connection
-from json import load
+from json import load, dump
 from functools import reduce
 from os import PathLike, path
 import pandas as pd
 import logging
-from pysec_downloader.downloader import Downloader
-
 from posixpath import join as urljoin
+from pathlib import Path
+from requests.exceptions import HTTPError
+from tqdm import tqdm
 
+from pysec_downloader.downloader import Downloader
+from main.data_aggregation.polygon_basic import PolygonClient
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO
 
@@ -31,7 +34,7 @@ class DilutionDBUtil:
         self.logging_file = cnf.DEFAULT_LOGGING_FILE
         self.logger = logging.getLogger("DilutionDBUtil")
         self.logger_handler = logging.FileHandler(self.logging_file)
-        self.logger_handler.setFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         self.logger_handler.setLevel(logging.INFO)
         self.logger.addHandler(self.logger_handler)
 
@@ -57,10 +60,29 @@ class DilutionDBUtil:
         for form in forms:
         #     # add check for existing file in pysec_donwloader so i dont download file twice
             try:
-                downloader.get_filings(ticker, form, after, number_of_filings=100)
+                downloader.get_filings(ticker, form, after, number_of_filings=number_of_filings)
             except Exception as e:
-                self.logger.info((ticker, form, e))
+                self.logger.info((ticker, form, e), exc_info=True)
                 pass
+
+    def get_overview_files(self, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
+        polygon_client = PolygonClient(polygon_api_key)
+        dl = Downloader(dl_root_path)
+        if not Path(polygon_overview_files_path).exists():
+            Path(polygon_overview_files_path).mkdir(parents=True)
+            logger.debug(
+                f"created overview_files_path and parent folders: {polygon_overview_files_path}")
+        for ticker in tqdm(tickers):
+            logger.info(f"currently working on: {ticker}")
+            # get basic info and create company
+            try:
+                ov = polygon_client.get_overview_single_ticker(ticker)
+            except HTTPError as e:
+                logger.critical((e, ticker, "couldnt get overview file"), exc_info=True)
+                logger.info("couldnt get overview file")
+                continue
+            with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
+                dump(ov, f)
 
 class DilutionDB:
     def __init__(self, connectionString):
@@ -551,6 +573,9 @@ class DilutionDB:
 if __name__ == "__main__":
 
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    with open("./resources/company_tickers.json", "r") as f:
+        tickers = list(load(f).keys())
+        db.util.get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
     
     # fake_args1 = [1, 0, 0, 0, 0, "2010-04-01", "2011-02-27"]
     # fake_args2 = [1, 0, 0, 0, 0, "2010-04-01", "2011-04-27"]

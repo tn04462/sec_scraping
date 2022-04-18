@@ -204,11 +204,7 @@ if __name__ == "__main__":
     from pathlib import Path
     import json
     import re
-    after = "2022-03-01"
-    submissions = r"E:\dilution_scout_testing_data_and_db\submissions"
-    with Timer() as t:
-        paths = [r for r in Path(submissions).glob("*.json")][0:1]
-
+    
 
     @Timer()
     def open_and_close_all(paths):
@@ -219,6 +215,11 @@ if __name__ == "__main__":
 
     @Timer()
     def search_new_filings(paths, after):
+        '''
+        get new filings after certain date from a submission file
+        Args:
+            paths:  path to the submission file of the company
+            after: after what date to consider a filing a new filing'''
         new_filings = {}
         for p in paths:
             with open(p, "r") as f:
@@ -243,16 +244,11 @@ if __name__ == "__main__":
                     pass #second filing not handled yet
                 finally:
                     del j
-        print(new_filings, "____________________________________")
+        return new_filings
 
     # open_and_close_all(paths)
     # search_new_filings(paths, "1998-03-02")
 
     #_______
-    from zipfile import ZipFile
-    from pathlib import Path
-    temp_path = r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\temp.zip"
-    with ZipFile(temp_path, "r") as z:
-        print(type(z))
-        z.extractall(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\companyfacts")
+
 

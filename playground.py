@@ -86,21 +86,23 @@ class FilingDB(GenericDB):
             for i in self.items8k:
                 connection.execute("INSERT INTO items8k(item_name) VALUES(%s)",[i])
     
-    def add_8k_content(self, cik, item, content):
+    def add_8k_content(self, cik, file_date, item, content):
         normalized_item = self.normalize_8kitem(item)
         with self.conn() as connection:
             # print(item)
-            connection.execute("INSERT INTO form8k(cik, item_id, content) VALUES(%(cik)s, (SELECT id from items8k WHERE item_name = %(item)s), %(content)s)",
+            connection.execute("INSERT INTO form8k(cik, file_date, item_id, content) VALUES(%(cik)s, %(file_date)s, (SELECT id from items8k WHERE item_name = %(item)s), %(content)s) ON CONFLICT ON CONSTRAINT unique_entry DO NOTHING",
             {"cik": cik,
+            "file_date": file_date,
             "item": normalized_item,
             "content": content})
     
-    def add_all_8k_content(self, paths):
+    def parse_and_add_all_8k_content(self, paths):
         for f in parse_all_8k(paths):
-            fdb.add_8k_content(f[0], f[1], f[2])
+            fdb.add_8k_content(f[0], f[1], f[2], f[3])
 
 
 def get_all_8k(cnf):
+        '''get all .htm files in the 8-k subdirectories. entry point is the root path of /filings'''
         paths_folder = [r.glob("8-K") for r in ((Path(cnf.DOWNLOADER_ROOT_PATH))/"filings").glob("*")]
         paths_folder = [[f for f in r] for r in paths_folder]
         # print(paths_folder)
@@ -119,6 +121,7 @@ def parse_all_8k(paths):
     paths = get_all_8k(cnf)
     discard_count_other = 0
     discard_count_attr = 0
+    discard_count_date = 0
     discard_keys = []
     for p in paths:
         with open(p, "r", encoding="utf-8") as f:
@@ -131,11 +134,17 @@ def parse_all_8k(paths):
                 print(p)
                 discard_count_attr += 1
                 continue
+            try:
+                date = parser.parse_date_of_report(filing)
+            except AttributeError:
+                print(p)
+                discard_count_date += 1
+                continue
             for item in items:
                 for key, value in item.items():
                     # print(key, value)
                     try:
-                        yield (str(cik), key, value)
+                        yield (str(cik), date, key, value)
                     except Exception as e:
                         discard_count_other += 1
                         discard_keys.apppend(key)
@@ -161,19 +170,23 @@ if __name__ == "__main__":
     from db_updater import get_filing_set
     from pysec_downloader.downloader import Downloader
     from tqdm import tqdm
+    import json
 
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
-    import json
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    dlog = logging.getLogger("urllib3.connectionpool")
-    dlog.setLevel(logging.CRITICAL)
+    
+    # import logging
+    # logging.basicConfig(level=logging.INFO)
+    # dlog = logging.getLogger("urllib3.connectionpool")
+    # dlog.setLevel(logging.CRITICAL)
+    # with open("./resources/company_tickers.json", "r") as f:
+    #     tickers = list(json.load(f).keys())
+    #     for ticker in tqdm(tickers[606:]):
+    #         db.util.get_filing_set(dl, ticker, ["8-K"], "2017-01-01", number_of_filings=250)
+
     with open("./resources/company_tickers.json", "r") as f:
         tickers = list(json.load(f).keys())
-        for ticker in tqdm(tickers[80:]):
-            db.util.get_filing_set(dl, ticker, ["8-K"], "2017-01-01", number_of_filings=250)
-
+        db.util.get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
 
 # # delete and recreate tables, populate 8-k item names
 # # extract item:content pairs from all 8-k filings in the downloader_root_path
@@ -184,10 +197,11 @@ if __name__ == "__main__":
     # fdb.execute_sql("./main/sql/filings_db_schema.sql")
     # fdb.init_8k_items()
     # paths = get_all_8k(cnf)
-    # parse_all_8k(paths)
+    # # parse_all_8k(paths)
+    # fdb.parse_and_add_all_8k_content(paths)
 
 # # item count in all 8-k's of the filings-database
-    # entries = fdb.read("SELECT f.item_id as item_id, i.item_name as item_name FROM form8k as f JOIN items8k as i ON i.id = f.item_id", [])
+    # entries = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name FROM form8k as f WHERE item_name = 'item801' JOIN items8k as i ON i.id = f.item_id", [])
     # summary = {}
     # for e in entries:
     #     if e["item_name"] not in summary.keys():

@@ -7,8 +7,7 @@ import logging
 
 
 logger = logging.getLogger(__package__)
-if cnf.ENV_STATE == "dev":
-    logger.setLevel(logging.DEBUG)
+
 
 
 class PolygonClient:
