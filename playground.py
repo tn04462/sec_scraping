@@ -1,4 +1,5 @@
 
+from inspect import Attribute
 from urllib3 import connection_from_url
 # from dilution_db import DilutionDB
 # from main.data_aggregation.polygon_basic import PolygonClient
@@ -120,6 +121,7 @@ def get_all_8k(root_path):
 def parse_all_8k(paths):
     '''paths: list of paths to the 8-k filing'''
     discard_count_other = 0
+    discard_count_no_sig = 0
     discard_count_attr = 0
     discard_count_date = 0
     discard_keys = []
@@ -134,9 +136,13 @@ def parse_all_8k(paths):
                 print(p)
                 discard_count_attr += 1
                 continue
+            except IndexError as e:
+                print(e)
+                discard_count_no_sig += 1
+                continue
             try:
                 date = parser.parse_date_of_report(filing)
-                print(f"date: {date}")
+                # print(f"date: {date}")
             except AttributeError as e:
                 discard_count_date += 1
                 print(e)
@@ -145,7 +151,14 @@ def parse_all_8k(paths):
                 for key, value in item.items():
                     # print(key, value)
                     try:
-                        yield (str(cik), date, key, value)
+                        date_group = date.groups()
+                        valid_dates = []
+                        for d in date_group:
+                            if d is not None:
+                                valid_dates.append(d)
+                        if len(valid_dates) > 1:
+                            raise AttributeError
+                        yield (str(cik), valid_dates[0], key, value)
                     except Exception as e:
                         discard_count_other += 1
                         discard_keys.apppend(key)
@@ -157,8 +170,8 @@ def parse_all_8k(paths):
                     #     discard_count_other += 1
                     #     discard_keys.append(key)
                     #     pass
-    total_discard = discard_count_attr + discard_count_date + discard_count_other
-    print(f"discarded -> (other:{discard_count_other}, attr: {discard_count_attr}, date: {discard_count_date}) total: {total_discard} of {len(paths)}")
+    total_discard = discard_count_attr + discard_count_date + discard_count_other + discard_count_no_sig
+    print(f"discarded -> (other:{discard_count_other}, attr: {discard_count_attr}, date: {discard_count_date}, signature: {discard_count_no_sig}) total: {total_discard} of {len(paths)}")
     print(set(discard_keys))
 
 
@@ -166,16 +179,17 @@ def parse_all_8k(paths):
 if __name__ == "__main__":
     connection_string = "postgres://postgres:admin@localhost/postgres"
 
-    # fdb = FilingDB(connection_string)
+    fdb = FilingDB(connection_string)
 
-    # from main.configs import cnf
-    # from db_updater import get_filing_set
-    # from pysec_downloader.downloader import Downloader
-    # from tqdm import tqdm
-    # import json
+    from main.configs import cnf
+    from db_updater import get_filing_set
+    from pysec_downloader.downloader import Downloader
+    from tqdm import tqdm
+    from dilution_db import DilutionDB
+    import json
 
-    # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
+    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
     # import logging
     # logging.basicConfig(level=logging.INFO)
     # dlog = logging.getLogger("urllib3.connectionpool")
@@ -194,15 +208,20 @@ if __name__ == "__main__":
 # and add them to the database (currently not having filing_date, 
 # important for querying the results later) if not other way, get filing date 
 # by using cik and accn to query the submissions file 
-    # fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
-    # fdb.execute_sql("./main/sql/filings_db_schema.sql")
-    # fdb.init_8k_items()
-    paths = get_all_8k(Path(r"C:\Users\Olivi\Desktop\datatestsets") / "filings")
-    for k in parse_all_8k(paths):
-        # print(k)
-        pass
-    # fdb.parse_and_add_all_8k_content(paths)
+def init_fdb():
+    fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
+    fdb.execute_sql("./main/sql/filings_db_schema.sql")
+    fdb.init_8k_items()
+    paths = get_all_8k(Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\test_set_8k") / "filings")
+    fdb.parse_and_add_all_8k_content(paths)
 
+def retrieve_data_set():
+    data = fdb.read("SELECT * FROM form8k as k JOIN items8k as f on f.id = k.item_id WHERE kef.item_name = item801 LIMIT 10", [])
+    with open(r"C:\Users\Public\Desktop\sec_scraping_testsets\test_set_8k\ready_for_anno\k8s.txt", "w") as f:
+        for r in data:
+            f.write(r["content"])
+            f.write("\n")
+retrieve_data_set()
 # # item count in all 8-k's of the filings-database
     # entries = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name FROM form8k as f WHERE item_name = 'item801' JOIN items8k as i ON i.id = f.item_id", [])
     # summary = {}
