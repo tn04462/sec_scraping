@@ -1,11 +1,10 @@
-from email.parser import Parser
 
 from urllib3 import connection_from_url
-from dilution_db import DilutionDB
-from main.data_aggregation.polygon_basic import PolygonClient
-from main.configs import cnf
+# from dilution_db import DilutionDB
+# from main.data_aggregation.polygon_basic import PolygonClient
+# from main.configs import cnf
 
-from main.data_aggregation.bulk_files import update_bulk_files
+# from main.data_aggregation.bulk_files import update_bulk_files
 
 
 from main.parser.text_parser import Parser8K
@@ -138,7 +137,7 @@ def parse_all_8k(paths):
             try:
                 date = parser.parse_date_of_report(filing)
                 print(f"date: {date}")
-            except AttributeError:
+            except AttributeError as e:
                 discard_count_date += 1
                 print(e)
                 continue
@@ -167,13 +166,13 @@ def parse_all_8k(paths):
 if __name__ == "__main__":
     connection_string = "postgres://postgres:admin@localhost/postgres"
 
-    fdb = FilingDB(connection_string)
+    # fdb = FilingDB(connection_string)
 
-    from main.configs import cnf
-    from db_updater import get_filing_set
-    from pysec_downloader.downloader import Downloader
-    from tqdm import tqdm
-    import json
+    # from main.configs import cnf
+    # from db_updater import get_filing_set
+    # from pysec_downloader.downloader import Downloader
+    # from tqdm import tqdm
+    # import json
 
     # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
@@ -183,7 +182,7 @@ if __name__ == "__main__":
     # dlog.setLevel(logging.CRITICAL)
     # with open("./resources/company_tickers.json", "r") as f:
     #     tickers = list(json.load(f).keys())
-    #     for ticker in tqdm(tickers[:5]):
+    #     for ticker in tqdm(tickers[6368:]):
     #         db.util.get_filing_set(dl, ticker, ["8-K"], "2017-01-01", number_of_filings=250)
 
     # with open("./resources/company_tickers.json", "r") as f:
@@ -195,10 +194,10 @@ if __name__ == "__main__":
 # and add them to the database (currently not having filing_date, 
 # important for querying the results later) if not other way, get filing date 
 # by using cik and accn to query the submissions file 
-    fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
-    fdb.execute_sql("./main/sql/filings_db_schema.sql")
-    fdb.init_8k_items()
-    paths = get_all_8k(r"C:\Users\Public\Desktop\sec_scraping_testsets\test_set_8k\filings")
+    # fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
+    # fdb.execute_sql("./main/sql/filings_db_schema.sql")
+    # fdb.init_8k_items()
+    paths = get_all_8k(Path(r"C:\Users\Olivi\Desktop\datatestsets") / "filings")
     for k in parse_all_8k(paths):
         # print(k)
         pass

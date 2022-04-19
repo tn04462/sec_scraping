@@ -3,7 +3,7 @@ aim is to download various filings and parse them to get past dilutive behavior 
 and create a database for dilutionscout.com in the process (dilution_db).
 
 if you just want to parse filings check the parser folder (very incomplete)
-if you want to extract facts from sec companyfacts check the data_aggregation folder
+if you want to extract facts from sec companyfacts files check the data_aggregation folder
     1) specify DOWNLOADER_ROOT_PATH in the configs.py
     2) use pysec-downloader package to retrieve companyfacts or run bulk_files.py to retrieve
         companyfacts and submissions files (around 25GB of files)
@@ -43,8 +43,8 @@ how to setup dilution_db:
             get_filing_set(Downloader(dl_root_path), ticker, cnf.APP_CONFIG.TRACKED_FORMS, "2018-01-01", number_of_filings=200)
 
         
-
-        
+        ((Date(?:.?|\n?)\s?of(?:.?|\n?)\s?report(?:.?|\n?)\s?\(?Date(?:.?|\n?)\s?of(?:.?|\n?)\s?earliest(?:.?|\n?)\s?event(?:.?|\n?)\s?reported\)?:?.?.?)((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d)))|(?:(?:((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December)).*\d\d\d\d(?:\n{0,3}|\s{0,4}))(Date(?:.?|\n?)\s?of(?:.?|\n?)\s?report(?:.?|\n?)\s?\(?(?:.?|\n?)\s?Date(?:.?|\n?)\s?of(?:.?|\n?)\s?earliest(?:.?|\n?)\s?event(?:.?|\n?)\s?reported(?:.*)\)?)))
+    
 
 
 

@@ -88,11 +88,6 @@ class Parser8K:
         for match in re.finditer(self.first_match_group, filing):
             matches.append([match.start(), match.end(), match.group(0)])
         return matches
-
-    def parse_date_of_report(self, filing: str):
-        print(filing)
-        date = re.search(re.compile("Date of Report (Date of earliest event reported): (.*)", re.I), filing)
-        return date
     
     def get_signature_matches(self, filing: str):
         '''get matches for the signatures'''
@@ -100,6 +95,29 @@ class Parser8K:
         for smatch in re.finditer(re.compile("(signatures|signature)", re.I), filing):
             signature_matches.append([smatch.start(), smatch.end(), smatch.start() - smatch.end()])
         return signature_matches
+
+    def get_date_of_report_matches(self, filing: str):
+        # print("START ________________________________")
+        # print(filing)
+        # print("END ___________________________")
+        # date = re.search(re.compile("Date.?of.?report.?\(?Date.?of.?earliest.?event.?reported\): (.*?\d\d\d\d)", re.I & re.MULTILINE & re.DOTALL), filing)
+        date = re.search(re.compile(r'((Date(?:.?|\n?)\s{0,3}of(?:.?|\n?)\s{0,3}report(?:.?|\n?)\s{0,3}\(?Date(?:.?|\n?)\s{0,3}of(?:.?|\n?)\s{0,3}earliest(?:.?|\n?)\s{0,3}event(?:.?|\n?)\s{0,3}reported\)?:?.?.?)((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d)))|(?:(?:((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December)).*\d\d\d\d(?:\n{0,3}|\s{0,4}))(Date(?:.?|\n?)\s{0,3}of(?:.?|\n?)\s{0,3}report(?:.?|\n?)\s{0,3}\(?(?:.?|\n?)\s{0,3}Date(?:.?|\n?)\s{0,3}of(?:.?|\n?)\s{0,3}earliest(?:.?|\n?)\s{0,3}event(?:.?|\n?)\s{0,3}reported(?:.*)\)?)))', re.I | re.MULTILINE), filing)
+        if date is None:
+            date = re.search(re.compile("(^.*\d\d\d\d\n?)Date.?of.?report.?\(?Date.?of.?earliest.?event.?reported(?:.*)\)?(.*)$", re.I & re.MULTILINE), filing)
+            print(1)
+            if date is None:
+                print(filing)
+                raise ValueError
+            print(date.groups())
+
+            return date
+        print(2)
+        print(date.groups())
+        # date = re.search(re.compile("Date.?of.?report.?\(Date.?of.?earliest.?event.?reported\)(.*)$", re.I, re.DOTALL), filing)
+        return date
+    
+    def parse_date_of_report(self, filing: str):
+        return self.get_date_of_report_matches(filing)
 
     def parse_items(self, filing: str):
         '''extract the items from the filing and their associated paragraph
@@ -142,13 +160,6 @@ class Parser8K:
                 normalized_item = item[2].lower().replace(" ", "").replace(".", "").replace("\xa0", " ")
                 extracted_items.append({normalized_item: body})
         return extracted_items
-
-
-
-        
-
-        
-
 
 
     def preprocess_filing(self, filing: str):
