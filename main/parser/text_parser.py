@@ -11,45 +11,79 @@ import soupsieve
 
 
 logging.basicConfig(level=logging.DEBUG)
-
+logger = logging.getLogger(__name__)
+# Items8k = {
+# "Item1.01":"Item(?:\s*|.)1\.01(?:\s*|\.|.)Entry\s*into\s*a\s*Material\s*Definitive\s*Agreement",
+# "Item1.02":"Item(?:\s*|.)1\.02(?:\s*|\.|.)Termination\s*of\s*a\s*Material\s*Definitive\s*Agreement",
+# "Item1.03":"Item(?:\s*|.)1\.03(?:\s*|\.|.)Bankruptcy\s*or\s*Receivership",
+# "Item1.04":"Item(?:\s*|.)1\.04(?:\s*|\.|.)Mine\s*Safety",
+# "Item2.01":"Item(?:\s*|.)2\.01(?:\s*|\.|.)Completion\s*of\s*Acquisition\s*or\s*Disposition\s*of\s*Assets",
+# "Item2.02":"Item(?:\s*|.)2\.02(?:\s*|\.|.)Results\s*of\s*Operations\s*and\s*Financial\s*Condition",
+# "Item2.03":"Item(?:\s*|.)2\.03(?:\s*|\.|.)Creation\s*of\s*a\s*Direct\s*Financial\s*Obligation\s*or\s*an\s*Obligation\s*under\s*an\s*Off-Balance\s*Sheet\s*Arrangement\s*of\s*a\s*Registrant",
+# "Item2.04":"Item(?:\s*|.)2\.04(?:\s*|\.|.)Triggering\s*Events\s*That\s*Accelerate\s*or\s*Increase\s*a\s*Direct\s*Financial\s*Obligation\s*or\s*an\s*Obligation\s*under\s*an\s*Off-Balance\s*Sheet\s*Arrangement",
+# "Item2.05":"Item(?:\s*|.)2\.05(?:\s*|\.|.)Costs\s*Associated\s*with\s*Exit\s*or\s*Disposal\s*Activities",
+# "Item2.06":"Item(?:\s*|.)2\.06(?:\s*|\.|.)Material\s*Impairments",
+# "Item3.01":"Item(?:\s*|.)3\.01(?:\s*|\.|.)Notice\s*of\s*Delisting\s*or\s*Failure\s*to\s*Satisfy\s*a\s*Continued\s*Listing\s*Rule\s*or\s*Standard;\s*Transfer\s*of\s*Listing",
+# "Item3.02":"Item(?:\s*|.)3\.02(?:\s*|\.|.)Unregistered\s*Sales\s*of\s*Equity\s*Securities",
+# "Item3.03":"Item(?:\s*|.)3\.03(?:\s*|\.|.)Material\s*Modification\s*to\s*Rights\s*of\s*Security\s*Holders",
+# "Item4.01":"Item(?:\s*|.)4\.01(?:\s*|\.|.)Changes\s*in\s*Registrant's\s*Certifying\s*Accountant",
+# "Item4.02":"Item(?:\s*|.)4\.02(?:\s*|\.|.)Non-Reliance\s*on\s*Previously\s*Issued(?:\s* | \.)((Financial\s*Statements)|(Related\s*Audit\s*Report)|(Completed\s*Interim\s*Review))",
+# "Item5.01":"Item(?:\s*|.)5\.01(?:\s*|\.|.)Changes\s*in\s*Control\s*of\s*Registrant",
+# "Item5.02":"Item(?:\s*|.)5\.02(?:\s*|\.|.)(?:(Departure\s*of\s*Directors\s*or\s*Certain\s*Officers)|(.Election\s*of\s*Directors)|(.Appointment\s*of\s*Certain\s*Officers)|(.Compensatory\s*Arrangements\s*of\s*Certain\s*Officers))",
+# "Item5.03":"Item(?:\s*|.)5\.03(?:\s*|\.|.)Amendments\s*to\s*Articles\s*of\s*Incorporation\s*or\s*Bylaws;\s*Change\s*in\s*Fiscal\s*Year",
+# "Item5.04":"Item(?:\s*|.)5\.04(?:\s*|\.|.)Temporary\s*Suspension\s*of\s*Trading\s*Under\s*Registrant's\s*Employee\s*Benefit\s*Plans",
+# "Item5.05":"Item(?:\s*|.)5\.05(?:\s*|\.|.)Amendment\s*to\s*Registrant's\s*Code\s*of\s*Ethics,\s*or\s*Waiver\s*of\s*a\s*Provision\s*of\s*the\s*Code\s*of\s*Ethics",
+# "Item5.06":"Item(?:\s*|.)5\.06(?:\s*|\.|.)Change\s*in\s*Shell\s*Company\s*Status",
+# "Item5.07":"Item(?:\s*|.)5\.07(?:\s*|\.|.)Submission\s*of\s*Matters\s*to\s*a\s*Vote\s*of\s*Security\s*Holders",
+# "Item5.08":"Item(?:\s*|.)5\.08(?:\s*|\.|.)Shareholder\s*Director\s*Nominations",
+# "Item6.01":"Item(?:\s*|.)6\.01(?:\s*|\.|.)ABS\s*Informational\s*and\s*Computational\s*Material",
+# "Item6.02":"Item(?:\s*|.)6\.02(?:\s*|\.|.)Change\s*of\s*Servicer\s*or\s*Trustee",
+# "Item6.03":"Item(?:\s*|.)6\.03(?:\s*|\.|.)Change\s*in\s*Credit\s*Enhancement\s*or\s*Other\s*External\s*Support",
+# "Item6.04":"Item(?:\s*|.)6\.04(?:\s*|\.|.)Failure\s*to\s*Make\s*a\s*Required\s*Distribution",
+# "Item6.05":"Item(?:\s*|.)6\.05(?:\s*|\.|.)Securities\s*Act\s*Updating\s*Disclosure",
+# "Item7.01":"Item(?:\s*|.)7\.01(?:\s*|\.|.)Regulation\s*FD\s*Disclosure",
+# "Item8.01":"Item(?:\s*|.)8\.01(?:\s*|\.|.)Other(?:\s*|.)Events",
+# "Item9.01":"Item(?:\s*|.)9\.01(?:\s*|\.|.)Financial\s*Statements\s*and\s*Exhibits"
+# }
+DATE_OF_REPORT_PATTERN = r'(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:.?|\n?)\(?Date(?:.?|\n?)of(?:.?|\n?)earliest(?:.?|\n?)(?:.){0,7}(?:.?|\n?)reported\)?:?.?.?)((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))))|(?:((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:date(?:.){0,3}of(?:.){0,3}report))'
 Items8k = {
-"Item1.01":"Item(?:\s*|.)1\.01(?:\s*|\.|.)Entry\s*into\s*a\s*Material\s*Definitive\s*Agreement",
-"Item1.02":"Item(?:\s*|.)1\.02(?:\s*|\.|.)Termination\s*of\s*a\s*Material\s*Definitive\s*Agreement",
-"Item1.03":"Item(?:\s*|.)1\.03(?:\s*|\.|.)Bankruptcy\s*or\s*Receivership",
-"Item1.04":"Item(?:\s*|.)1\.04(?:\s*|\.|.)Mine\s*Safety",
-"Item2.01":"Item(?:\s*|.)2\.01(?:\s*|\.|.)Completion\s*of\s*Acquisition\s*or\s*Disposition\s*of\s*Assets",
-"Item2.02":"Item(?:\s*|.)2\.02(?:\s*|\.|.)Results\s*of\s*Operations\s*and\s*Financial\s*Condition",
-"Item2.03":"Item(?:\s*|.)2\.03(?:\s*|\.|.)Creation\s*of\s*a\s*Direct\s*Financial\s*Obligation\s*or\s*an\s*Obligation\s*under\s*an\s*Off-Balance\s*Sheet\s*Arrangement\s*of\s*a\s*Registrant",
-"Item2.04":"Item(?:\s*|.)2\.04(?:\s*|\.|.)Triggering\s*Events\s*That\s*Accelerate\s*or\s*Increase\s*a\s*Direct\s*Financial\s*Obligation\s*or\s*an\s*Obligation\s*under\s*an\s*Off-Balance\s*Sheet\s*Arrangement",
-"Item2.05":"Item(?:\s*|.)2\.05(?:\s*|\.|.)Costs\s*Associated\s*with\s*Exit\s*or\s*Disposal\s*Activities",
-"Item2.06":"Item(?:\s*|.)2\.06(?:\s*|\.|.)Material\s*Impairments",
-"Item3.01":"Item(?:\s*|.)3\.01(?:\s*|\.|.)Notice\s*of\s*Delisting\s*or\s*Failure\s*to\s*Satisfy\s*a\s*Continued\s*Listing\s*Rule\s*or\s*Standard;\s*Transfer\s*of\s*Listing",
-"Item3.02":"Item(?:\s*|.)3\.02(?:\s*|\.|.)Unregistered\s*Sales\s*of\s*Equity\s*Securities",
-"Item3.03":"Item(?:\s*|.)3\.03(?:\s*|\.|.)Material\s*Modification\s*to\s*Rights\s*of\s*Security\s*Holders",
-"Item4.01":"Item(?:\s*|.)4\.01(?:\s*|\.|.)Changes\s*in\s*Registrant's\s*Certifying\s*Accountant",
-"Item4.02":"Item(?:\s*|.)4\.02(?:\s*|\.|.)Non-Reliance\s*on\s*Previously\s*Issued(?:\s* | \.)((Financial\s*Statements)|(Related\s*Audit\s*Report)|(Completed\s*Interim\s*Review))",
-"Item5.01":"Item(?:\s*|.)5\.01(?:\s*|\.|.)Changes\s*in\s*Control\s*of\s*Registrant",
-"Item5.02":"Item(?:\s*|.)5\.02(?:\s*|\.|.)(?:(Departure\s*of\s*Directors\s*or\s*Certain\s*Officers)|(.Election\s*of\s*Directors)|(.Appointment\s*of\s*Certain\s*Officers)|(.Compensatory\s*Arrangements\s*of\s*Certain\s*Officers))",
-"Item5.03":"Item(?:\s*|.)5\.03(?:\s*|\.|.)Amendments\s*to\s*Articles\s*of\s*Incorporation\s*or\s*Bylaws;\s*Change\s*in\s*Fiscal\s*Year",
-"Item5.04":"Item(?:\s*|.)5\.04(?:\s*|\.|.)Temporary\s*Suspension\s*of\s*Trading\s*Under\s*Registrant's\s*Employee\s*Benefit\s*Plans",
-"Item5.05":"Item(?:\s*|.)5\.05(?:\s*|\.|.)Amendment\s*to\s*Registrant's\s*Code\s*of\s*Ethics,\s*or\s*Waiver\s*of\s*a\s*Provision\s*of\s*the\s*Code\s*of\s*Ethics",
-"Item5.06":"Item(?:\s*|.)5\.06(?:\s*|\.|.)Change\s*in\s*Shell\s*Company\s*Status",
-"Item5.07":"Item(?:\s*|.)5\.07(?:\s*|\.|.)Submission\s*of\s*Matters\s*to\s*a\s*Vote\s*of\s*Security\s*Holders",
-"Item5.08":"Item(?:\s*|.)5\.08(?:\s*|\.|.)Shareholder\s*Director\s*Nominations",
-"Item6.01":"Item(?:\s*|.)6\.01(?:\s*|\.|.)ABS\s*Informational\s*and\s*Computational\s*Material",
-"Item6.02":"Item(?:\s*|.)6\.02(?:\s*|\.|.)Change\s*of\s*Servicer\s*or\s*Trustee",
-"Item6.03":"Item(?:\s*|.)6\.03(?:\s*|\.|.)Change\s*in\s*Credit\s*Enhancement\s*or\s*Other\s*External\s*Support",
-"Item6.04":"Item(?:\s*|.)6\.04(?:\s*|\.|.)Failure\s*to\s*Make\s*a\s*Required\s*Distribution",
-"Item6.05":"Item(?:\s*|.)6\.05(?:\s*|\.|.)Securities\s*Act\s*Updating\s*Disclosure",
-"Item7.01":"Item(?:\s*|.)7\.01(?:\s*|\.|.)Regulation\s*FD\s*Disclosure",
-"Item8.01":"Item(?:\s*|.)8\.01(?:\s*|\.|.)Other(?:\s*|.)Events",
-"Item9.01":"Item(?:\s*|.)9\.01(?:\s*|\.|.)Financial\s*Statements\s*and\s*Exhibits"
+"Item1.01":"Item(?:.){0,2}1\.01(?:.){0,2}Entry(?:.){0,2}into(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
+"Item1.02":"Item(?:.){0,2}1\.02(?:.){0,2}Termination(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
+"Item1.03":"Item(?:.){0,2}1\.03(?:.){0,2}Bankruptcy(?:.){0,2}or(?:.){0,2}Receivership",
+"Item1.04":"Item(?:.){0,2}1\.04(?:.){0,2}Mine(?:.){0,2}Safety",
+"Item2.01":"Item(?:.){0,2}2\.01(?:.){0,2}Completion(?:.){0,2}of(?:.){0,2}Acquisition(?:.){0,2}or(?:.){0,2}Disposition(?:.){0,2}of(?:.){0,2}Assets",
+"Item2.02":"Item(?:.){0,2}2\.02(?:.){0,2}Results(?:.){0,2}of(?:.){0,2}Operations(?:.){0,2}and(?:.){0,2}Financial(?:.){0,2}Condition",
+"Item2.03":"Item(?:.){0,2}2\.03(?:.){0,2}Creation(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Direct(?:.){0,2}Financial(?:.){0,2}Obligation(?:.){0,2}or(?:.){0,2}an(?:.){0,2}Obligation(?:.){0,2}under(?:.){0,2}an(?:.){0,2}Off-Balance(?:.){0,2}Sheet(?:.){0,2}Arrangement(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Registrant",
+"Item2.04":"Item(?:.){0,2}2\.04(?:.){0,2}Triggering(?:.){0,2}Events(?:.){0,2}That(?:.){0,2}Accelerate(?:.){0,2}or(?:.){0,2}Increase(?:.){0,2}a(?:.){0,2}Direct(?:.){0,2}Financial(?:.){0,2}Obligation(?:.){0,2}or(?:.){0,2}an(?:.){0,2}Obligation(?:.){0,2}under(?:.){0,2}an(?:.){0,2}Off-Balance(?:.){0,2}Sheet(?:.){0,2}Arrangement",
+"Item2.05":"Item(?:.){0,2}2\.05(?:.){0,2}Costs(?:.){0,2}Associated(?:.){0,2}with(?:.){0,2}Exit(?:.){0,2}or(?:.){0,2}Disposal(?:.){0,2}Activities",
+"Item2.06":"Item(?:.){0,2}2\.06(?:.){0,2}Material(?:.){0,2}Impairments",
+"Item3.01":"Item(?:.){0,2}3\.01(?:.){0,2}Notice(?:.){0,2}of(?:.){0,2}Delisting(?:.){0,2}or(?:.){0,2}Failure(?:.){0,2}to(?:.){0,2}Satisfy(?:.){0,2}a(?:.){0,2}Continued(?:.){0,2}Listing(?:.){0,2}Rule(?:.){0,2}or(?:.){0,2}Standard;(?:.){0,2}Transfer(?:.){0,2}of(?:.){0,2}Listing",
+"Item3.02":"Item(?:.){0,2}3\.02(?:.){0,2}Unregistered(?:.){0,2}Sales(?:.){0,2}of(?:.){0,2}Equity(?:.){0,2}Securities",
+"Item3.03":"Item(?:.){0,2}3\.03(?:.){0,2}Material(?:.){0,2}Modification(?:.){0,2}to(?:.){0,2}Rights(?:.){0,2}of(?:.){0,2}Security(?:.){0,2}Holders",
+"Item4.01":"Item(?:.){0,2}4\.01(?:.){0,2}Changes(?:.){0,2}in(?:.){0,2}Registrant's(?:.){0,2}Certifying(?:.){0,2}Accountant",
+"Item4.02":"Item(?:.){0,2}4\.02(?:.){0,2}Non-Reliance(?:.){0,2}on(?:.){0,2}Previously(?:.){0,2}Issued(?:(?:.){0,2} | \.)((Financial(?:.){0,2}Statements)|(Related(?:.){0,2}Audit(?:.){0,2}Report)|(Completed(?:.){0,2}Interim(?:.){0,2}Review))",
+"Item5.01":"Item(?:.){0,2}5\.01(?:.){0,2}Changes(?:.){0,2}in(?:.){0,2}Control(?:.){0,2}of(?:.){0,2}Registrant",
+"Item5.02":"Item(?:.){0,2}5\.02(?:.){0,2}(?:(Departure(?:.){0,2}of(?:.){0,2}Directors(?:.){0,2}or(?:.){0,2}Certain(?:.){0,2}Officers)|(.Election(?:.){0,2}of(?:.){0,2}Directors)|(.Appointment(?:.){0,2}of(?:.){0,2}Certain(?:.){0,2}Officers)|(.Compensatory(?:.){0,2}Arrangements(?:.){0,2}of(?:.){0,2}Certain(?:.){0,2}Officers))",
+"Item5.03":"Item(?:.){0,2}5\.03(?:.){0,2}Amendments(?:.){0,2}to(?:.){0,2}Articles(?:.){0,2}of(?:.){0,2}Incorporation(?:.){0,2}or(?:.){0,2}Bylaws;(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Fiscal(?:.){0,2}Year",
+"Item5.04":"Item(?:.){0,2}5\.04(?:.){0,2}Temporary(?:.){0,2}Suspension(?:.){0,2}of(?:.){0,2}Trading(?:.){0,2}Under(?:.){0,2}Registrant's(?:.){0,2}Employee(?:.){0,2}Benefit(?:.){0,2}Plans",
+"Item5.05":"Item(?:.){0,2}5\.05(?:.){0,2}Amendment(?:.){0,2}to(?:.){0,2}Registrant's(?:.){0,2}Code(?:.){0,2}of(?:.){0,2}Ethics,(?:.){0,2}or(?:.){0,2}Waiver(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Provision(?:.){0,2}of(?:.){0,2}the(?:.){0,2}Code(?:.){0,2}of(?:.){0,2}Ethics",
+"Item5.06":"Item(?:.){0,2}5\.06(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Shell(?:.){0,2}Company(?:.){0,2}Status",
+"Item5.07":"Item(?:.){0,2}5\.07(?:.){0,2}Submission(?:.){0,2}of(?:.){0,2}Matters(?:.){0,2}to(?:.){0,2}a(?:.){0,2}Vote(?:.){0,2}of(?:.){0,2}Security(?:.){0,2}Holders",
+"Item5.08":"Item(?:.){0,2}5\.08(?:.){0,2}Shareholder(?:.){0,2}Director(?:.){0,2}Nominations",
+"Item6.01":"Item(?:.){0,2}6\.01(?:.){0,2}ABS(?:.){0,2}Informational(?:.){0,2}and(?:.){0,2}Computational(?:.){0,2}Material",
+"Item6.02":"Item(?:.){0,2}6\.02(?:.){0,2}Change(?:.){0,2}of(?:.){0,2}Servicer(?:.){0,2}or(?:.){0,2}Trustee",
+"Item6.03":"Item(?:.){0,2}6\.03(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Credit(?:.){0,2}Enhancement(?:.){0,2}or(?:.){0,2}Other(?:.){0,2}External(?:.){0,2}Support",
+"Item6.04":"Item(?:.){0,2}6\.04(?:.){0,2}Failure(?:.){0,2}to(?:.){0,2}Make(?:.){0,2}a(?:.){0,2}Required(?:.){0,2}Distribution",
+"Item6.05":"Item(?:.){0,2}6\.05(?:.){0,2}Securities(?:.){0,2}Act(?:.){0,2}Updating(?:.){0,2}Disclosure",
+"Item7.01":"Item(?:.){0,2}7\.01(?:.){0,2}Regulation(?:.){0,2}FD(?:.){0,2}Disclosure",
+"Item8.01":"Item(?:.){0,2}8\.01(?:.){0,2}Other(?:.){0,2}Events",
+"Item9.01":"Item(?:.){0,2}9\.01(?:.){0,2}Financial(?:.){0,2}Statements(?:.){0,2}and(?:.){0,2}Exhibits"
 }
 
 class Parser8K:
 
     '''
-    process and 8-k filing.
+    process and parse 8-k filing.
     
     Usage:
         1) open file
@@ -66,11 +100,51 @@ class Parser8K:
         for key, val in Items8k.items():
             reg_items = reg_items + "("+val+")|"
         reg_items = reg_items[:-2] + "))"
-        return re.compile(reg_items, re.I)
+        return re.compile(reg_items, re.I | re.DOTALL)
             
 
     def make_soup(self, doc):
         self.soup = BeautifulSoup(doc, "html.parser")
+
+    
+    def split_into_items(self, path, get_cik=True):
+        '''split the 8k into the individual items'''
+        _path = path
+        with open(path, "r", encoding="utf-8") as f:
+            if get_cik is True:
+                if isinstance(path, str):
+                    _path = Path(path)
+                cik = _path.parent.name.split("-")[0]
+            else:
+                cik = None
+            file = f.read()
+            filing = self.preprocess_filing(file)
+            try:
+                items = self.parse_items(filing)
+            except AttributeError as e:
+                logger.info((e, path, filing), exc_info=True)
+                return None
+            except IndexError as e:
+                logger.info((e, path, filing), exc_info=True)
+                return None
+            try:
+                date = self.parse_date_of_report(filing)
+            except AttributeError as e:
+                logger.info((e, path, filing), exc_info=True)
+                return None
+            except ValueError as e:
+                logger.info((e, filing), exc_info=True)
+                return None
+            date_group = date.groups()
+            valid_dates = []
+            for d in date_group:
+                if d is not None:
+                    valid_dates.append(d)
+            if len(valid_dates) > 1:
+                logger.error(f"valid_dates found: {valid_dates}")
+                raise AttributeError("more than one valid date of report for this 8k found")
+            return {"cik": str(cik), "file_date": valid_dates[0], "items": items}
+            
     
     def get_text_content(self, filing: BeautifulSoup=None):
         '''extract the unstructured language'''
@@ -97,11 +171,12 @@ class Parser8K:
         return signature_matches
 
     def get_date_of_report_matches(self, filing: str):
-        # print("START ________________________________")
-        # print(filing)
-        # print("END ___________________________")
+        # logger.debug("START ________________________________")
+        # logger.debug(filing)
+        # logger.debug("END ___________________________")
         # date = re.search(re.compile("Date.?of.?report.?\(?Date.?of.?earliest.?event.?reported\): (.*?\d\d\d\d)", re.I & re.MULTILINE & re.DOTALL), filing)
-        date = re.search(re.compile(r'(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:.?|\n?)\(?Date(?:.?|\n?)of(?:.?|\n?)earliest(?:.?|\n?)event(?:.?|\n?)reported\)?:?.?.?)((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d)))|(?:((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:date(?:.){0,3}of(?:.){0,3}report))', re.I | re.MULTILINE | re.X | re.DOTALL), filing)
+        
+        date = re.search(re.compile(r'(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:[^\d]){0,40})((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))))|(?:((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:date(?:.){0,3}of(?:.){0,3}report))', re.I | re.MULTILINE | re.X | re.DOTALL), filing)
         if date is None:
             date = re.search(re.compile("(^.*\d\d\d\d\n?)Date.?of.?report.?\(?Date.?of.?earliest.?event.?reported(?:.*)\)?(.*)$", re.I & re.MULTILINE), filing)
             if date is None:
@@ -115,9 +190,7 @@ class Parser8K:
 
     def parse_items(self, filing: str):
         '''extract the items from the filing and their associated paragraph
-        
-        Raises:
-            AttributeError: when items came after the signatures'''
+        '''
         # first get items and signatures
         extracted_items = []
         items = self.get_item_matches(filing)
@@ -126,7 +199,7 @@ class Parser8K:
         # otherwise discard the signature
         last_idx = len(items)-1
         for idx, sig in enumerate(signatures):
-            # print(sig)
+            # logger.debug(sig)
             for item in items:
                 if sig[1] < item[1]:
                     try:
@@ -134,8 +207,7 @@ class Parser8K:
                     except IndexError as e:
                         raise e
                     except TypeError as e:
-                        print(f"unhandled exception type error: ", sig, signatures)
-                        print(e)
+                        logger.debug((f"unhandled exception type error: ", sig, signatures, e), exc_info=True)
             if len(signatures) == 0:
                 continue
         for idx, item in enumerate(items):
@@ -144,7 +216,7 @@ class Parser8K:
                 try:
                     body = filing[item[1]:signatures[0][0]]
                 except Exception as e:
-                    # print(f"filing{filing}, item: {item}, signatures: {signatures}")
+                    # logger.debug(f"filing{filing}, item: {item}, signatures: {signatures}")
                     if len(signatures) == 0:
                         # didnt find a signature so just assume content is until EOF
                         body = filing[item[1]:]
@@ -168,6 +240,8 @@ class Parser8K:
         # fold multiple empty newline rows into one
         filing = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", filing)
         filing = re.sub(re.compile("(\n)", re.MULTILINE), "", filing)
+        # fold multiple spaces into one
+        filing = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", filing)
         return filing
     
         
@@ -412,8 +486,8 @@ Items = {}
 #         h = f.read()
 #         matches = parser.get_Items(h)
 #         for m in matches:
-#             print(m)
-#             print(re.search("Item(.*)((/d){0,3}\.(/d){0,3})", m[0]))
+#             logger.debug(m)
+#             logger.debug(re.search("Item(.*)((/d){0,3}\.(/d){0,3})", m[0]))
         
             
 

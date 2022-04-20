@@ -81,6 +81,11 @@ class DilutionDBUtil:
                 logger.critical((e, ticker, "couldnt get overview file"), exc_info=True)
                 logger.info("couldnt get overview file")
                 continue
+            try:
+                ov["cik"]
+            except KeyError as e:
+                print(e)
+                continue
             with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
                 dump(ov, f)
 

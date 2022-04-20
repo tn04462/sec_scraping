@@ -11,6 +11,7 @@ polygon-api-client = "*"
 pydantic = "*"
 python-dotenv = "*"
 pysec-downloader = "*"
+doccano = "*"
 
 [dev-packages]
 black = "*"
