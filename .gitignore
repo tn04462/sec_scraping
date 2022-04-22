@@ -19,3 +19,4 @@ main/parser/__pycache__/text_parser.cpython-310.pyc
 __pycache__/_constants.cpython-310.pyc
 __pycache__/dilution_db.cpython-310.pyc
 *.pyc
+*.pyc

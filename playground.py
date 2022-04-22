@@ -219,7 +219,19 @@ def try_spacy():
         print([s for s in content.sents])
     # displacy.serve(doc, style="ent")
         
-try_spacy()
+# try_spacy()
+
+
+# main(Path(r"C:\Users\Olivi\Desktop\spacy_example.jsonl"))
+from spacy.tokens import DocBin, Doc
+Doc.set_extension("rel", default={}, force=True)
+
+docbin = DocBin(store_user_data=True)
+docbin.from_disk(r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
+doc = list(docbin.get_docs(nlp.vocab))[0]
+
+array_doc = doc.to_array()
+print(array_doc, len(array_doc))
 
     # with open(p, "r", encoding="utf-8") as f:
     #     filing = parser.preprocess_filing(f.read())

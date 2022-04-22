@@ -11,6 +11,8 @@ polygon-api-client = "*"
 pydantic = "*"
 python-dotenv = "*"
 pysec-downloader = "*"
+spacy = "*"
+dkpro-cassis = "*"
 
 [dev-packages]
 black = "*"
