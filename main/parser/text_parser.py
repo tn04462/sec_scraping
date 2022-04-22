@@ -239,7 +239,7 @@ class Parser8K:
         filing = self.get_text_content()
         # fold multiple empty newline rows into one
         filing = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", filing)
-        filing = re.sub(re.compile("(\n)", re.MULTILINE), "", filing)
+        filing = re.sub(re.compile("(\n)", re.MULTILINE), " ", filing)
         # fold multiple spaces into one
         filing = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", filing)
         return filing

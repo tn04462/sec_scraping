@@ -159,6 +159,10 @@ if __name__ == "__main__":
     import json
     import csv
     from main.parser.text_parser import Parser8K
+    import spacy
+    import datetime
+    from spacy import displacy
+    nlp = spacy.load("en_core_web_sm")
 
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
@@ -187,19 +191,35 @@ def init_fdb():
     paths = []
     with open(r"E:\pysec_test_folder\paths.txt", "r") as pf:
         while len(paths) < 3000:
-            paths.append(pf.readline().strip("\n"))
+            paths.append(pf.readline().strip("\n").lstrip("."))
     # paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
     fdb.parse_and_add_all_8k_content(paths)
 
 def retrieve_data_set():
-    data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' ORDER BY f.file_date LIMIT 400", [])
-    with open(r"E:\pysec_test_folder\k8s.txt", "w", encoding="utf-8") as f:
+    data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' AND f.file_date > %s ORDER BY f.file_date LIMIT 200", [datetime.datetime(2021, 1, 1)])
+    
+    j = []
+    for d in data:
+        pass
+    with open(r"E:\pysec_test_folder\k8s200v2.txt", "w", encoding="utf-8") as f:
+        # json.dump(j, f)
         for r in data:
-            f.write(r["content"])
-            f.write("\n-----\n")
+                f.write(r["content"].replace("\n", " ") + "\n")
+
 # init_fdb()
-retrieve_data_set()
+# retrieve_data_set()
 # print(fdb.get_items_count_summary())
+
+def try_spacy():
+    texts = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' ORDER BY f.file_date LIMIT 30", [])
+    text = ""
+    contents = [text["content"] for text in texts]
+    for content in nlp.pipe(contents, disable=["attribute_ruler", "lemmatizer", "ner"]):
+        # text = text + "\n\n" + content
+        print([s for s in content.sents])
+    # displacy.serve(doc, style="ent")
+        
+try_spacy()
 
     # with open(p, "r", encoding="utf-8") as f:
     #     filing = parser.preprocess_filing(f.read())

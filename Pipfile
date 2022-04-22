@@ -11,12 +11,11 @@ polygon-api-client = "*"
 pydantic = "*"
 python-dotenv = "*"
 pysec-downloader = "*"
-doccano = "*"
 
 [dev-packages]
 black = "*"
 tqdm = "*"
-doccano = "*"
+dkpro-cassis = "*"
 
 [requires]
 python_version = "3.10"
