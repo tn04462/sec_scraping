@@ -11,11 +11,11 @@ from bisect import bisect_left
 import numpy as np
 
 ##laptop
-# test_typesystem = r"C:\Users\Olivi\Desktop\test_set\training_set\TypeSystem.xml"
-# test_xmi = r"C:\Users\Olivi\Desktop\test_set\training_set\k8s200v2.xmi"
+test_typesystem = r"C:\Users\Olivi\Desktop\test_set\training_set\TypeSystem.xml"
+test_xmi = r"C:\Users\Olivi\Desktop\test_set\training_set\k8s200v2.xmi"
 # ##desktop
-test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
-test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
+# test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
+# test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
 nlp = spacy.blank("en")
 
 TOKEN_TAG = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token"
@@ -47,27 +47,63 @@ def take_closest(myList, myNumber):
         return before
 
 
-def get_token_split_idxs(cas: Cas, split: int= 10, by=TOKEN_TAG):
-    '''split tokens with respects to split ratio of "by" while respecting
-    the closest sentence bound as a cutoff point. '''
+def get_token_split_idxs(cas: Cas, split: int= 10, feature=TOKEN_TAG):
+    '''get character bounds of n splits when we split by "feature"  while respecting
+    the closest sentence end bound as a cutoff point. this approache loses features(in my case: relations) 
+    that go across the boundry of the last sentence!!'''
     split_token_bounds = []
     sentence_end_start_map = {}
-    tokens = cas.select(TOKEN_TAG)
+    sentence_start_end_map = {}
     for sent in cas.select(SENTENCE_TAG):
-        sentence_end_start_map[sent["end"]] = sent["start"] 
-    split_features = cas.select(by)
+        sentence_end_start_map[sent["end"]] = sent["begin"]
+        sentence_start_end_map[sent["begin"]] = sent["end"]
+    sentence_end_keys = list(sentence_end_start_map.keys())
+    sentence_start_keys = list(sentence_start_end_map.keys())
+    split_features = cas.select(feature)
     len_split_features = len(split_features)
-    # current offset of expected bounds (+/- difference between absolut token split and closests choosen sentence end)
-    offset = 0
-    # first get absolut bounds of segment if we apply split without regards to anything else
-    segment_start_bounds = list(range(0, len_split_features, step=int(len_split_features / split)))
-    print(f"segment_start_bounds: {segment_start_bounds}")
-    # enumerate here to know what segment we are working on and how we are doing compared to the previous one
-    for bound_idx, segment_idxs in enumerate(range(0, step=(len_split_features / split))):
+    min_feature_set_size = int(len_split_features / split) 
+    feature_count = 0
+    is_past_feature_size = False
+    last_sentence = None
+    start = None
+    for idx, feature in enumerate(split_features):
+        # account for first segment
+        if (feature_count == 0) and (start is None):
+            start = 0
+        else:
+            if is_past_feature_size is True:
+                if last_sentence is None:
+                    raise ValueError("last_sentence was None despite that it shouldnt be in this case")
+                if feature["begin"] >= last_sentence["end"]:
+                    # add entry of completed segment
+                    split_token_bounds.append({"begin": start, "end": last_sentence["end"], "feature_count": feature_count})
+                    # set new start of segment
+                    start = take_closest(sentence_start_keys, last_sentence["end"])
+                    # reset flags and the feature count
+                    last_sentence = None
+                    is_past_feature_size = False
+                    feature_count = 0
+            if (feature_count >= min_feature_set_size) and (last_sentence is None):
+                is_past_feature_size = True
+                sentence_start = take_closest(sentence_start_keys, feature["begin"])
+                sentence_end = take_closest(sentence_end_keys, feature["begin"])
+                if (sentence_start > sentence_end) and (feature["end"] < sentence_start):
+                    last_sentence = {"begin": sentence_end_start_map[sentence_end], "end": sentence_end}
+                    if feature["end"] > sentence_end:
+                        print(True, sentence_start, sentence_end, sentence_end_start_map[sentence_end])
+                else:
+                    last_sentence = {"start": sentence_start, "end": sentence_start_end_map[sentence_start]}
 
+        feature_count += 1
+        # account for the last segment that isnt going to be longer than min_feature_size.
+        # last feature!
+        if idx == len_split_features:
+            split_token_bounds.append({"begin": start, "end": sentence_end_keys[-1], "feature_count": feature_count})
+    return split_token_bounds
 
-
-def cas_select_split(token_bound_start: int, token_bound_end: int, select_result: list[Cas.FeatureStructure]):
+                 
+    
+def cas_select_split(token_bound_start: int, token_bound_end: int, select_result: list):
     '''get segment of select_result between token_bound_start and token_bound_end.
     
     Args:
@@ -155,7 +191,7 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath):
                 start = token_start_idx_map[relation["Governor"]["begin"]]
                 end = token_start_idx_map[relation["Dependent"]["begin"]]
             except KeyError as e:
-                print(f"also failed backup plan for finding relation so skipping")
+                print(f"also failed backup plan for finding relation")
             continue
         if (start, end) not in relations.keys():
             relations[(start, end)] = {}
@@ -181,7 +217,14 @@ def docs_to_training_file(docs: list[Doc], save_path: str):
 # doc = convert_relation_ner_to_doc(test_typesystem, test_xmi)
 # docs_to_training_file((doc,), r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
 
-get_token_split_values(test_typesystem, test_xmi)
+with open(test_typesystem, 'rb') as f:
+        typesystem = load_typesystem(f)
+with open(test_xmi, 'rb') as f:
+    cas = load_cas_from_xmi(f, typesystem=typesystem)
+splits = get_token_split_idxs(cas, split=4)
+print(splits)
+
+
 # npa = doc.to_array()
 
 # print(npa, type(npa))
