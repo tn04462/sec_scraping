@@ -1,5 +1,6 @@
 
 from inspect import Attribute
+from turtle import update
 from urllib3 import connection_from_url
 # from dilution_db import DilutionDB
 # from main.data_aggregation.polygon_basic import PolygonClient
@@ -188,11 +189,11 @@ def init_fdb():
     fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
     fdb.execute_sql("./main/sql/filings_db_schema.sql")
     fdb.init_8k_items()
-    paths = []
-    with open(r"E:\pysec_test_folder\paths.txt", "r") as pf:
-        while len(paths) < 3000:
-            paths.append(pf.readline().strip("\n").lstrip("."))
-    # paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
+    # paths = []
+    # with open(r"E:\pysec_test_folder\paths.txt", "r") as pf:
+    #     while len(paths) < 3000:
+    #         paths.append(pf.readline().strip("\n").lstrip("."))
+    paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
     fdb.parse_and_add_all_8k_content(paths)
 
 def retrieve_data_set():
@@ -206,7 +207,7 @@ def retrieve_data_set():
         for r in data:
                 f.write(r["content"].replace("\n", " ") + "\n")
 
-# init_fdb()
+init_fdb()
 # retrieve_data_set()
 # print(fdb.get_items_count_summary())
 
@@ -222,16 +223,17 @@ def try_spacy():
 # try_spacy()
 
 
-# main(Path(r"C:\Users\Olivi\Desktop\spacy_example.jsonl"))
-from spacy.tokens import DocBin, Doc
-Doc.set_extension("rel", default={}, force=True)
 
-docbin = DocBin(store_user_data=True)
-docbin.from_disk(r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
-doc = list(docbin.get_docs(nlp.vocab))[0]
+# from main.data_aggregation.bulk_files import update_bulk_files
+# update_bulk_files()
+# from spacy.tokens import DocBin, Doc
+# Doc.set_extension("rel", default={}, force=True)
 
-array_doc = doc.to_array()
-print(array_doc, len(array_doc))
+# docbin = DocBin(store_user_data=True)
+# docbin.from_disk(r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
+# doc = list(docbin.get_docs(nlp.vocab))[0]
+
+
 
     # with open(p, "r", encoding="utf-8") as f:
     #     filing = parser.preprocess_filing(f.read())

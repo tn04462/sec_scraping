@@ -1,4 +1,3 @@
-from cgi import test
 from lib2to3.pgen2 import token
 from cassis import *
 from spacy.tokens import Span, DocBin, Doc
@@ -7,18 +6,20 @@ from spacy.tokenizer import Tokenizer
 from spacy.lang.en import English
 from spacy.util import compile_infix_regex
 import spacy
+from bisect import bisect_left
 
 import numpy as np
 
 ##laptop
-test_typesystem = r"C:\Users\Olivi\Desktop\test_set\training_set\TypeSystem.xml"
-test_xmi = r"C:\Users\Olivi\Desktop\test_set\training_set\k8s200v2.xmi"
-##desktop
-# test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
-# test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
+# test_typesystem = r"C:\Users\Olivi\Desktop\test_set\training_set\TypeSystem.xml"
+# test_xmi = r"C:\Users\Olivi\Desktop\test_set\training_set\k8s200v2.xmi"
+# ##desktop
+test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
+test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
 nlp = spacy.blank("en")
 
 TOKEN_TAG = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token"
+SENTENCE_TAG = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
 
 #  mostly unused 
 docs = {"train": [], "test": [], "dev": [], "total": []}
@@ -26,7 +27,62 @@ ids = {"train": set(), "test": set(), "dev": set(), "total": set()}
 count_all = {"train": 0, "test": 0, "dev": 0, "total": 0}
 count_valid = {"train": 0, "test": 0, "dev": 0, "total": 0}
 
+def take_closest(myList, myNumber):
+    """
+    https://stackoverflow.com/questions/12141150/from-list-of-integers-get-number-closest-to-a-given-value
+    Assumes myList is sorted. Returns closest value to myNumber.
 
+    If two numbers are equally close, return the smallest number.
+    """
+    pos = bisect_left(myList, myNumber)
+    if pos == 0:
+        return myList[0]
+    if pos == len(myList):
+        return myList[-1]
+    before = myList[pos - 1]
+    after = myList[pos]
+    if after - myNumber < myNumber - before:
+        return after
+    else:
+        return before
+
+
+def get_token_split_idxs(cas: Cas, split: int= 10, by=TOKEN_TAG):
+    '''split tokens with respects to split ratio of "by" while respecting
+    the closest sentence bound as a cutoff point. '''
+    split_token_bounds = []
+    sentence_end_start_map = {}
+    tokens = cas.select(TOKEN_TAG)
+    for sent in cas.select(SENTENCE_TAG):
+        sentence_end_start_map[sent["end"]] = sent["start"] 
+    split_features = cas.select(by)
+    len_split_features = len(split_features)
+    # current offset of expected bounds (+/- difference between absolut token split and closests choosen sentence end)
+    offset = 0
+    # first get absolut bounds of segment if we apply split without regards to anything else
+    segment_start_bounds = list(range(0, len_split_features, step=int(len_split_features / split)))
+    print(f"segment_start_bounds: {segment_start_bounds}")
+    # enumerate here to know what segment we are working on and how we are doing compared to the previous one
+    for bound_idx, segment_idxs in enumerate(range(0, step=(len_split_features / split))):
+
+
+
+def cas_select_split(token_bound_start: int, token_bound_end: int, select_result: list[Cas.FeatureStructure]):
+    '''get segment of select_result between token_bound_start and token_bound_end.
+    
+    Args:
+        token_bound_start: index of starting char of the token, so far found in the
+                            Feature: de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token as "begin"
+        token_bound_end: index of last char of the token, so far found in the
+                            Feature: de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token as "end"
+        select_result: return from a Cas.select() call'''
+    valid_items = []
+    for feature in select_result:
+        if (feature["begin"] > token_bound_start) and (feature["end"] < token_bound_end):
+            valid_items.append(feature)
+    return valid_items
+
+    
 
 def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath):
     '''convert a UIMA CAS XMI (XML 1.0) Entity Relation File into a spaCy Doc.
@@ -41,6 +97,8 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath):
     Returns:
         spaCy Doc Object 
     '''
+
+    token_split_idxs = []
     # declare new extension for relational data
     Doc.set_extension("rel", default={}, force=True)
     # load the annotations with cassis
@@ -120,8 +178,10 @@ def docs_to_training_file(docs: list[Doc], save_path: str):
 
 
 
-doc = convert_relation_ner_to_doc(test_typesystem, test_xmi)
-docs_to_training_file((doc,), r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
+# doc = convert_relation_ner_to_doc(test_typesystem, test_xmi)
+# docs_to_training_file((doc,), r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
+
+get_token_split_values(test_typesystem, test_xmi)
 # npa = doc.to_array()
 
 # print(npa, type(npa))
