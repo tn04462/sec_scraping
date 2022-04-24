@@ -18,6 +18,12 @@ from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
 from psycopg_pool import ConnectionPool
 
+import pandas as pd
+import logging
+logging.basicConfig(level=logging.INFO)
+
+
+
 class GenericDB:
     def __init__(self, connectionString):
         self.connectionString = connectionString
@@ -102,6 +108,9 @@ class FilingDB(GenericDB):
     
     def add_8k_content(self, cik, file_date, item, content):
         normalized_item = self.normalize_8kitem(item)
+        if normalized_item not in self.items8k:
+            logging.info(f"skipping 8-k section, because couldnt find a valid item in it, item found: {item}. cik:{cik}; file_date:{file_date}; content:{content}")
+            return
         with self.conn() as connection:
             # print(item)
             connection.execute("INSERT INTO form8k(cik, file_date, item_id, content) VALUES(%(cik)s, %(file_date)s, (SELECT id from items8k WHERE item_name = %(item)s), %(content)s) ON CONFLICT ON CONSTRAINT unique_entry DO NOTHING",
@@ -114,7 +123,7 @@ class FilingDB(GenericDB):
         for p in tqdm(paths, mininterval=1):
             split_8k = self.parser8k.split_into_items(p, get_cik=True)
             if split_8k is None:
-                print(f"failed to find date: {p}")
+                print(f"failed to split into items or get date: {p}")
                 continue
             cik = split_8k["cik"]
             file_date = split_8k["file_date"]
@@ -189,12 +198,12 @@ def init_fdb():
     fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
     fdb.execute_sql("./main/sql/filings_db_schema.sql")
     fdb.init_8k_items()
-    # paths = []
-    # with open(r"E:\pysec_test_folder\paths.txt", "r") as pf:
-    #     while len(paths) < 3000:
-    #         paths.append(pf.readline().strip("\n").lstrip("."))
-    paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
-    fdb.parse_and_add_all_8k_content(paths)
+    paths = []
+    with open(r"E:\pysec_test_folder\paths.txt", "r") as pf:
+        while len(paths) < 20000:
+            paths.append(pf.readline().strip("\n").lstrip("."))
+    # paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
+    fdb.parse_and_add_all_8k_content(paths[6140:])
 
 def retrieve_data_set():
     data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' AND f.file_date > %s ORDER BY f.file_date LIMIT 200", [datetime.datetime(2021, 1, 1)])
@@ -207,7 +216,9 @@ def retrieve_data_set():
         for r in data:
                 f.write(r["content"].replace("\n", " ") + "\n")
 
-init_fdb()
+# init_fdb()
+items = parser.split_into_items(r"E:\sec_scraping\resources\datasets\filings\0000023197\8-K\0000023197-20-000144\cmtl-20201130.htm")
+print(items)
 # retrieve_data_set()
 # print(fdb.get_items_count_summary())
 

@@ -11,7 +11,7 @@ import soupsieve
 
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 # Items8k = {
 # "Item1.01":"Item(?:\s*|.)1\.01(?:\s*|\.|.)Entry\s*into\s*a\s*Material\s*Definitive\s*Agreement",
 # "Item1.02":"Item(?:\s*|.)1\.02(?:\s*|\.|.)Termination\s*of\s*a\s*Material\s*Definitive\s*Agreement",
@@ -45,11 +45,8 @@ logger = logging.getLogger(__name__)
 # "Item8.01":"Item(?:\s*|.)8\.01(?:\s*|\.|.)Other(?:\s*|.)Events",
 # "Item9.01":"Item(?:\s*|.)9\.01(?:\s*|\.|.)Financial\s*Statements\s*and\s*Exhibits"
 # }
-DATE_OF_REPORT_PATTERN = r'(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:[^\d]){0,40})((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))))|(?:((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:date(?:.){0,3}of(?:.){0,3}report))'
-DATE_OF_REPORT_ALTERNATE_PATTERN =  r"(?:(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report(?:[^\d]){0,40})((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:(?:.|\n)*?\d\d\d\d))))|(?:((?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report))"
-
+DATE_OF_REPORT_PATTERN = r'(?:(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:[^\d]){0,40})((?:(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d))))|(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:date(?:.){0,3}of(?:.){0,3}report)))|(?:(?:(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report(?:[^\d]){0,40})(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d))|((?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d)))|(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report))))'
 COMPILED_DATE_OF_REPORT_PATTERN = re.compile(DATE_OF_REPORT_PATTERN, re.I | re.MULTILINE | re.X | re.DOTALL)
-COMPILED_DATE_OF_REPORT_ALTERNATE_PATTERN = re.compile(DATE_OF_REPORT_ALTERNATE_PATTERN, re.I & re.MULTILINE)
 Items8k = {
 "Item1.01":"Item(?:.){0,2}1\.01(?:.){0,2}Entry(?:.){0,2}into(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
 "Item1.02":"Item(?:.){0,2}1\.02(?:.){0,2}Termination(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
@@ -132,7 +129,7 @@ class Parser8K:
                 logger.info((e, path, filing), exc_info=True)
                 return None
             try:
-                date = self.parse_date_of_report(filing)
+                date = self.get_date_of_report_matches(filing)
             except AttributeError as e:
                 logger.info((e, path, filing), exc_info=True)
                 return None
@@ -145,9 +142,15 @@ class Parser8K:
                 if d is not None:
                     valid_dates.append(d)
             if len(valid_dates) > 1:
-                logger.error(f"valid_dates found: {valid_dates}")
+                logger.error(f"valid_dates found: {valid_dates}, filing: {filing}")
                 raise AttributeError("more than one valid date of report for this 8k found")
-            return {"cik": str(cik), "file_date": valid_dates[0], "items": items}
+            else:
+                try:
+                    valid_date = self.parse_date_of_report(valid_dates[0])
+                except Exception as e:
+                    logging.info(f"couldnt parse date of filing: {valid_dates}, filing: {filing}")
+                    return None 
+            return {"cik": str(cik), "file_date": valid_date, "items": items}
             
     
     def get_text_content(self, filing: BeautifulSoup=None):
@@ -175,22 +178,18 @@ class Parser8K:
         return signature_matches
 
     def get_date_of_report_matches(self, filing: str):
-        # logger.debug("START ________________________________")
-        # logger.debug(filing)
-        # logger.debug("END ___________________________")
-        # date = re.search(re.compile("Date.?of.?report.?\(?Date.?of.?earliest.?event.?reported\): (.*?\d\d\d\d)", re.I & re.MULTILINE & re.DOTALL), filing)
-        
         date = re.search(COMPILED_DATE_OF_REPORT_PATTERN, filing)
         if date is None:
-            date = re.search(COMPILED_DATE_OF_REPORT_ALTERNATE_PATTERN, filing)
-            if date is None:
-                raise ValueError
-            return date
-        # date = re.search(re.compile("Date.?of.?report.?\(Date.?of.?earliest.?event.?reported\)(.*)$", re.I, re.DOTALL), filing)
+            raise ValueError
         return date
     
-    def parse_date_of_report(self, filing: str):
-        return self.get_date_of_report_matches(filing)
+    def parse_date_of_report(self, fdate):
+        try:
+            date = pd.to_datetime(fdate.replace(",", ", "))
+        except Exception as e:
+            logging.info(f"couldnt parse date of filing; date found: {fdate}")
+            raise e
+        return date
 
     def parse_items(self, filing: str):
         '''extract the items from the filing and their associated paragraph
@@ -242,6 +241,7 @@ class Parser8K:
             self.make_soup(filing)
         filing = self.get_text_content()
         # replace unwanted unicode characters
+        filing.replace("\xa04", "")
         filing.replace("\xa0", " ")
         filing.replace("\u200b", " ")
         # fold multiple empty newline rows into one
