@@ -162,7 +162,7 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
     all_tokens = annotations.select(TOKEN_TAG)
     docs = []
     for segment in feature_split_idxs:
-        print(segment)
+        # print(segment)
         bound_start = segment["begin"]
         bound_end = segment["end"]
         tokens = cas_select_split(bound_start, bound_end, all_tokens)
@@ -246,6 +246,6 @@ def main(typesysteme_path, xmi_path, train_path, dev_path, test_path, split=13):
 
 
 if __name__ == "__main__":
-    docs = convert_relation_ner_to_doc(test_typesystem, test_xmi, split = 13)
-    # typer.run(main)
+    # docs = convert_relation_ner_to_doc(test_typesystem, test_xmi, split = 13)
+    typer.run(main)
 
