@@ -2,20 +2,20 @@ from lib2to3.pgen2 import token
 from cassis import *
 from spacy.tokens import Span, DocBin, Doc
 from spacy.vocab import Vocab
-from spacy.tokenizer import Tokenizer
 from spacy.lang.en import English
 from spacy.util import compile_infix_regex
 import spacy
 from bisect import bisect_left
+import typer 
 
 import numpy as np
 
 ##laptop
-test_typesystem = r"C:\Users\Olivi\Desktop\test_set\training_set\TypeSystem.xml"
-test_xmi = r"C:\Users\Olivi\Desktop\test_set\training_set\k8s200v2.xmi"
+# test_typesystem = r"C:\Users\Olivi\Desktop\test_set\training_set\TypeSystem.xml"
+# test_xmi = r"C:\Users\Olivi\Desktop\test_set\training_set\k8s200v2.xmi"
 # ##desktop
-# test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
-# test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
+test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
+test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
 nlp = spacy.blank("en")
 
 TOKEN_TAG = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token"
@@ -59,8 +59,10 @@ def take_closest(myList, myNumber):
 
 def get_feature_split_idxs(cas: Cas, split: int= 10, feature=TOKEN_TAG):
     '''get character bounds of n splits when we split by "feature"  while respecting
-    the closest sentence end bound as a cutoff point. this approache loses features(in my case: relations) 
-    that go across the boundry of the last sentence!!'''
+    the closest sentence end bound as a cutoff point, mostlikely results in less 
+    parts than declared with split if we have very long sentences.
+    This approache loses features(in my case: relations) 
+    that go across the boundry of the last sentence!! '''
     split_token_bounds = []
     sentence_end_start_map = {}
     sentence_start_end_map = {}
@@ -130,10 +132,10 @@ def cas_select_split(bound_start: int, bound_end: int, select_result: list):
 
     
 
-def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int = 1, split_feature: str = "custom.Relation"):
+def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int = 100, split_feature: str = "custom.Relation"):
     '''convert a UIMA CAS XMI (XML 1.0) Entity Relation File into a spaCy Doc.
     
-    currently only supports one layer of custom Relation and Span which are labeled as 
+    currently only tested/supports one layer of custom Relation and Span which are labeled as 
     custom.Relation and custom.Span.
 
     Args:
@@ -183,16 +185,15 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
                 continue
             
             doc.char_span(span["begin"], span["end"], label=span["Labels"])
-            span_starts.add(span["begin"])
             span_start_token_map[span["begin"]] = token_start_idx_map[span["begin"]]
+            span_starts.add(token_start_idx_map[span["begin"]])
 
         doc.ents = entities
-        # print(len(span_starts))
         # print(len(token_start_idx_map))
         # print(len(span_start_token_map))
-        # for x1 in token_idx_map.values():
-        #     for x2 in token_idx_map.values():
-        #         relations[(x1, x2)] = {}
+        for x1 in span_starts:
+            for x2 in span_starts:
+                relations[(x1, x2)] = {}
         
 
         for relation in cas_select_split(bound_start, bound_end, annotations.select("custom.Relation")):
@@ -205,7 +206,7 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
                 start = span_start_token_map[relation["Governor"]["begin"]]
                 end = span_start_token_map[relation["Dependent"]["begin"]]
             except KeyError as e:
-                print(f"couldnt find token from relations span when converting to docbin")
+                # print(f"couldnt find token from relations span when converting to docbin")
                 try:
                     start = token_start_idx_map[relation["Governor"]["begin"]]
                     end = token_start_idx_map[relation["Dependent"]["begin"]]
@@ -216,13 +217,13 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
                 relations[(start, end)] = {}
             if label not in relations[(start, end)]:
                 relations[(start, end)][label] = 1.0
-            # if label not in relations[(start, end)]:
-            #     relations[(start, end)][label] = 1.0
-        # for x1 in token_idx_map.values():
-        #     for x2 in token_idx_map.values():
-        #         for label in map_labels.values():
-        #             if label not in relations[(x1, x2)]:
-        #                 relations[(x1, x2)][label] = 0.0
+        
+        # fill none occurence of relation as zeros
+        for x1 in span_starts:
+            for x2 in span_starts:
+                for label in map_labels.values():
+                    if label not in relations[(x1, x2)]:
+                        relations[(x1, x2)][label] = 0.0
         doc._.rel = relations
         docs.append(doc)
     return docs   
@@ -233,30 +234,18 @@ def docs_to_training_file(docs: list[Doc], save_path: str):
     docbin.to_disk(save_path)
 
 
-
-docs = convert_relation_ner_to_doc(test_typesystem, test_xmi, split=7)
-print(len(docs))
-docs_to_training_file(docs, r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
-
-# with open(test_typesystem, 'rb') as f:
-#         typesystem = load_typesystem(f)
-# with open(test_xmi, 'rb') as f:
-#     cas = load_cas_from_xmi(f, typesystem=typesystem)
-# splits = get_feature_split_idxs(cas, split=4)
-# print(splits)
+def main(typesysteme_path, xmi_path, train_path, dev_path, test_path, split=13):
+    '''split documents into parts and then split into train/dev/test (70/20/10)'''
+    docs = convert_relation_ner_to_doc(typesysteme_path, xmi_path, split=split)
+    test = [docs[9]]
+    dev = docs[7:8]
+    train = docs[:6]
+    docs_to_training_file(dev, dev_path)
+    docs_to_training_file(train, train_path)
+    docs_to_training_file(test, test_path)
 
 
-# npa = doc.to_array()
-
-# print(npa, type(npa))
-
-# t = "San Fransico is a nice place."
-# nlp = spacy.load("en_core_web_trf")
-# doc = nlp(t)
-# print([e for e in doc])
-# print([doc[t].text for t in range(len(doc))])
-# print([t.ent_iob for t in doc])
-
-# from spacy import displacy
-# displacy.serve(doc, style="ent")    
+if __name__ == "__main__":
+    docs = convert_relation_ner_to_doc(test_typesystem, test_xmi, split = 13)
+    # typer.run(main)
 

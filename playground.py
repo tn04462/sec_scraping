@@ -216,9 +216,9 @@ def retrieve_data_set():
         for r in data:
                 f.write(r["content"].replace("\n", " ") + "\n")
 
-# init_fdb()
-items = parser.split_into_items(r"E:\sec_scraping\resources\datasets\filings\0000023197\8-K\0000023197-20-000144\cmtl-20201130.htm")
-print(items)
+init_fdb()
+# items = parser.split_into_items(r"E:\sec_scraping\resources\datasets\filings\0000023197\8-K\0000023197-20-000144\cmtl-20201130.htm")
+# print(items)
 # retrieve_data_set()
 # print(fdb.get_items_count_summary())
 
