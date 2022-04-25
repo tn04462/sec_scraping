@@ -158,6 +158,7 @@ class RelationExtractor(TrainablePipe):
         of data examples.
         """
         if labels is not None:
+            
             for label in labels:
                 self.add_label(label)
         else:

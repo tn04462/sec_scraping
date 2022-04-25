@@ -1,0 +1,19 @@
+data:
+  cmd: python -m spacy run data
+  script:
+    - python ./scripts/inception_spacy_converter.py raw_training_data/TypeSystem.xml
+      raw_training_data/k8s200v2.xmi data/train.spacy data/dev.spacy data/test.spacy
+  deps:
+    - path: raw_training_data/k8s200v2.xmi
+      md5: 154b06f33189ca55d0f8041ef177dac1
+    - path: raw_training_data/TypeSystem.xml
+      md5: 8bf51f3fd51c75a96f4296f0afaa890d
+  outs:
+    - path: data/train.spacy
+      md5: 8b9955106dd567b1e85b38333fb506d6
+    - path: data/dev.spacy
+      md5: 842de9dbab152b136c370d8988ea6c61
+    - path: data/test.spacy
+      md5: aae7448311b257738af5ca32ae2be18d
+  spacy_version: 3.2.4
+  spacy_git_version: b50fe5ec6

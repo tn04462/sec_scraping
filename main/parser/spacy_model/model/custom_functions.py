@@ -6,10 +6,10 @@ from spacy.training import Example
 from spacy.tokens import DocBin, Doc
 
 # make the factory work
-from rel_pipe import make_relation_extractor
+from model.rel_pipe import make_relation_extractor
 
 # make the config work
-from rel_model import create_relation_model, create_classification_layer, create_instances, create_tensors
+from model.rel_model import create_relation_model, create_classification_layer, create_instances, create_tensors
 
 
 @spacy.registry.readers("Gold_ents_Corpus.v1")

@@ -1,0 +1,67 @@
+title: "NER REL Model"
+description: "Train, evaluate and apply the Model"
+
+# Variables can be referenced across the project.yml using ${vars.var_name}
+vars:
+  annotations_typesystem: "raw_training_data/k8s200v2.xmi"
+  annotations_xml: "raw_training_data/TypeSystem.xml"
+  config: "configs/ner_relation.cfg"
+  train_file: "data/train.spacy"
+  dev_file: "data/dev.spacy"
+  test_file: "data/test.spacy"
+  trained_model: "training/model-best"
+
+# These are the directories that the project needs. The project CLI will make
+# sure that they always exist.
+directories: ["scripts", "configs", "model", "raw_training_data", "data", "training"]
+
+# Assets that should be downloaded or available in the directory. You can replace
+# this with your own input data.
+
+workflows:
+  all:
+    - data
+    - train_cpu
+    - evaluate
+  
+  train:
+    - data
+    - train_cpu
+
+
+commands:
+  - name: "data"
+    help: "Parse the gold-standard annotations from UIMA XML 1.0 annotations."
+    script:
+      - "python ./scripts/inception_spacy_converter.py ${vars.annotations_xml} ${vars.annotations_typesystem} ${vars.train_file} ${vars.dev_file} ${vars.test_file}"
+    deps:
+      - ${vars.annotations_typesystem}
+      - ${vars.annotations_xml}
+    outputs:
+      - ${vars.train_file}
+      - ${vars.dev_file}
+      - ${vars.test_file}
+
+  - name: "train_cpu"
+    help: "Train the NER REL model on the CPU and evaluate on dev corpus."
+    script:
+      - "python -m spacy train ${vars.config} --output training --paths.train ${vars.train_file} --paths.dev ${vars.dev_file} -c ./model/custom_functions.py"
+    deps:
+      - ${vars.train_file}
+      - ${vars.dev_file}
+    outputs:
+      - ${vars.trained_model}
+  
+  - name: "evaluate"
+    help: "Apply the best model to new, unseen text, and measure accuracy at different thresholds."
+    script:
+      - "python ./scripts/evaluate.py ${vars.trained_model} ${vars.test_file} False"
+    deps:
+      - ${vars.trained_model}
+      - ${vars.test_file}
+    
+  - name: "clean"
+    help: "Remove intermediate files to start data preparation and training from a clean slate."
+    script:
+      - "rm -rf data/*"
+      - "rm -rf training/*"

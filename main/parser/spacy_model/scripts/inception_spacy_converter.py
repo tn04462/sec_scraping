@@ -14,8 +14,8 @@ import numpy as np
 # test_typesystem = r"C:\Users\Olivi\Desktop\test_set\training_set\TypeSystem.xml"
 # test_xmi = r"C:\Users\Olivi\Desktop\test_set\training_set\k8s200v2.xmi"
 # ##desktop
-test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
-test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
+# test_typesystem = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\TypeSystem.xml"
+# test_xmi = r"E:\pysec_test_folder\training_sets\training_set_8k_item801_securities_detection_annotated_138Filings\k8s200v2.xmi"
 nlp = spacy.blank("en")
 
 TOKEN_TAG = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token"
@@ -150,7 +150,7 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
         spaCy Doc Object 
     '''
 
-    
+    # print(locals())
     # declare new extension for relational data
     Doc.set_extension("rel", default={}, force=True)
     # load the annotations with cassis
@@ -172,7 +172,7 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
         relations = {}
         span_starts = set()
         span_start_token_map = {}
-        map_labels = {}
+        map_labels = set()
         for idx in range(len(tokens)):
             token_start_idx_map[tokens[idx]["begin"]] =  idx 
         # convert the span entities and add to doc
@@ -198,10 +198,9 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
 
         for relation in cas_select_split(bound_start, bound_end, annotations.select("custom.Relation")):
             # print(relation)
-            label = relation["Labels"]
+            label = relation["label"]
             if label not in map_labels:
-                map_labels[label] = label
-                # replace with token_idx_map$
+                map_labels.add(label)
             try:
                 start = span_start_token_map[relation["Governor"]["begin"]]
                 end = span_start_token_map[relation["Dependent"]["begin"]]
@@ -221,10 +220,12 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
         # fill none occurence of relation as zeros
         for x1 in span_starts:
             for x2 in span_starts:
-                for label in map_labels.values():
+                for label in map_labels:
                     if label not in relations[(x1, x2)]:
                         relations[(x1, x2)][label] = 0.0
         doc._.rel = relations
+        # print(relations)
+        return
         docs.append(doc)
     return docs   
         
@@ -234,7 +235,7 @@ def docs_to_training_file(docs: list[Doc], save_path: str):
     docbin.to_disk(save_path)
 
 
-def main(typesysteme_path, xmi_path, train_path, dev_path, test_path, split=13):
+def main(typesysteme_path: str, xmi_path: str, train_path: str, dev_path: str, test_path: str, split: int=13):
     '''split documents into parts and then split into train/dev/test (70/20/10)'''
     docs = convert_relation_ner_to_doc(typesysteme_path, xmi_path, split=split)
     test = [docs[9]]
