@@ -75,6 +75,7 @@ def instance_forward(model: Model[List[Doc], Floats2d], docs: List[Doc], is_trai
         ents.append(tokvec[token_indices])
     lengths = cast(Ints1d, model.ops.asarray(lengths, dtype="int32"))
     entities = Ragged(model.ops.flatten(ents), lengths)
+    # print(entities)
     pooled, bp_pooled = pooling(entities, is_train)
 
     # Reshape so that pairs of rows are concatenated

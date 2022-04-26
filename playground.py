@@ -206,20 +206,20 @@ def init_fdb():
     fdb.parse_and_add_all_8k_content(paths[6140:])
 
 def retrieve_data_set():
-    data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' AND f.file_date > %s ORDER BY f.file_date LIMIT 200", [datetime.datetime(2021, 1, 1)])
+    data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' AND f.file_date > %s ORDER BY f.file_date LIMIT 1", [datetime.datetime(2021, 1, 1)])
     
     j = []
     for d in data:
         pass
-    with open(r"E:\pysec_test_folder\k8s200v2.txt", "w", encoding="utf-8") as f:
+    with open(r"E:\pysec_test_folder\k8s1v1.txt", "w", encoding="utf-8") as f:
         # json.dump(j, f)
         for r in data:
                 f.write(r["content"].replace("\n", " ") + "\n")
 
-init_fdb()
+# init_fdb()
 # items = parser.split_into_items(r"E:\sec_scraping\resources\datasets\filings\0000023197\8-K\0000023197-20-000144\cmtl-20201130.htm")
 # print(items)
-# retrieve_data_set()
+retrieve_data_set()
 # print(fdb.get_items_count_summary())
 
 def try_spacy():

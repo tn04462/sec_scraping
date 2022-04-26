@@ -1,0 +1,11 @@
+{
+  "labels":[
+    "isReferenceFor",
+    "filingRelation",
+    "filingDateRelation",
+    "securityRelation",
+    "isAffixOf",
+    "securityDateRelation"
+  ],
+  "threshold":0.5
+}
