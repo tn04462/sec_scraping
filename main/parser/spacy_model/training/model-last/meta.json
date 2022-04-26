@@ -10,10 +10,10 @@
   "license":"",
   "spacy_git_version":"b50fe5ec6",
   "vectors":{
-    "width":0,
-    "vectors":0,
-    "keys":0,
-    "name":null,
+    "width":300,
+    "vectors":684830,
+    "keys":684830,
+    "name":"en_vectors",
     "mode":"default"
   },
   "labels":{
@@ -21,15 +21,23 @@
 
     ],
     "ner":[
+      "RegistrationFiling",
       "Security",
+      "filingDate",
+      "offeringScope",
+      "securityAction",
+      "securityAffix",
+      "securityAmount",
+      "securityDate",
+      "securityRepresentation",
       "securityState"
     ],
     "relation_extractor":[
-      "isReferenceFor",
-      "filingRelation",
       "filingDateRelation",
-      "securityRelation",
       "isAffixOf",
+      "isReferenceFor",
+      "securityRelation",
+      "filingRelation",
       "securityDateRelation"
     ]
   },
@@ -45,5 +53,53 @@
   ],
   "disabled":[
 
-  ]
+  ],
+  "performance":{
+    "ents_f":0.9830508475,
+    "ents_p":0.9666666667,
+    "ents_r":1.0,
+    "ents_per_type":{
+      "Security":{
+        "p":1.0,
+        "r":1.0,
+        "f":1.0
+      },
+      "securityAction":{
+        "p":0.5,
+        "r":1.0,
+        "f":0.6666666667
+      },
+      "securityState":{
+        "p":1.0,
+        "r":1.0,
+        "f":1.0
+      },
+      "securityRepresentation":{
+        "p":1.0,
+        "r":1.0,
+        "f":1.0
+      },
+      "RegistrationFiling":{
+        "p":1.0,
+        "r":1.0,
+        "f":1.0
+      },
+      "securityAffix":{
+        "p":1.0,
+        "r":1.0,
+        "f":1.0
+      },
+      "offeringScope":{
+        "p":1.0,
+        "r":1.0,
+        "f":1.0
+      }
+    },
+    "rel_micro_p":0.4,
+    "rel_micro_r":0.1538461538,
+    "rel_micro_f":0.2222222222,
+    "tok2vec_loss":980.7973047098,
+    "ner_loss":3458.6894856396,
+    "relation_extractor_loss":12.338599978
+  }
 }

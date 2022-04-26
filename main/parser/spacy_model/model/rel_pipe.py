@@ -157,7 +157,6 @@ class RelationExtractor(TrainablePipe):
         """Initialize the pipe for training, using a representative set
         of data examples.
         """
-        print(f"labels: {labels}")
         if labels is not None:
             for label in labels:
                 self.add_label(label)
@@ -172,6 +171,7 @@ class RelationExtractor(TrainablePipe):
         subbatch = list(islice(get_examples(), 10))
         doc_sample = [eg.reference for eg in subbatch]
         label_sample = self._examples_to_truth(subbatch)
+
         if label_sample is None:
             raise ValueError("Call begin_training with relevant entities and relations annotated in "
                              "at least a few reference examples!")
@@ -182,7 +182,6 @@ class RelationExtractor(TrainablePipe):
         nr_instances = 0
         for eg in examples:
             nr_instances += len(self.model.attrs["get_instances"](eg.reference))
-        print(nr_instances)
         if nr_instances == 0:
             return None
 
