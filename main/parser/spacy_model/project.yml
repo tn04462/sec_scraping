@@ -5,7 +5,7 @@ description: "Train, evaluate and apply the Model"
 vars:
   annotations_typesystem: "raw_training_data/k8s200v2.xmi"
   annotations_xml: "raw_training_data/TypeSystem.xml"
-  config: "configs/ner_relation.cfg"
+  config: "configs/ner_relationv2.cfg"
   train_file: "data/train.spacy"
   dev_file: "data/dev.spacy"
   test_file: "data/test.spacy"
@@ -25,9 +25,11 @@ workflows:
     - evaluate
   
   train:
-    - data
     - train_cpu
+    - evaluate
 
+  result:
+    - evaluate
 
 commands:
   - name: "data"
@@ -55,7 +57,7 @@ commands:
   - name: "evaluate"
     help: "Apply the best model to new, unseen text, and measure accuracy at different thresholds."
     script:
-      - "python ./scripts/evaluate.py ${vars.trained_model} ${vars.test_file} False"
+      - "python ./model/evaluate.py ${vars.trained_model} ${vars.test_file} False"
     deps:
       - ${vars.trained_model}
       - ${vars.test_file}

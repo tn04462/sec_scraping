@@ -1,6 +1,7 @@
 
 from inspect import Attribute
 from turtle import update
+from bs4 import BeautifulSoup
 from urllib3 import connection_from_url
 # from dilution_db import DilutionDB
 # from main.data_aggregation.polygon_basic import PolygonClient
@@ -9,7 +10,7 @@ from urllib3 import connection_from_url
 # from main.data_aggregation.bulk_files import update_bulk_files
 
 
-from main.parser.text_parser import Parser8K
+from main.parser.text_parser import HtmlFilingParser, Parser8K
 from pathlib import Path
 parser = Parser8K()
 
@@ -152,14 +153,27 @@ def get_all_8k(root_path):
                     paths.append(r)
         return paths
 
+def flatten(lol):
+    '''flatten a list of lists (lol).'''
+    if len(lol) == 0:
+        return lol
+    if isinstance(lol[0], list):
+        return flatten(lol[0]) + flatten(lol[1:])
+    return lol[:1] + flatten(lol[1:])
+
+def get_all_filings_path(root_path: Path, form_type: str):
+    '''get all files in the "form_type" subdirectories. entry point is the root path of /filings'''
+    paths_folder = [r.glob(form_type) for r in (Path(root_path)).glob("*")]
+    form_folders = flatten([[f for f in r] for r in paths_folder])
+    file_folders = flatten([list(r.glob("*")) for r in form_folders])
+    paths = flatten([list(r.glob("*")) for r in file_folders])
+    return paths
 
 
 
 
 if __name__ == "__main__":
-    connection_string = "postgres://postgres:admin@localhost/postgres"
-
-    fdb = FilingDB(connection_string)
+    
 
     from main.configs import cnf
     from db_updater import get_filing_set
@@ -172,18 +186,18 @@ if __name__ == "__main__":
     import spacy
     import datetime
     from spacy import displacy
-    nlp = spacy.load("en_core_web_sm")
+    # nlp = spacy.load("en_core_web_sm")
 
-    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
+    # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
     # import logging
     # logging.basicConfig(level=logging.INFO)
     # dlog = logging.getLogger("urllib3.connectionpool")
     # dlog.setLevel(logging.CRITICAL)
     # with open("./resources/company_tickers.json", "r") as f:
     #     tickers = list(json.load(f).keys())
-    #     for ticker in tqdm(tickers[6368:]):
-    #         db.util.get_filing_set(dl, ticker, ["8-K"], "2017-01-01", number_of_filings=250)
+    #     for ticker in tqdm(tickers):
+    #         db.util.get_filing_set(dl, ticker, cnf.APP_CONFIG.TRACKED_FORMS, "2017-01-01", number_of_filings=10)
 
     # with open("./resources/company_tickers.json", "r") as f:
     #     tickers = list(json.load(f).keys())
@@ -194,7 +208,11 @@ if __name__ == "__main__":
 # and add them to the database (currently not having filing_date, 
 # important for querying the results later) if not other way, get filing date 
 # by using cik and accn to query the submissions file 
+
 def init_fdb():
+    connection_string = "postgres://postgres:admin@localhost/postgres"
+    fdb = FilingDB(connection_string)
+
     fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
     fdb.execute_sql("./main/sql/filings_db_schema.sql")
     fdb.init_8k_items()
@@ -203,11 +221,11 @@ def init_fdb():
         while len(paths) < 20000:
             paths.append(pf.readline().strip("\n").lstrip("."))
     # paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
-    fdb.parse_and_add_all_8k_content(paths[6140:])
+    fdb.parse_and_add_all_8k_content(paths)
+    return fdb
 
 def retrieve_data_set():
     data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' AND f.file_date > %s ORDER BY f.file_date LIMIT 1", [datetime.datetime(2021, 1, 1)])
-    
     j = []
     for d in data:
         pass
@@ -219,7 +237,7 @@ def retrieve_data_set():
 # init_fdb()
 # items = parser.split_into_items(r"E:\sec_scraping\resources\datasets\filings\0000023197\8-K\0000023197-20-000144\cmtl-20201130.htm")
 # print(items)
-retrieve_data_set()
+# retrieve_data_set()
 # print(fdb.get_items_count_summary())
 
 def try_spacy():
@@ -233,6 +251,35 @@ def try_spacy():
         
 # try_spacy()
 
+import re
+def try_htmlparser():
+    parser = HtmlFilingParser()
+    root_filing = r"F:\example_filing_set_10_companies\filings"
+    file_paths = get_all_filings_path(Path(root_filing), "S-1")
+    file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
+    file_paths.append(file_paths2)
+    file_paths = flatten(file_paths)
+    for p in file_paths:
+        with open(p, "r", encoding="utf-8") as f:
+            print(p)
+            parser.make_soup(f.read())
+            toc = parser._split_by_table_of_content_based_on_headers(parser.soup)
+            if toc is not None:
+                
+                try:
+                    keys = list(toc.keys())
+                    for key in keys:
+                        if re.search(re.compile("offering", re.I), key):
+                            print(key)
+                            offering = toc[key]
+                    
+                            soup = BeautifulSoup(offering, features="html5lib")
+                            print(str(soup.prettify()))
+                except Exception as e:
+                    print(e)
+
+
+try_htmlparser()
 
 
 # from main.data_aggregation.bulk_files import update_bulk_files

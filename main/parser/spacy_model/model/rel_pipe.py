@@ -162,7 +162,6 @@ class RelationExtractor(TrainablePipe):
                 self.add_label(label)
         else:
             for example in get_examples():
-                # print(f"example: {example}")
                 relations = example.reference._.rel
                 for indices, label_dict in relations.items():
                     for label in label_dict.keys():
@@ -170,25 +169,24 @@ class RelationExtractor(TrainablePipe):
         self._require_labels()
         subbatch = list(islice(get_examples(), 10))
         doc_sample = [eg.reference for eg in subbatch]
-        label_sample = self._examples_to_truth(subbatch)
-
+        label_sample = self._examples_to_truth(subbatch, ref_mode=True)
         if label_sample is None:
             raise ValueError("Call begin_training with relevant entities and relations annotated in "
                              "at least a few reference examples!")
         self.model.initialize(X=doc_sample, Y=label_sample)
 
-    def _examples_to_truth(self, examples: List[Example]) -> Optional[numpy.ndarray]:
+    def _examples_to_truth(self, examples: List[Example], ref_mode: bool=False) -> Optional[numpy.ndarray]:
         # check that there are actually any candidate instances in this batch of examples
         nr_instances = 0
         for eg in examples:
-            nr_instances += len(self.model.attrs["get_instances"](eg.reference))
+                nr_instances += len(self.model.attrs["get_instances"](eg.reference if ref_mode else eg.predicted))
         if nr_instances == 0:
             return None
 
         truths = numpy.zeros((nr_instances, len(self.labels)), dtype="f")
         c = 0
         for i, eg in enumerate(examples):
-            for (e1, e2) in self.model.attrs["get_instances"](eg.reference):
+            for (e1, e2) in self.model.attrs["get_instances"](eg.reference if ref_mode else eg.predicted):
                 gold_label_dict = eg.reference._.rel.get((e1.start, e2.start), {})
                 for j, label in enumerate(self.labels):
                     truths[c, j] = gold_label_dict.get(label, 0)

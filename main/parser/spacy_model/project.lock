@@ -10,10 +10,37 @@ data:
       md5: 8bf51f3fd51c75a96f4296f0afaa890d
   outs:
     - path: data/train.spacy
-      md5: f49697a6559e188697a5e1a59d0b7219
+      md5: 5b4812fbfda51c2ad513725faf1d0d26
     - path: data/dev.spacy
-      md5: 405a34d6d59e4d704f2d649aa1641d1e
+      md5: e8de22d322e07c51feac8de818e774c7
     - path: data/test.spacy
-      md5: 0adf9425fcb1b1ea5ee87dd88937e050
+      md5: 876934a670ec4238b9447347865190f3
+  spacy_version: 3.2.4
+  spacy_git_version: b50fe5ec6
+train_cpu:
+  cmd: python -m spacy run train_cpu
+  script:
+    - python -m spacy train configs/ner_relationv2.cfg --output training --paths.train
+      data/train.spacy --paths.dev data/dev.spacy -c ./model/custom_functions.py
+  deps:
+    - path: data/train.spacy
+      md5: 5b4812fbfda51c2ad513725faf1d0d26
+    - path: data/dev.spacy
+      md5: e8de22d322e07c51feac8de818e774c7
+  outs:
+    - path: training/model-last
+      md5: f2aec3fdaaa449a1ee2bc4ee9ebe213e
+  spacy_version: 3.2.4
+  spacy_git_version: b50fe5ec6
+evaluate:
+  cmd: python -m spacy run evaluate
+  script:
+    - python ./model/evaluate.py training/model-best data/test.spacy False
+  deps:
+    - path: training/model-best
+      md5: af276abc3c8cc21b57b715b25accc94e
+    - path: data/test.spacy
+      md5: 876934a670ec4238b9447347865190f3
+  outs: []
   spacy_version: 3.2.4
   spacy_git_version: b50fe5ec6

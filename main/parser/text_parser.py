@@ -2,8 +2,9 @@ import re
 import json
 import logging
 from pathlib import Path
+from attr import Attribute
 import pandas as pd
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, element
 import re
 from pyparsing import Each
 import soupsieve
@@ -12,43 +13,12 @@ import soupsieve
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
-# Items8k = {
-# "Item1.01":"Item(?:\s*|.)1\.01(?:\s*|\.|.)Entry\s*into\s*a\s*Material\s*Definitive\s*Agreement",
-# "Item1.02":"Item(?:\s*|.)1\.02(?:\s*|\.|.)Termination\s*of\s*a\s*Material\s*Definitive\s*Agreement",
-# "Item1.03":"Item(?:\s*|.)1\.03(?:\s*|\.|.)Bankruptcy\s*or\s*Receivership",
-# "Item1.04":"Item(?:\s*|.)1\.04(?:\s*|\.|.)Mine\s*Safety",
-# "Item2.01":"Item(?:\s*|.)2\.01(?:\s*|\.|.)Completion\s*of\s*Acquisition\s*or\s*Disposition\s*of\s*Assets",
-# "Item2.02":"Item(?:\s*|.)2\.02(?:\s*|\.|.)Results\s*of\s*Operations\s*and\s*Financial\s*Condition",
-# "Item2.03":"Item(?:\s*|.)2\.03(?:\s*|\.|.)Creation\s*of\s*a\s*Direct\s*Financial\s*Obligation\s*or\s*an\s*Obligation\s*under\s*an\s*Off-Balance\s*Sheet\s*Arrangement\s*of\s*a\s*Registrant",
-# "Item2.04":"Item(?:\s*|.)2\.04(?:\s*|\.|.)Triggering\s*Events\s*That\s*Accelerate\s*or\s*Increase\s*a\s*Direct\s*Financial\s*Obligation\s*or\s*an\s*Obligation\s*under\s*an\s*Off-Balance\s*Sheet\s*Arrangement",
-# "Item2.05":"Item(?:\s*|.)2\.05(?:\s*|\.|.)Costs\s*Associated\s*with\s*Exit\s*or\s*Disposal\s*Activities",
-# "Item2.06":"Item(?:\s*|.)2\.06(?:\s*|\.|.)Material\s*Impairments",
-# "Item3.01":"Item(?:\s*|.)3\.01(?:\s*|\.|.)Notice\s*of\s*Delisting\s*or\s*Failure\s*to\s*Satisfy\s*a\s*Continued\s*Listing\s*Rule\s*or\s*Standard;\s*Transfer\s*of\s*Listing",
-# "Item3.02":"Item(?:\s*|.)3\.02(?:\s*|\.|.)Unregistered\s*Sales\s*of\s*Equity\s*Securities",
-# "Item3.03":"Item(?:\s*|.)3\.03(?:\s*|\.|.)Material\s*Modification\s*to\s*Rights\s*of\s*Security\s*Holders",
-# "Item4.01":"Item(?:\s*|.)4\.01(?:\s*|\.|.)Changes\s*in\s*Registrant's\s*Certifying\s*Accountant",
-# "Item4.02":"Item(?:\s*|.)4\.02(?:\s*|\.|.)Non-Reliance\s*on\s*Previously\s*Issued(?:\s* | \.)((Financial\s*Statements)|(Related\s*Audit\s*Report)|(Completed\s*Interim\s*Review))",
-# "Item5.01":"Item(?:\s*|.)5\.01(?:\s*|\.|.)Changes\s*in\s*Control\s*of\s*Registrant",
-# "Item5.02":"Item(?:\s*|.)5\.02(?:\s*|\.|.)(?:(Departure\s*of\s*Directors\s*or\s*Certain\s*Officers)|(.Election\s*of\s*Directors)|(.Appointment\s*of\s*Certain\s*Officers)|(.Compensatory\s*Arrangements\s*of\s*Certain\s*Officers))",
-# "Item5.03":"Item(?:\s*|.)5\.03(?:\s*|\.|.)Amendments\s*to\s*Articles\s*of\s*Incorporation\s*or\s*Bylaws;\s*Change\s*in\s*Fiscal\s*Year",
-# "Item5.04":"Item(?:\s*|.)5\.04(?:\s*|\.|.)Temporary\s*Suspension\s*of\s*Trading\s*Under\s*Registrant's\s*Employee\s*Benefit\s*Plans",
-# "Item5.05":"Item(?:\s*|.)5\.05(?:\s*|\.|.)Amendment\s*to\s*Registrant's\s*Code\s*of\s*Ethics,\s*or\s*Waiver\s*of\s*a\s*Provision\s*of\s*the\s*Code\s*of\s*Ethics",
-# "Item5.06":"Item(?:\s*|.)5\.06(?:\s*|\.|.)Change\s*in\s*Shell\s*Company\s*Status",
-# "Item5.07":"Item(?:\s*|.)5\.07(?:\s*|\.|.)Submission\s*of\s*Matters\s*to\s*a\s*Vote\s*of\s*Security\s*Holders",
-# "Item5.08":"Item(?:\s*|.)5\.08(?:\s*|\.|.)Shareholder\s*Director\s*Nominations",
-# "Item6.01":"Item(?:\s*|.)6\.01(?:\s*|\.|.)ABS\s*Informational\s*and\s*Computational\s*Material",
-# "Item6.02":"Item(?:\s*|.)6\.02(?:\s*|\.|.)Change\s*of\s*Servicer\s*or\s*Trustee",
-# "Item6.03":"Item(?:\s*|.)6\.03(?:\s*|\.|.)Change\s*in\s*Credit\s*Enhancement\s*or\s*Other\s*External\s*Support",
-# "Item6.04":"Item(?:\s*|.)6\.04(?:\s*|\.|.)Failure\s*to\s*Make\s*a\s*Required\s*Distribution",
-# "Item6.05":"Item(?:\s*|.)6\.05(?:\s*|\.|.)Securities\s*Act\s*Updating\s*Disclosure",
-# "Item7.01":"Item(?:\s*|.)7\.01(?:\s*|\.|.)Regulation\s*FD\s*Disclosure",
-# "Item8.01":"Item(?:\s*|.)8\.01(?:\s*|\.|.)Other(?:\s*|.)Events",
-# "Item9.01":"Item(?:\s*|.)9\.01(?:\s*|\.|.)Financial\s*Statements\s*and\s*Exhibits"
-# }
-# DATE_OF_REPORT_PATTERN = r'(?:(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:[^\d]){0,40})((?:(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d))))|(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:date(?:.){0,3}of(?:.){0,3}report)))|(?:(?:(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report(?:[^\d]){0,40})(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d))|((?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:.|\n)*?\d\d\d\d)))|(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:.){0,10}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report))))'
+
+
+
 DATE_OF_REPORT_PATTERN = r'(?:(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:[^\d]){0,40})((?:(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d))))|(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d(?:\n{0,3}))(?:.){0,10}(?:date(?:.){0,3}of(?:.){0,3}report)))|(?:(?:(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report(?:[^\d]){0,40})(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d))|((?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d)))|(?:(?:(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report))))'
 COMPILED_DATE_OF_REPORT_PATTERN = re.compile(DATE_OF_REPORT_PATTERN, re.I | re.MULTILINE | re.X | re.DOTALL)
-Items8k = {
+ITEMS_8K = {
 "Item1.01":"Item(?:.){0,2}1\.01(?:.){0,2}Entry(?:.){0,2}into(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
 "Item1.02":"Item(?:.){0,2}1\.02(?:.){0,2}Termination(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
 "Item1.03":"Item(?:.){0,2}1\.03(?:.){0,2}Bankruptcy(?:.){0,2}or(?:.){0,2}Receivership",
@@ -83,7 +53,6 @@ Items8k = {
 }
 
 class Parser8K:
-
     '''
     process and parse 8-k filing.
     
@@ -99,7 +68,7 @@ class Parser8K:
 
     def _create_match_group(self):
         reg_items = "("
-        for key, val in Items8k.items():
+        for key, val in ITEMS_8K.items():
             reg_items = reg_items + "("+val+")|"
         reg_items = reg_items[:-2] + "))"
         return re.compile(reg_items, re.I | re.DOTALL)
@@ -211,7 +180,7 @@ class Parser8K:
                     except IndexError as e:
                         raise e
                     except TypeError as e:
-                        logger.debug((f"unhandled exception type error: ", sig, signatures, e), exc_info=True)
+                        logger.debug((f"unhandled case of TypeError: ", sig, signatures, e), exc_info=True)
             if len(signatures) == 0:
                 continue
         for idx, item in enumerate(items):
@@ -260,6 +229,126 @@ class HtmlFilingParser():
         self.soup = None
         self.unparsed_tables = None
         self.tables = None
+    
+    def split_by_table_of_contents(self, doc: BeautifulSoup):
+        if doc is None:
+            doc = self.soup
+        
+        # try and split by document by hrefs of the toc
+        try:
+            sections = self._split_by_tabel_of_contents_based_on_hrefs(doc)
+        except AttributeError as e:
+            # couldnt find toc
+            logger.info(("Split_by_table_of_content: Filing doesnt have a TOC or it couldnt be determined", e), exc_info=True)
+            return None
+        except ValueError as e:
+            # couldnt find hrefs in the toc so lets continue with different strategy
+            logger.info(e, exc_info=True)
+            pass
+        try:
+            sections = self._split_by_table_of_content_based_on_headers(doc)
+        except Exception as e:
+            #debug
+            logger.info(e, exc_info=True)
+
+        return sections
+    
+    def _split_by_table_of_content_based_on_headers(self, doc: BeautifulSoup):
+        close_to_toc = doc.find(string=re.compile("(table.?.?of.?.?contents)", re.I)) 
+        toc_table = close_to_toc.find_next("table")
+        if toc_table is None:
+            logger.info("couldnt find TOC table from close_to_toc tag")
+        toc = self.parse_htmltable_with_header(toc_table, colspan_mode="separate")
+        print(doc.get_text())
+        print(toc)
+    
+    def _split_by_tabel_of_contents_based_on_hrefs(self, doc: BeautifulSoup):
+        # get close to TOC
+        try:
+            close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))       
+            toc_table = close_to_toc.find_next("table")
+            hrefs = toc_table.findChildren("a", href=True)
+            first_ids = [h["href"] for h in hrefs]
+            n = 0
+            if first_ids == []:
+                while (first_ids == []) or (n < 5):
+                    close_to_toc = close_to_toc.find_next(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))       
+                    toc_table = close_to_toc.find_next("table")
+                    hrefs = toc_table.findChildren("a", href=True)
+                    first_ids = [h["href"] for h in hrefs]
+                    n += 1
+        except AttributeError:
+            
+            return None                
+        
+        # determine first section so we can check if toc is multiple pages
+        id = first_ids[0]
+        id_match = doc.find(id=id[1:])
+        if id_match is None:
+            name_match = doc.find(attrs={"name":id[1:]})
+            first_toc_element = name_match
+        else:
+            first_toc_element = id_match
+        # check that we didnt miss other pages of toc
+        if not first_toc_element:
+            raise ValueError("couldnt find section of first element in TOC")
+        
+        # get all tables before the first header found in toc
+        tables = first_toc_element.find_all_previous("table")
+        track_ids_done = []
+        section_start_elements = []
+        section_start_ids = []
+        for idx in range(len(tables)-1, -1, -1):
+            table = tables[idx]
+            hrefs = table.findChildren("a", href=True)
+            ids = []
+            for a in hrefs:
+                id = a["href"]
+                toc_title = " ".join([s for s in a.strings]).lower()
+                ids.append((id, toc_title))
+            section_start_ids.append(ids)
+        for entry in sum(section_start_ids, []):
+            id = entry[0]
+            if id not in track_ids_done:
+                id_match = doc.find(id=id[1:])
+                if id_match is None:
+                    id_match = doc.find(attrs={"name":id[1:]})
+                track_ids_done.append(id)
+                if id_match:
+                    section_start_elements.append({"ele": id_match, "toc_title": entry[1]})
+                else:
+                    print("NO ID MATCH FOR", entry)
+
+        sections = {}
+        for section_nr, start_element in enumerate(section_start_elements):
+            ele = start_element["ele"]
+            if len(section_start_elements)-1 == section_nr:
+                section_start_elements.append({"ele": ele, "toc_title": "REST_OF_DOC"})
+                ele.insert_before("-START_TOC_TITLE_REST_OF_DOC")
+                while ele:
+                    previous_ele = ele
+                    ele = ele.find_next()
+                previous_ele.insert_after("-STOP_TOC_TITLE_REST_OF_DOC")
+                break
+            ele.insert_before("-START_TOC_TITLE_"+start_element["toc_title"])
+            while ele != section_start_elements[section_nr + 1]["ele"]:
+                ele = ele.next_element
+            ele.insert_before("-STOP_TOC_TITLE_"+start_element["toc_title"])
+        
+        text = str(doc)
+        for sec in section_start_elements:
+            start = re.search(re.compile("-START_TOC_TITLE_"+re.escape(sec["toc_title"]), re.MULTILINE), text)
+            end = re.search(re.compile("-STOP_TOC_TITLE_"+re.escape(sec["toc_title"]), re.MULTILINE), text)
+            try:
+                sections[sec["toc_title"]] = text[start.span()[1]:end.span()[0]]
+            except Exception as e:
+                print(start, end, sec["toc_title"])
+                print(e)
+        return sections
+                
+
+        #insert text markers at the tags href'ed by the toc
+        #then seperate based on  those inserted markers
 
     
     def make_soup(self, doc):
@@ -280,6 +369,7 @@ class HtmlFilingParser():
         rows = htmltable.find_all("tr")
         amount_rows = len(rows)
         amount_columns = None
+        table = None
 
         # mode to write duplicate column names for colspan > 1
         if colspan_mode == "separate":

@@ -180,7 +180,7 @@ def convert_relation_ner_to_doc(typesysteme_filepath, xmi_filepath, split: int =
         bound_start = segment["begin"]
         bound_end = segment["end"]
         tokens = cas_select_split(bound_start, bound_end, all_tokens)
-        doc = Doc(vocab=vocab, words=[annotations.get_covered_text(t) for t in tokens])
+        doc = Doc(vocab=vocab, words=[t.get_covered_text() for t in tokens])
         token_start_idx_map = {}
         spacy_offset = {}
         entities = []
