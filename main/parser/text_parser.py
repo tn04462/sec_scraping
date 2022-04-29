@@ -334,31 +334,36 @@ class HtmlFilingParser():
         Args:
             start_ele: what element to select from
         '''
-        style_textalign = ["[style*='text-align: center']", "[style*='text-align:center']"]
-        style_weight = ["[style*='font-weight: bold']", "[style*='font-weight:bold']"]
-        attr_align = ["[align='center']"]
+        # use i in css selector for case insensitive match
+        style_textalign = ["[style*='text-align: center' i]", "[style*='text-align:center' i]"]
+        style_weight = ["[style*='font-weight: bold' i]", "[style*='font-weight:bold' i]"]
+        attr_align = "[align='center' i]"
         # add a total count and thresholds for different selector groups
         # eg: we dont find enough textcenter_b and textcenter_eigth candidates go to next group
         selectors = {
-            "center_b": " ".join([attr_align, "b"]),
+            "center_b": [" ".join([attr_align, "b"])],
             "textcenter_strong": [" ".join([s, "> strong"]) for s in style_textalign],
             "textcenter_b": [" ".join([s, " b"]) for s in style_textalign],
             "textcenter_weight": sum([[" ".join([s, ">", w]) for s in style_textalign] for w in style_weight], []),
             "td_textcenter_font_b": [" ".join(["td"+s, "> font > b"]) for s in style_textalign],
             "td_textcenter_font_weigth": sum([[" ".join(["td"+s, "> font"+w]) for s in style_textalign] for w in style_weight], []),
-            "b_u": "b > u"
+            "b_u": ["b > u"]
         }
 
         matches = {}
         for name, selector in selectors.items():
             if isinstance(selector, list):
-                match = []
+                match = {"main": [], "sub":[]}
                 for s in selector:
                     for each in start_ele.select(selector=s):
-                        match.append(each)
+                        text_content = each.string if each.string else " ".join([s for s in each.strings])
+                        if text_content.isupper():
+                            match["main"].append(each)
+                        else:
+                            match["sub"].append(each)
                 matches[name] = match
             else:
-                matches[name] = start_ele.select(selector=selector)
+                raise TypeError(f"selectors should be wrapped in a list: got {type(selector)}")
         return matches
     
     def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag=None):

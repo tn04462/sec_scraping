@@ -188,7 +188,7 @@ if __name__ == "__main__":
     from spacy import displacy
     # nlp = spacy.load("en_core_web_sm")
 
-    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
     # import logging
     # logging.basicConfig(level=logging.INFO)
@@ -281,55 +281,53 @@ def retrieve(path: str):
         return pickle.load(f)
 
 def try_htmlparser():
+    root_lap = r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings"
+    # root_des = r"F:\example_filing_set_100_companies\filings"
     parser = HtmlFilingParser()
-    # root_filing = r"F:\example_filing_set_100_companies\filings"
-    # file_paths = get_all_filings_path(Path(root_filing), "S-1")
-    # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
+    root_filing = root_lap
+    file_paths = get_all_filings_path(Path(root_filing), "S-1")
+    file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
-    # file_paths.append(file_paths2)
+    file_paths.append(file_paths2)
     # # file_paths.append(file_paths3)
-    # file_paths = flatten(file_paths)
+    file_paths = flatten(file_paths)
     # store(r"F:\example_filing_set_100_companies\s1s3paths.txt", file_paths)$
-    file_paths = retrieve(r"F:\example_filing_set_100_companies\s1s3paths.txt")
+    # file_paths = retrieve(root_lap)
     # for p in [r"F:\example_filing_set_100_companies\filings\0001556266\S-3\0001213900-20-018486\ea124224-s3a1_tdholdings.htm"]:
     file_count = 0
-    # test = "<body><p><a style=font-weight:bold>THIS<b>HI</b></a></p></body>"
+    # test = "<body><p><a style='text-align:CENTER'>THIS<b>HI</b></a></p></body>"
     # html = BeautifulSoup(test)
     # print(html)
-    # found = html.select("a[style*='font-weight:']")
+    # found = html.select("[style*='text-align:center' i]")
+    # print(found)
+    main = []
     for p in file_paths:
         file_count += 1
+        
         with open(p, "r", encoding="utf-8") as f:
             print(p)
             parser.make_soup(f.read())
             matches = parser._get_possible_headers_based_on_style(parser.soup)
             for k, v in matches.items():
-                print(k, ":", len(v))
-                print(file_count)
+                for i in v["main"]:
+                    if i:
+                        text = i.string if i.string else " ".join([s for s in i.strings])
+                        text = parser._normalize_toc_title(text)
+                        main.append((text, len(text), p))   
+    with open(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\headers.csv", "w", newline="", encoding="utf-8") as f:
+        df = pd.DataFrame(main)
+        # only wrote 10 lines after parsing all, no error... might be due to encoding?
+        # test with low amount of filings to check 
+        df.to_csv(f)
+
+def parse_headers():
+    pd.read_csv(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\headers.csv")
+
                 
-
-            # print(matches)
-    #         toc = parser.split_by_table_of_contents(parser.soup)
-    #         for name, content in toc.items():
-    #             print(name, len(BeautifulSoup(content).get_text()))
-            
-
-            # toc = parser._split_by_table_of_content_based_on_headers(parser.soup)
-            # if toc is not None:
-            #     try:
-            #         for key in toc:
-            #             if re.search(re.compile("offering", re.I), key[0]):
-            #                 # print(key)
-            #                 offering = toc[toc.index(key[0])]
-                    
-            #                 soup = BeautifulSoup(offering, features="html5lib")
-            #                 # print(str(soup.prettify()))
-            #     except Exception as e:
-            #         print((e, "excepted in try_htmlparser"))
-
-
-# download_samples(r"F:\example_filing_set_10_companies")
 try_htmlparser()
+# parse_headers()
+
+# download_samples(r"F:\example_filing_set_100_companies")
 
 
 # from main.data_aggregation.bulk_files import update_bulk_files
