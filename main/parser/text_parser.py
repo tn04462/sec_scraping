@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from attr import Attribute
 import pandas as pd
-from bs4 import BeautifulSoup, element
+from bs4 import BeautifulSoup, NavigableString, element
 import re
 from pyparsing import Each
 import soupsieve
@@ -50,6 +50,11 @@ ITEMS_8K = {
 "Item7.01":"Item(?:.){0,2}7\.01(?:.){0,2}Regulation(?:.){0,2}FD(?:.){0,2}Disclosure",
 "Item8.01":"Item(?:.){0,2}8\.01(?:.){0,2}Other(?:.){0,2}Events",
 "Item9.01":"Item(?:.){0,2}9\.01(?:.){0,2}Financial(?:.){0,2}Statements(?:.){0,2}and(?:.){0,2}Exhibits"
+}
+
+TOC_ALTERNATIVES = {
+    "principal stockholders": ["SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT"],
+    "index to financial statements": ["INDEX TO CONSOLIDATED FINANCIAL STATEMENTS"]
 }
 
 class Parser8K:
@@ -220,23 +225,67 @@ class Parser8K:
         # fold multiple spaces into one
         filing = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", filing)
         return filing
+
+
+
+
     
         
 
     
 class HtmlFilingParser():
+    '''
+    Baseclass for parsing HtmlFilings.
+
+    Usage:
+        from text_parser import HtmlFilingParser
+        from bs4 import Beautifulsoup
+        parser = HtmlFilingParser() 
+        with open(path_to/filing.htm, "r") as f:
+            soup = parser.make_soup(f.read())
+            
+            sections = parser.split_by_table_of_contents(soup)
+            # get all the text of the sections
+            for name, content in sections:
+                # let bs4 make malformed html whole again
+                html_content =  Beautifulsoup(content)
+                # maybe you want to parse tables from here or just extract all tables
+                # and use only the pure text content or not
+
+                # not extracting anything and only replacing common unicode characters
+                text = html_content.get_text()
+                cleaned_text = parser.preprocess_text(text)
+
+    '''
     def __init__(self):
         self.soup = None
         self.unparsed_tables = None
         self.tables = None
     
+    def _normalize_toc_title(self, title):
+        return re.sub("\s{1,}", " ", re.sub("\n{1,}", " ", title)).lower().strip()
+    
+    def _create_toc_re(self, search_term, max_length=None):
+        if max_length is None:
+            max_length = len(search_term) + 4
+        else:
+            pass
+        return (re.compile("^\s*"+re.sub("(\s){1,}", "(?:.){0,4}", search_term)+"\s*$", re.I | re.DOTALL | re.MULTILINE), max_length)
+    
     def split_by_table_of_contents(self, doc: BeautifulSoup):
+        '''split a filing with a TOC into sections base on the TOC.
+        
+        Args:
+            doc: html parsed with bs4
+
+        Returns:
+            {section_title: section_content} Where section_content is malformed html and section_title a string
+        '''
         if doc is None:
             doc = self.soup
-        
         # try and split by document by hrefs of the toc
         try:
-            sections = self._split_by_tabel_of_contents_based_on_hrefs(doc)
+            sections = self._split_by_table_of_contents_based_on_hrefs(doc)
         except AttributeError as e:
             # couldnt find toc
             logger.info(("Split_by_table_of_content: Filing doesnt have a TOC or it couldnt be determined", e), exc_info=True)
@@ -245,27 +294,354 @@ class HtmlFilingParser():
             # couldnt find hrefs in the toc so lets continue with different strategy
             logger.info(e, exc_info=True)
             pass
+        else:
+            return sections
         try:
             sections = self._split_by_table_of_content_based_on_headers(doc)
+        except AttributeError as e:
+            logger.info(("_Split_by_table_of_content_based_on_headers: Filing doesnt have a TOC or it couldnt be determined", e), exc_info=True)
+            return None
         except Exception as e:
             #debug
             logger.info(e, exc_info=True)
+        return sections
+    
+    def preprocess_text(self, text):
+        '''removes common unicode and folds multi spaces/newlines into one'''
+        text.replace("\xa04", ""
+            ).replace("\xa0", " "
+            ).replace("\u200b", " "
+            )
+        # fold multiple empty newline rows into one
+        text = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", text)
+        text = re.sub(re.compile("(\n)", re.MULTILINE), " ", text)
+        # fold multiple spaces into one
+        text = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", text)
+        return text
 
+    def _get_possible_headers_based_on_style(self, start_ele: element.Tag|BeautifulSoup):
+        '''look for possible headers based on styling of the elements.
+        
+        approach:
+            1) filter all common types of styles the headers could be in
+            2) sort into mainheader(all caps) and subheader(not all caps)
+            3) if we dont have a lot of mainheaders try and sort by font-size/size
+               mostlikely need to check if parents have that property
+            4) assign subheaders based on position relative to mainheaders
+               eg: subheaders between two mainheaders are assigned to the earlier
+               mainheader
+
+        Args:
+            start_ele: what element to select from
+        '''
+        style_textalign = ["[style*='text-align: center']", "[style*='text-align:center']"]
+        style_weight = ["[style*='font-weight: bold']", "[style*='font-weight:bold']"]
+        attr_align = ["[align='center']"]
+        # add a total count and thresholds for different selector groups
+        # eg: we dont find enough textcenter_b and textcenter_eigth candidates go to next group
+        selectors = {
+            "center_b": " ".join([attr_align, "b"]),
+            "textcenter_strong": [" ".join([s, "> strong"]) for s in style_textalign],
+            "textcenter_b": [" ".join([s, " b"]) for s in style_textalign],
+            "textcenter_weight": sum([[" ".join([s, ">", w]) for s in style_textalign] for w in style_weight], []),
+            "td_textcenter_font_b": [" ".join(["td"+s, "> font > b"]) for s in style_textalign],
+            "td_textcenter_font_weigth": sum([[" ".join(["td"+s, "> font"+w]) for s in style_textalign] for w in style_weight], []),
+            "b_u": "b > u"
+        }
+
+        matches = {}
+        for name, selector in selectors.items():
+            if isinstance(selector, list):
+                match = []
+                for s in selector:
+                    for each in start_ele.select(selector=s):
+                        match.append(each)
+                matches[name] = match
+            else:
+                matches[name] = start_ele.select(selector=selector)
+        return matches
+    
+    def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag=None):
+        '''gets the elements of the TOC as a list.
+        
+        currently doesnt account for multi table TOC.
+        Returns:
+            list of [description, page_number]
+        '''
+        if start_table is None:
+            try:
+                close_to_toc = doc.find(string=re.compile("(table.?.?of.?.?contents)", re.I|re.DOTALL), recursive=True) 
+                if isinstance(close_to_toc, NavigableString):
+                    close_to_toc = close_to_toc.parent
+                if "href" in close_to_toc.attrs:
+                    name_or_id = close_to_toc["href"][-1]
+                    close_to_toc = doc.find(name=name_or_id)
+                    if close_to_toc is None:
+                        close_to_toc = doc.find(id=name_or_id)
+                toc_table = close_to_toc.find_next("table")
+            except AttributeError as e:
+                logger.info(e, exc_info=True)
+                logger.info("This filing mostlikely doesnt have a TOC. Couldnt find TOC from close_to_toc tag")
+                return None
+        else:
+            toc_table = start_table
+        if toc_table is None:
+            logger.info("couldnt find TOC from close_to_toc tag")
+        dirty_toc = self.parse_htmltable_with_header(toc_table, colspan_mode="separate")
+        if dirty_toc is None:
+            logger.info("couldnt get toc from toc_table") 
+            return None 
+        if len(dirty_toc) < 10:
+            #assume we missed the toc
+            try:
+                toc_table = toc_table.find_next("table")
+                toc = self._get_toc_list(doc, toc_table)
+                return toc
+            except AttributeError:
+                return None
+        toc = []
+        for row in dirty_toc:
+            offset = 0
+            for idx in range(len(row)):
+                field = row[idx-offset]
+                if (field is None) or (field == ""):
+                    row.pop(idx-offset)
+                    offset += 1
+            
+            if row != []:
+                if len(row) == 1:
+                    row.append("None")
+                toc.append(row)
+        return toc
+        # toc_table2 = toc_table.find_next("table")
+        # toc2 = self.parse_htmltable_with_header(toc_table2, colspan_mode="separate")
+        # if toc2 is not None:
+        #     try:
+        #         if (len(toc2[0][-1]) == (2 or 3)) and (len(toc2[0]) == len(dirty_toc[0])):
+        #             [dirty_toc.append(t) for t in toc2]
+        #             logger.info("doc had a multipage toc!")
+        #     except TypeError:
+        #         pass
+        # toc = []
+        
+        # for row in dirty_toc:
+        #     print(row)
+
+        
+
+    def _look_for_toc_matches_after(self, start_ele: element.Tag, re_toc_titles: list[(re.Pattern, int)], min_distance: int=5):
+            '''
+            looks for regex matches in the string of the tags of the element tree.
+            
+            Avoids matches that are descendants of the last match and matches that are too close
+            together.
+            
+            Args:
+                re_toc_titles: should be a list of tuples consisting of (the regex pattern, the max length to match for)
+                max length to match for should be equal to the  length + some whitespace margin of the toc_title string 
+            '''
+            title_matches = []
+            min_distance_count = 0
+            matched_ele = None
+            for ele in start_ele.next_elements:
+                if matched_ele == ele.previous_element:
+                    if min_distance_count >= min_distance:
+                        matched_ele = None
+                        min_distance_count = 0
+                    else:
+                        matched_ele = ele
+                        min_distance_count += 1
+                        continue
+                if ele.string:
+                    content = ele.string
+                    for re_term, term_length in re_toc_titles:
+                        if re.search(re_term, content):
+                            content_length = len(ele) if isinstance(ele, (NavigableString, str)) else len(ele.string) 
+                            if isinstance(ele, str):
+                                ele = ele.parent
+                            if content_length < term_length:
+                                title_matches.append(ele)
+                                # print(re_term, ele)
+                                matched_ele = ele
+                                break
+            return title_matches
+    
+    def _search_toc_match_in_list_of_tags(self, tags, re_toc_titles):
+            '''
+            looks for regex matches in the string of the tags and their descendants.
+        
+            Avoids matches that are descendants of the last match.
+            '''
+            matches = []
+            for tag in tags:
+                matched = False
+                if tag.string:
+                    content = tag.string
+                    if content == "":
+                        pass
+                    else:
+                        for re_term, _ in re_toc_titles:
+                            if re.search(re_term, content):
+                                matches.append(tag)
+                                matched = True
+                                break
+                if matched is False:
+                    try:
+                        for child in tag.descendants:
+                            if child.string:
+                                content = child.string
+                                if content is not (None or ""):
+                                    for re_term, _ in re_toc_titles:
+                                        if re.search(re_term, content):
+                                            matches.append(child)
+                                            break
+                    except AttributeError as e:
+                        raise e
+            return matches
+    
+    def _split_into_sections_by_tags(self, doc: BeautifulSoup, section_start_elements: dict):
+        '''
+        splits html doc into malformed html strings by section_start_elements.
+        Args:
+            section_start_elements: {"section_title": section_title, "ele": element.Tag}
+        '''
+        sections = {}
+        for section_nr, start_element in enumerate(section_start_elements):
+            ele = start_element["ele"]
+            if len(section_start_elements)-1 == section_nr:
+                section_start_elements.append({"ele": ele, "section_title": "REST_OF_DOC"})
+                ele.insert_before("-START_SECTION_TITLE_REST_OF_DOC")
+                while ele:
+                    previous_ele = ele
+                    ele = ele.find_next()
+                previous_ele.insert_after("-STOP_SECTION_TITLE_REST_OF_DOC")
+                break
+            ele.insert_before("-START_SECTION_TITLE_"+start_element["section_title"])
+            while ele != section_start_elements[section_nr + 1]["ele"]:
+                ele = ele.next_element
+            ele.insert_before("-STOP_SECTION_TITLE_"+start_element["section_title"])
+        
+        text = str(doc)
+        for sec in section_start_elements:
+            start = re.search(re.compile("-START_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
+            end = re.search(re.compile("-STOP_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
+            try:
+                sections[sec["section_title"]] = text[start.span()[1]:end.span()[0]]
+            except Exception as e:
+                print("FAILURE TO SPLIT SECTION BECAUSE:")
+                print(f"start: {start}, end: {end}, section_title: {sec['section_title']}, section_nr/total: {section_nr}/{len(section_start_elements)-1}")
+                print(e)
+                print("----------------")
         return sections
     
     def _split_by_table_of_content_based_on_headers(self, doc: BeautifulSoup):
-        close_to_toc = doc.find(string=re.compile("(table.?.?of.?.?contents)", re.I)) 
+        '''split the filing by the element strings of the TOC'''
+        close_to_toc = doc.find(string=re.compile("(table.?.?of.?.?contents)", re.I|re.DOTALL), recursive=True) 
         toc_table = close_to_toc.find_next("table")
+        # still need to account for multi table TOC, while close_to_toc -> check if toc table
         if toc_table is None:
             logger.info("couldnt find TOC table from close_to_toc tag")
         toc = self.parse_htmltable_with_header(toc_table, colspan_mode="separate")
-        print(doc.get_text())
-        print(toc)
+        # check if we have desc, page header or not and remove it if so
+        possible_header = toc[0]
+        for head in possible_header:
+            if re.search(re.compile("(descript.*)|(page)", re.I), head):
+                toc.pop(0)
+                break
+        toc_titles = []
+        for entry in toc:
+            if entry[0] != "":
+                toc_titles.append(entry[0])
+
+        # print(toc_titles)
+        re_toc_titles = [(re.compile("^\s*"+re.sub("(\s|\n)", "(?:.){0,4}", t)+"\s*$", re.I | re.DOTALL | re.MULTILINE), len(t) + 3) for t in toc_titles]
+        ele_after_toc = toc_table.next_sibling
+        title_matches = self._look_for_toc_matches_after(
+            ele_after_toc,
+            re_toc_titles,
+            min_distance=5)    
+        # print(title_matches)
+        all_b = doc.find_all(name="b", recursive=True)
+        all_bold = doc.select("[style*='font-weight']")
+        all_strong = doc.find_all("strong", recursive=True)
+        # REMOVE TOC TABLE ITEMS FROM ALTERNATIVE MATCHES
+        # overwritte all matches by priority of alternative matches
+        # b > strong > all_bold > all_matches
+        # then check for duplicates and figure out what to drop
+        # alternative_matches = {
+        #     "b": self._search_toc_match_in_list_of_tags(all_b, re_toc_titles),
+        #     "strong": self._search_toc_match_in_list_of_tags(all_strong, re_toc_titles),
+        #     "all_bold": self._search_toc_match_in_list_of_tags(all_bold, re_toc_titles)
+        #     }
+        stil_missing_toc_titles = [
+            s for s in toc_titles if self._normalize_toc_title(s) not in 
+                [self._normalize_toc_title(f.string
+                ) if f.string else self._normalize_toc_title(" ".join([t for t in f.strings])
+                ) for f in title_matches]
+                ]
+            # assume that the still missing toc titles are multi tag titles or malformed after the 4th word
+            # so lets take take the first 4 words of the title and look for those in 
+            # the b, all_bold and all_strong tags
+        norm_four_word_titles = [" ".join(self._normalize_toc_title(title).split(" ")[:4]) for title in stil_missing_toc_titles]
+        re_four_word_titles = [self._create_toc_re(t, max_length=len(t)+10) for t in norm_four_word_titles]
+        four_word_matches = self._look_for_toc_matches_after(ele_after_toc, re_four_word_titles)
+        [title_matches.append(m) for m in four_word_matches]
+        norm_title_matches = [self._normalize_toc_title(t.string if t.string else " ".join([s for s in t.strings])) for t in title_matches]
+        unique_toc_titles = set([self._normalize_toc_title(t) for t in toc_titles])
+        unique_match_titles = set(norm_title_matches)
+        
+        # print("TITLES FOUND:")
+        # print(f"found/intersect/total: {len(unique_match_titles)}/{len(unique_match_titles & unique_toc_titles)}/{len(toc_titles)}")
+        # print("MISSING TOC MATCHES:")
+        # print(unique_toc_titles - unique_match_titles) 
+        # print("FOUND BUT NOT IN TOC TITLES")
+        # print(unique_match_titles - unique_toc_titles)
+        alternative_matches = []
+        for failure in (unique_toc_titles - unique_match_titles):
+            if failure in TOC_ALTERNATIVES.keys():
+                alternative_options = TOC_ALTERNATIVES[failure]
+                for option in alternative_options:
+                    matches = self._look_for_toc_matches_after(ele_after_toc, [self._create_toc_re(option)])
+                    if matches:
+                        alternative_matches.append(matches)
+                        break
+        for match in alternative_matches:
+            if len(match) > 1:
+                print(alternative_matches)
+                print("--------->>>!! address this now !!<<<-------------")
+            else:
+                title_matches.append(match[0])
+        section_start_elements = []
+        for match in title_matches:
+            _title = match.string if match.string else " ".join([s for s in match.strings])
+            section_title = self._normalize_toc_title(_title)
+            section_start_elements.append({"section_title": section_title, "ele": match})
+        return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
+
+
+
+
+
+        # #issues: 
+        # #   1) multi element strings
+        # #   2) title not equal to toc_title
+        # #   3) cant reliably split without all sections found...   
+       
+        return toc
+        
     
-    def _split_by_tabel_of_contents_based_on_hrefs(self, doc: BeautifulSoup):
+    def _split_by_table_of_contents_based_on_hrefs(self, doc: BeautifulSoup):
+        '''split the filing based on the hrefs, linking to different parts of the filing, from the TOC.'''
         # get close to TOC
         try:
-            close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))       
+            close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))
+            if isinstance(close_to_toc, NavigableString):
+                    close_to_toc = close_to_toc.parent
+            if "href" in close_to_toc.attrs:
+                name_or_id = close_to_toc["href"][-1]
+                close_to_toc = doc.find(name=name_or_id)
+                if close_to_toc is None:
+                    close_to_toc = doc.find(id=name_or_id)       
             toc_table = close_to_toc.find_next("table")
             hrefs = toc_table.findChildren("a", href=True)
             first_ids = [h["href"] for h in hrefs]
@@ -277,8 +653,8 @@ class HtmlFilingParser():
                     hrefs = toc_table.findChildren("a", href=True)
                     first_ids = [h["href"] for h in hrefs]
                     n += 1
-        except AttributeError:
-            
+        except AttributeError as e:   
+            logger.info(e, exc_info=True)  
             return None                
         
         # determine first section so we can check if toc is multiple pages
@@ -315,36 +691,12 @@ class HtmlFilingParser():
                     id_match = doc.find(attrs={"name":id[1:]})
                 track_ids_done.append(id)
                 if id_match:
-                    section_start_elements.append({"ele": id_match, "toc_title": entry[1]})
+                    print(id_match, entry)
+                    section_start_elements.append({"ele": id_match, "section_title": entry[1]})
                 else:
                     print("NO ID MATCH FOR", entry)
 
-        sections = {}
-        for section_nr, start_element in enumerate(section_start_elements):
-            ele = start_element["ele"]
-            if len(section_start_elements)-1 == section_nr:
-                section_start_elements.append({"ele": ele, "toc_title": "REST_OF_DOC"})
-                ele.insert_before("-START_TOC_TITLE_REST_OF_DOC")
-                while ele:
-                    previous_ele = ele
-                    ele = ele.find_next()
-                previous_ele.insert_after("-STOP_TOC_TITLE_REST_OF_DOC")
-                break
-            ele.insert_before("-START_TOC_TITLE_"+start_element["toc_title"])
-            while ele != section_start_elements[section_nr + 1]["ele"]:
-                ele = ele.next_element
-            ele.insert_before("-STOP_TOC_TITLE_"+start_element["toc_title"])
-        
-        text = str(doc)
-        for sec in section_start_elements:
-            start = re.search(re.compile("-START_TOC_TITLE_"+re.escape(sec["toc_title"]), re.MULTILINE), text)
-            end = re.search(re.compile("-STOP_TOC_TITLE_"+re.escape(sec["toc_title"]), re.MULTILINE), text)
-            try:
-                sections[sec["toc_title"]] = text[start.span()[1]:end.span()[0]]
-            except Exception as e:
-                print(start, end, sec["toc_title"])
-                print(e)
-        return sections
+        return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
                 
 
         #insert text markers at the tags href'ed by the toc
@@ -352,14 +704,35 @@ class HtmlFilingParser():
 
     
     def make_soup(self, doc):
-        self.soup = BeautifulSoup(doc, "html.parser")
-    
+        self.soup = BeautifulSoup(doc, "lxml")
+        return self.soup
+
     def get_unparsed_tables(self):
         self.unparsed_tables = self.soup.find_all("table")
     
     def get_element_text_content(self, ele):
         content = " ".join([s.strip().replace("\n", " ") for s in ele.strings]).strip()
         return content
+    
+    def primitive_htmltable_parse(self, htmltable):
+        '''parse simple html tables without col or rowspan'''
+        rows = htmltable.find_all("tr")
+        amount_rows = len(rows)
+        amount_columns = 0
+        table = None
+        for row in rows:
+            nr_columns = len(row.find_all("td"))
+            if nr_columns > amount_columns:
+                amount_columns = nr_columns
+        # create empty table 
+        table = [[None] * amount_columns for each in range(amount_rows)]
+        # write each row
+        for row_idx, row in enumerate(rows):
+            for field_idx, field in enumerate(row.find_all("td")):
+                content = self.get_element_text_content(field)
+                # adjust row_idx for header
+                table[row_idx][field_idx] = content
+        return table
 
 
     def parse_htmltable_with_header(self, htmltable, colspan_mode="separate", merge_delimiter=" "):
@@ -498,8 +871,6 @@ class ParserS1(HtmlFilingParser):
         return None
 
                 
-
-
 class Parser424B5(HtmlFilingParser):
     def convert_htmltable(self, htmltable):
         # only does tables without headers
@@ -575,6 +946,42 @@ class Parser424B5(HtmlFilingParser):
                 else:
                     current_distance += 1
         return table
+
+
+# class DEF14AParser(HtmlFilingParser):
+    # filing_subtypes = [
+    #     "Preliminary Proxy",
+    #     "Confidental",
+    #     "Definitive Proxy",
+    #     "Definitive Additional Materials",
+    #     "Soliciting Material"]
+
+    # def check_for_outstanding_shares(self, doc: BeautifulSoup)
+
+    # def determine_filing_subtype(self, doc: BeautifulSoup):
+    #   difficult to accomplish across the board in a quick way, so disregard for now
+    #     # get right table
+    #     # -> go from top and check content of parsed table until we find it
+    #     # marked one is the one different
+    #     count = 0
+    #     subtype_table = None
+    #     for t in doc.find_all("table"):
+    #         table = self.primitive_htmltable_parse(t)
+    #         count += 1
+    #         if count <= 3:
+    #             print(table)
+    #         try:
+    #             first_entry = table[0][0]
+    #             # print(first_entry)
+    #         except IndexError:
+    #             continue
+    #         except AttributeError:
+    #             continue
+
+    #         if re.search(re.compile("check the appropiate box", re.I), first_entry):
+    #             print(table)
+
+            
 
 
 parser = Parser8K()

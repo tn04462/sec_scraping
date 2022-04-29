@@ -188,7 +188,7 @@ if __name__ == "__main__":
     from spacy import displacy
     # nlp = spacy.load("en_core_web_sm")
 
-    # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH, retries=100, user_agent=cnf.SEC_USER_AGENT)
     # import logging
     # logging.basicConfig(level=logging.INFO)
@@ -252,33 +252,83 @@ def try_spacy():
 # try_spacy()
 
 import re
+from datetime import timedelta
+import pickle
+def download_samples(root, forms=["S-1", "S-3", "SC13D"]):
+    dl = Downloader(root, user_agent="P licker p@licker.com")
+    def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
+        # # download the last 2 years of relevant filings
+        if after is None:
+            after = str((datetime.now() - timedelta(weeks=104)).date())
+        for form in forms:
+        #     # add check for existing file in pysec_donwloader so i dont download file twice
+            try:
+                downloader.get_filings(ticker, form, after, number_of_filings=number_of_filings)
+            except Exception as e:
+                print((ticker, form, e))
+                pass
+    with open("./resources/company_tickers.json", "r") as f:
+        tickers = list(json.load(f).keys())
+        for ticker in tqdm(tickers[5020:5120]):
+            get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
+
+def store(path: str, obj: list):
+    with open(path, "wb") as f:
+            pickle.dump(obj, f)
+
+def retrieve(path: str):
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
 def try_htmlparser():
     parser = HtmlFilingParser()
-    root_filing = r"F:\example_filing_set_10_companies\filings"
-    file_paths = get_all_filings_path(Path(root_filing), "S-1")
-    file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
-    file_paths.append(file_paths2)
-    file_paths = flatten(file_paths)
+    # root_filing = r"F:\example_filing_set_100_companies\filings"
+    # file_paths = get_all_filings_path(Path(root_filing), "S-1")
+    # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
+    # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
+    # file_paths.append(file_paths2)
+    # # file_paths.append(file_paths3)
+    # file_paths = flatten(file_paths)
+    # store(r"F:\example_filing_set_100_companies\s1s3paths.txt", file_paths)$
+    file_paths = retrieve(r"F:\example_filing_set_100_companies\s1s3paths.txt")
+    # for p in [r"F:\example_filing_set_100_companies\filings\0001556266\S-3\0001213900-20-018486\ea124224-s3a1_tdholdings.htm"]:
+    file_count = 0
+    # test = "<body><p><a style=font-weight:bold>THIS<b>HI</b></a></p></body>"
+    # html = BeautifulSoup(test)
+    # print(html)
+    # found = html.select("a[style*='font-weight:']")
     for p in file_paths:
+        file_count += 1
         with open(p, "r", encoding="utf-8") as f:
             print(p)
             parser.make_soup(f.read())
-            toc = parser._split_by_table_of_content_based_on_headers(parser.soup)
-            if toc is not None:
+            matches = parser._get_possible_headers_based_on_style(parser.soup)
+            for k, v in matches.items():
+                print(k, ":", len(v))
+                print(file_count)
                 
-                try:
-                    keys = list(toc.keys())
-                    for key in keys:
-                        if re.search(re.compile("offering", re.I), key):
-                            print(key)
-                            offering = toc[key]
+
+            # print(matches)
+    #         toc = parser.split_by_table_of_contents(parser.soup)
+    #         for name, content in toc.items():
+    #             print(name, len(BeautifulSoup(content).get_text()))
+            
+
+            # toc = parser._split_by_table_of_content_based_on_headers(parser.soup)
+            # if toc is not None:
+            #     try:
+            #         for key in toc:
+            #             if re.search(re.compile("offering", re.I), key[0]):
+            #                 # print(key)
+            #                 offering = toc[toc.index(key[0])]
                     
-                            soup = BeautifulSoup(offering, features="html5lib")
-                            print(str(soup.prettify()))
-                except Exception as e:
-                    print(e)
+            #                 soup = BeautifulSoup(offering, features="html5lib")
+            #                 # print(str(soup.prettify()))
+            #     except Exception as e:
+            #         print((e, "excepted in try_htmlparser"))
 
 
+# download_samples(r"F:\example_filing_set_10_companies")
 try_htmlparser()
 
 
