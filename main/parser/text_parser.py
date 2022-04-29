@@ -319,7 +319,7 @@ class HtmlFilingParser():
         text = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", text)
         return text
 
-    def _get_possible_headers_based_on_style(self, start_ele: element.Tag|BeautifulSoup):
+    def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup, max_distance_multiline: int=100):
         '''look for possible headers based on styling of the elements.
         
         approach:
@@ -332,8 +332,14 @@ class HtmlFilingParser():
                mainheader
 
         Args:
-            start_ele: what element to select from
+            start_ele: what element to select from [optional] if not selected start_ele will be doc
+        
+        Raises:
+            ValueError: if the position of an element couldnt be determined
         '''
+
+        if start_ele is None:
+            start_ele = doc
         # use i in css selector for case insensitive match
         style_textalign = ["[style*='text-align: center' i]", "[style*='text-align:center' i]"]
         style_weight = ["[style*='font-weight: bold' i]", "[style*='font-weight:bold' i]"]
@@ -354,13 +360,49 @@ class HtmlFilingParser():
         for name, selector in selectors.items():
             if isinstance(selector, list):
                 match = {"main": [], "sub":[]}
+                already_matched = {}
                 for s in selector:
-                    for each in start_ele.select(selector=s):
-                        text_content = each.string if each.string else " ".join([s for s in each.strings])
+                    last_ele = None
+                    last_ele_pos = None
+                    current_ele_pos = None
+                    was_none = False
+                    ele_group = []
+                    # group together elements that are within close range of each other (how many chars?)
+                    # -> multiline headers
+                    for ele in start_ele.select(selector=s):
+                        text_content = (ele.string if ele.string 
+                                       else " ".join([s for s in ele.strings]))
                         if text_content.isupper():
-                            match["main"].append(each)
+                            if last_ele is None:
+                                last_ele = ele
+                            else:
+                                if last_ele == ele.previous_element:
+                                    # find distance between
+                                    last_ele_match = re.search(str(last_ele))
+                                    if not last_ele_match:
+                                        raise ValueError(f"couldnt determine position of the last element: {last_ele}")
+                                    current_ele_match = re.search(str(ele))
+                                    if not current_ele_match:
+                                        raise ValueError(f"couldnt determine position of the current element: {ele}")
+                                    if (current_ele_match.span().start - last_ele_match.span().end) < max_distance_multiline:
+                                        if ele_group = []:
+                                            ele_group.append(last_ele)
+                                        ele_group.append(ele)
+                                        last_ele = ele
+                                        continue
+                                    else:
+                                        match["main"].append(last_ele)
+                                        last_ele = ele
+                                        continue
+                                last_ele = ele
+                                    
+                            match["main"].append(ele)
                         else:
-                            match["sub"].append(each)
+                            match["sub"].append(ele)
+                    if ele_group == []:
+                        matches["main"].append(last_ele)
+                    else:
+                        # append ele group
                 matches[name] = match
             else:
                 raise TypeError(f"selectors should be wrapped in a list: got {type(selector)}")
