@@ -22,3 +22,6 @@ __pycache__/dilution_db.cpython-310.pyc
 *.pyc
 main/parser/spacy_model/training/model-best/vocab/vectors
 main/parser/spacy_model/training/model-last/vocab/vectors
+main/parser/spacy_model/data/dev.spacy
+main/parser/spacy_model/data/dev.spacy
+main/parser/spacy_model/data/test.spacy

@@ -2,6 +2,7 @@ import re
 import json
 import logging
 from pathlib import Path
+from types import NoneType
 from attr import Attribute
 import pandas as pd
 from bs4 import BeautifulSoup, NavigableString, element
@@ -56,6 +57,8 @@ TOC_ALTERNATIVES = {
     "principal stockholders": ["SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT"],
     "index to financial statements": ["INDEX TO CONSOLIDATED FINANCIAL STATEMENTS"]
 }
+
+IGNORE_HEADERS_BASED_ON_STYLE = set("TABLE OF CONTENTS")
 
 class Parser8K:
     '''
@@ -261,7 +264,44 @@ class HtmlFilingParser():
         self.soup = None
         self.unparsed_tables = None
         self.tables = None
+
+    def get_span_of_element(self, doc: str, ele: element.Tag):
+        '''gets the span (start, end) of the element ele in doc
+        
+        Args:
+            doc: html string'''
+        pos = re.search(re.escape(str(ele)), doc).span()
+        if not pos:
+            raise ValueError("span of element couldnt be found")
+        else:
+            return pos
     
+    def find_next_by_position(self, doc: str, start_ele: element.Tag, filter):
+        if not isinstance(filter, (bool, NoneType)) and not callable(filter):
+            raise ValueError("please pass a function, bool, or None for the filter arg to find_next_by_position")
+        after_pos = self.get_span_of_element(doc, start_ele)[1]
+        for ele in start_ele.next_elements:
+            ele_pos = self.get_span_of_element(doc, ele)[0]
+            if after_pos < ele_pos:
+                if filter is True:
+                    return ele
+                if filter is None:
+                    return ele
+                if isinstance(filter, function):
+                    if filter(ele) is True:
+                        return ele
+        return None
+    
+    def _ele_is_between(self, doc: str, ele: element.Tag, x1, x2):
+        '''check if ele is between x1 and x2 in the document (by regex span)'''
+        ele_span = self.get_span_of_element(doc, ele)
+        if (x1 > ele_span[0]) and (x2 < ele_span[1]):
+            return True
+        else:
+            return False
+    
+
+
     def _normalize_toc_title(self, title):
         return re.sub("\s{1,}", " ", re.sub("\n{1,}", " ", title)).lower().strip()
     
@@ -319,8 +359,10 @@ class HtmlFilingParser():
         text = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", text)
         return text
 
-    def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup, max_distance_multiline: int=100):
+    def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup=None, max_distance_multiline: int=10, ignore_toc: bool=True):
         '''look for possible headers based on styling of the elements.
+
+        Ignores elements in the TOC table if found.
         
         approach:
             1) filter all common types of styles the headers could be in
@@ -337,9 +379,44 @@ class HtmlFilingParser():
         Raises:
             ValueError: if the position of an element couldnt be determined
         '''
-
+        str_doc = str(doc)
+        ignore_before = None
+        toc_start_end = None
         if start_ele is None:
             start_ele = doc
+        if ignore_toc is True:
+            try:
+                close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))
+                if isinstance(close_to_toc, NavigableString):
+                    close_to_toc = close_to_toc.parent
+                if "href" in close_to_toc.attrs:
+                    name_or_id = close_to_toc["href"][-1]
+                    close_to_toc = doc.find(name=name_or_id)
+                    if close_to_toc is None:
+                        close_to_toc = doc.find(id=name_or_id)       
+                toc_table = close_to_toc.find_next("table")
+                found_toc = False
+                while found_toc is False:
+                    dirty_toc = self.parse_htmltable_with_header(toc_table)
+                    if len(dirty_toc) < 10:
+                        toc_table = toc_table.find_next("table")
+                        if not toc_table:
+                            print("couldnt find a toc")
+                            after_toc = start_ele
+                    else:
+                        toc_start_end = self.get_span_of_element(str_doc, toc_table)
+                        found_toc = True
+
+                after_toc = self.find_next_by_position(str_doc, toc_table, True)
+                print(f"toc_table span: {self.get_span_of_element(str_doc, toc_table)}")
+                print(f"after_toc span: {self.get_span_of_element(str_doc, after_toc)}")
+                ignore_before = re.search(re.escape(str(after_toc)), str_doc).span()[1]
+
+            except Exception as e:
+                print("handle the following exception in the ignore_toc=True block of _get_possible_headers_based_on_style")
+                raise e 
+
+        
         # use i in css selector for case insensitive match
         style_textalign = ["[style*='text-align: center' i]", "[style*='text-align:center' i]"]
         style_weight = ["[style*='font-weight: bold' i]", "[style*='font-weight:bold' i]"]
@@ -357,52 +434,87 @@ class HtmlFilingParser():
         }
 
         matches = {}
+        ele_to_ignore = {}
+        multilines_matches = 0
+        current_pos = 0
         for name, selector in selectors.items():
+            print("starting with new selectore----------")
             if isinstance(selector, list):
                 match = {"main": [], "sub":[]}
-                already_matched = {}
                 for s in selector:
+                    print("starting with new selector variation------------")
                     last_ele = None
-                    last_ele_pos = None
-                    current_ele_pos = None
-                    was_none = False
                     ele_group = []
                     # group together elements that are within close range of each other (how many chars?)
                     # -> multiline headers
                     for ele in start_ele.select(selector=s):
+                        if toc_start_end is not None:
+                            if ele not in ele_to_ignore:
+                                if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
+                                    ele_to_ignore.add(ele)
+                                    continue
+                            else:
+                                continue
                         text_content = (ele.string if ele.string 
                                        else " ".join([s for s in ele.strings]))
                         if text_content.isupper():
                             if last_ele is None:
                                 last_ele = ele
                             else:
-                                if last_ele == ele.previous_element:
-                                    # find distance between
-                                    last_ele_match = re.search(str(last_ele))
-                                    if not last_ele_match:
-                                        raise ValueError(f"couldnt determine position of the last element: {last_ele}")
-                                    current_ele_match = re.search(str(ele))
-                                    if not current_ele_match:
-                                        raise ValueError(f"couldnt determine position of the current element: {ele}")
-                                    if (current_ele_match.span().start - last_ele_match.span().end) < max_distance_multiline:
-                                        if ele_group = []:
-                                            ele_group.append(last_ele)
-                                        ele_group.append(ele)
-                                        last_ele = ele
+                                # if (last_ele == ele.previous_element) or (last_ele == ele.previous_element.previous_sibling.next_element) or (last_ele == ele.previous_element.previous_element.previous_sibling.next_element.next_element):
+                                # find distance between
+                                last_ele_match = re.search(re.escape(str(last_ele)), str_doc[current_pos:])
+                                if not last_ele_match:
+                                    print(last_ele)
+                                    raise ValueError(f"couldnt determine position of the last element")
+                                current_pos = last_ele_match.span()[1]
+                                if ignore_before is not None:
+                                    if current_pos < ignore_before:
+                                        last_ele = None
                                         continue
+                                current_ele_match = re.search(re.escape(str(ele)), str_doc[current_pos:])
+                                if not current_ele_match:
+                                    print(ele)
+                                    raise ValueError(f"couldnt determine position of the current element")
+                                if (current_ele_match.span()[0] - last_ele_match.span()[1]) <= max_distance_multiline:
+                                    if ele_group == []:
+                                        ele_group.append(last_ele)
+                                    ele_group.append(ele)
+                                    last_ele = ele
+                                    continue
+                                else:
+                                    # finished possible multline title
+                                    if ele_group != []:
+                                        if len(ele_group) > 1:
+                                            match["main"].append(ele_group)
+                                            print(f"1: ele_group is appended: {ele_group}")
+                                            multilines_matches += 1
+                                        else:
+                                            match["main"].append(ele_group[0])
+                                            print(f"2: ele_group[0] is appended: {ele_group[0]}")
+                                        ele_group = []
                                     else:
                                         match["main"].append(last_ele)
-                                        last_ele = ele
-                                        continue
-                                last_ele = ele
-                                    
-                            match["main"].append(ele)
+                                        print(f"3: last_ele is appended: {last_ele}")
+                                    last_ele = None
+                                    continue
+                            last_ele = ele      
                         else:
                             match["sub"].append(ele)
+                            if last_ele is not None:
+                                match["main"].append(last_ele)
+                                print(f"5: last_ele is appended: {last_ele}")
+                                last_ele = None
                     if ele_group == []:
-                        matches["main"].append(last_ele)
+                        if last_ele is not None:
+                            match["main"].append(last_ele)
+                            print(f"6: last_ele is appended: {last_ele}")
                     else:
                         # append ele group
+                        match["main"].append(ele_group)
+                        print(f"7: ele_group is appended: {ele_group}")
+
+                        multilines_matches += 1
                 matches[name] = match
             else:
                 raise TypeError(f"selectors should be wrapped in a list: got {type(selector)}")
@@ -600,26 +712,12 @@ class HtmlFilingParser():
             if entry[0] != "":
                 toc_titles.append(entry[0])
 
-        # print(toc_titles)
         re_toc_titles = [(re.compile("^\s*"+re.sub("(\s|\n)", "(?:.){0,4}", t)+"\s*$", re.I | re.DOTALL | re.MULTILINE), len(t) + 3) for t in toc_titles]
         ele_after_toc = toc_table.next_sibling
         title_matches = self._look_for_toc_matches_after(
             ele_after_toc,
             re_toc_titles,
             min_distance=5)    
-        # print(title_matches)
-        all_b = doc.find_all(name="b", recursive=True)
-        all_bold = doc.select("[style*='font-weight']")
-        all_strong = doc.find_all("strong", recursive=True)
-        # REMOVE TOC TABLE ITEMS FROM ALTERNATIVE MATCHES
-        # overwritte all matches by priority of alternative matches
-        # b > strong > all_bold > all_matches
-        # then check for duplicates and figure out what to drop
-        # alternative_matches = {
-        #     "b": self._search_toc_match_in_list_of_tags(all_b, re_toc_titles),
-        #     "strong": self._search_toc_match_in_list_of_tags(all_strong, re_toc_titles),
-        #     "all_bold": self._search_toc_match_in_list_of_tags(all_bold, re_toc_titles)
-        #     }
         stil_missing_toc_titles = [
             s for s in toc_titles if self._normalize_toc_title(s) not in 
                 [self._normalize_toc_title(f.string
@@ -627,8 +725,7 @@ class HtmlFilingParser():
                 ) for f in title_matches]
                 ]
             # assume that the still missing toc titles are multi tag titles or malformed after the 4th word
-            # so lets take take the first 4 words of the title and look for those in 
-            # the b, all_bold and all_strong tags
+            # so lets take take the first 4 words of the title and look for those
         norm_four_word_titles = [" ".join(self._normalize_toc_title(title).split(" ")[:4]) for title in stil_missing_toc_titles]
         re_four_word_titles = [self._create_toc_re(t, max_length=len(t)+10) for t in norm_four_word_titles]
         four_word_matches = self._look_for_toc_matches_after(ele_after_toc, re_four_word_titles)
