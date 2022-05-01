@@ -420,6 +420,7 @@ class HtmlFilingParser():
         # use i in css selector for case insensitive match
         style_textalign = ["[style*='text-align: center' i]", "[style*='text-align:center' i]"]
         style_weight = ["[style*='font-weight: bold' i]", "[style*='font-weight:bold' i]"]
+        style_font = ["[style*='font: bold' i]", "[style*='font:bold' i]"]
         attr_align = "[align='center' i]"
         # add a total count and thresholds for different selector groups
         # eg: we dont find enough textcenter_b and textcenter_eigth candidates go to next group
@@ -430,11 +431,12 @@ class HtmlFilingParser():
             "textcenter_weight": sum([[" ".join([s, ">", w]) for s in style_textalign] for w in style_weight], []),
             "td_textcenter_font_b": [" ".join(["td"+s, "> font > b"]) for s in style_textalign],
             "td_textcenter_font_weigth": sum([[" ".join(["td"+s, "> font"+w]) for s in style_textalign] for w in style_weight], []),
-            "b_u": ["b > u"]
+            "b_u": ["b > u"],
+            "font_bold_text_align_center_parent": sum([[" ".join([a+f, "font"]) for a in style_textalign] for f in style_font], [])
         }
 
         matches = {}
-        ele_to_ignore = {}
+        ele_to_ignore = set()
         multilines_matches = 0
         current_pos = 0
         for name, selector in selectors.items():
@@ -452,7 +454,6 @@ class HtmlFilingParser():
                             if ele not in ele_to_ignore:
                                 # if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
                                 # if self._ele_is_between(str_doc, ele, 0, toc_start_end[1]):
-
                                     ele_to_ignore.add(ele)
                                     continue
                             else:
