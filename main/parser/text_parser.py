@@ -450,13 +450,16 @@ class HtmlFilingParser():
                     for ele in start_ele.select(selector=s):
                         if toc_start_end is not None:
                             if ele not in ele_to_ignore:
-                                if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
+                                # if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
+                                # if self._ele_is_between(str_doc, ele, 0, toc_start_end[1]):
+
                                     ele_to_ignore.add(ele)
                                     continue
                             else:
                                 continue
                         text_content = (ele.string if ele.string 
                                        else " ".join([s for s in ele.strings]))
+                        print(f"text content: {text_content}")
                         if text_content.isupper():
                             if last_ele is None:
                                 last_ele = ele
@@ -487,32 +490,35 @@ class HtmlFilingParser():
                                     if ele_group != []:
                                         if len(ele_group) > 1:
                                             match["main"].append(ele_group)
-                                            print(f"1: ele_group is appended: {ele_group}")
+                                            # print(f"1: ele_group is appended: {ele_group}")
                                             multilines_matches += 1
                                         else:
                                             match["main"].append(ele_group[0])
-                                            print(f"2: ele_group[0] is appended: {ele_group[0]}")
+                                            # print(f"2: ele_group[0] is appended: {ele_group[0]}")
                                         ele_group = []
                                     else:
                                         match["main"].append(last_ele)
-                                        print(f"3: last_ele is appended: {last_ele}")
+                                        # print(f"3: last_ele is appended: {last_ele}")
                                     last_ele = None
                                     continue
                             last_ele = ele      
                         else:
                             match["sub"].append(ele)
+                            if ele_group != []:
+                                match["main"].append(ele_group)
+                                ele_group = []
                             if last_ele is not None:
                                 match["main"].append(last_ele)
-                                print(f"5: last_ele is appended: {last_ele}")
+                                # print(f"5: last_ele is appended: {last_ele}")
                                 last_ele = None
                     if ele_group == []:
                         if last_ele is not None:
                             match["main"].append(last_ele)
-                            print(f"6: last_ele is appended: {last_ele}")
+                            # print(f"6: last_ele is appended: {last_ele}")
                     else:
                         # append ele group
                         match["main"].append(ele_group)
-                        print(f"7: ele_group is appended: {ele_group}")
+                        # print(f"7: ele_group is appended: {ele_group}")
 
                         multilines_matches += 1
                 matches[name] = match

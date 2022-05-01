@@ -281,10 +281,10 @@ def retrieve(path: str):
         return pickle.load(f)
 
 def try_htmlparser():
-    # root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings)"
+    root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_des
+    root_filing = root_lap
     file_paths = get_all_filings_path(Path(root_filing), "S-1")
     file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
@@ -295,39 +295,70 @@ def try_htmlparser():
     # file_paths = retrieve(root_lap)
     # for p in [r"F:\example_filing_set_100_companies\filings\0001556266\S-3\0001213900-20-018486\ea124224-s3a1_tdholdings.htm"]:
     file_count = 0
-    # test = "<body><p><a style='text-align:CENTER'>THIS<b>HI</b></a></p></body>"
-    # html = BeautifulSoup(test)
-    # print(html)
-    # found = html.select("[style*='text-align:center' i]")
-    # print(found)
+    test = "<body><p><a style='text-align:CENTER font: bold 1px color: red'>THIS<b>HI</b></a></p></body>"
+    html = BeautifulSoup(test)
+    print(html)
+    found = html.select("[style*='text-align:center' i]")
+    def get_attrs_css_values(ele):
+        if ele.attrs:
+            attrs = ele.attrs
+        else:
+            raise AttributeError("element doesnt have attributes")
+        css_properties = {} # key: [values]
+        for property, values in attrs.items():
+            # attribute_keys = re.findall("(\S*:)", values)
+            attribute_sections = re.split("(\S*:)", values)
+            if attribute_sections[0] == "":
+                for idx in range(1, len(attribute_sections)-1, 2):
+                    if idx + 1 > len(attribute_sections):
+                        raise ValueError("len is longer than idx, ya know what i mean")
+                    attribute = attribute_sections[idx]
+                    values = attribute_sections[idx + 1].split(" ")
+                    vals = []
+                    for x in values:
+                        if x != "":
+                            vals.append(x.lower())
+                    css_properties[attribute] = vals
+            return css_properties
+
+
+                
+            print(attribute_sections)
+            # for idx, key in enumerate(attribute_keys):
+            #     if idx == len(attribute_keys):
+
+    print(get_attrs_css_values(found[0]))
+                
+
+    print(found[0].__dict__)
     main = []
-    for p in file_paths[:10]:
-        file_count += 1
-        with open(p, "r", encoding="utf-8") as f:
-            print(p)
-            parser.make_soup(f.read())
-            doc = str(parser.soup)
-            matches = parser._get_possible_headers_based_on_style(parser.soup)
-            for k, v in matches.items():
-                for i in v["main"]:
-                    if i:
-                        pos = None
-                        if isinstance(i, list):
-                            pos = re.search(re.escape(str(i[0])), doc).span()
-                            first_match = parser._normalize_toc_title(i[0].string if i[0].string else " ".join([s for s in i[0].strings]))
-                            full_text = parser._normalize_toc_title(
-                                " ".join(
-                                    flatten(
-                                    [i[idx].string if i[idx].string else " ".join([s for s in i[idx].strings]) for idx in range(len(i))])))
-                            main.append((first_match, full_text, pos[0], pos[1], p))
-                        else:
-                            pos = re.search(re.escape(str(i)), doc).span()
-                            text = i.string if i.string else " ".join([s for s in i.strings])
-                            text = parser._normalize_toc_title(text)
-                            main.append((text, text, pos[0], pos[1], p))   
-    with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
-        df = pd.DataFrame(main)
-        df.to_csv(f)
+    # for p in file_paths[:1]:
+    #     file_count += 1
+    #     with open(p, "r", encoding="utf-8") as f:
+    #         print(p)
+    #         parser.make_soup(f.read())
+    #         doc = str(parser.soup)
+    #         matches = parser._get_possible_headers_based_on_style(parser.soup)
+    #         for k, v in matches.items():
+    #             for i in v["main"]:
+    #                 if i:
+    #                     pos = None
+    #                     if isinstance(i, list):
+    #                         pos = re.search(re.escape(str(i[0])), doc).span()
+    #                         first_match = parser._normalize_toc_title(i[0].string if i[0].string else " ".join([s for s in i[0].strings]))
+    #                         full_text = parser._normalize_toc_title(
+    #                             " ".join(
+    #                                 flatten(
+    #                                 [i[idx].string if i[idx].string else " ".join([s for s in i[idx].strings]) for idx in range(len(i))])))
+    #                         main.append((first_match, full_text, pos[0], pos[1], p))
+    #                     else:
+    #                         pos = re.search(re.escape(str(i)), doc).span()
+    #                         text = i.string if i.string else " ".join([s for s in i.strings])
+    #                         text = parser._normalize_toc_title(text)
+    #                         main.append((text, text, pos[0], pos[1], p))   
+    # with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
+    #     df = pd.DataFrame(main)
+    #     df.to_csv(f)
 
 def parse_headers():
     pd.read_csv(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\headers.csv")
