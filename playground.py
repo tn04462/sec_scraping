@@ -303,7 +303,7 @@ def try_htmlparser():
 
     print(found[0].__dict__)
     main = []
-    for p in file_paths[:1]:
+    for p in file_paths[:10]:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
             print(p)
@@ -313,21 +313,22 @@ def try_htmlparser():
             for k, v in matches.items():
                 for i in v["main"]:
                     if i:
-                        pos = None
+                        print(i)
                         if isinstance(i, list):
-                            pos = re.search(re.escape(str(i[0])), doc).span()
-                            first_match = parser._normalize_toc_title(i[0].string if i[0].string else " ".join([s for s in i[0].strings]))
+                            pos = i[0][1]
+                            first_match = parser._normalize_toc_title(i[0][0].string if i[0][0].string else " ".join([s for s in i[0][0].strings]))
                             full_text = parser._normalize_toc_title(
                                 " ".join(
                                     flatten(
-                                    [i[idx].string if i[idx].string else " ".join([s for s in i[idx].strings]) for idx in range(len(i))])))
+                                    [i[idx][0].string if i[idx][0].string else " ".join([s for s in i[idx][0].strings]) for idx in range(len(i))])))
                             main.append((first_match, full_text, pos[0], pos[1], p))
                         else:
-                            pos = re.search(re.escape(str(i)), doc).span()
-                            text = i.string if i.string else " ".join([s for s in i.strings])
+                            pos = i[1]
+                            text = i[0].string if i[0].string else " ".join([s for s in i[0].strings])
                             text = parser._normalize_toc_title(text)
                             main.append((text, text, pos[0], pos[1], p))   
     with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
+        # print(main)
         df = pd.DataFrame(main)
         df.to_csv(f)
 

@@ -303,7 +303,7 @@ class HtmlFilingParser():
 
 
     def _normalize_toc_title(self, title):
-        return re.sub("\s{1,}", " ", re.sub("\n{1,}", " ", title)).lower().strip()
+        return re.sub("\s{1,}", " ", re.sub("\n{1,}", "", title)).lower().strip()
     
     def _create_toc_re(self, search_term, max_length=None):
         if max_length is None:
@@ -359,7 +359,7 @@ class HtmlFilingParser():
         text = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", text)
         return text
 
-    def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup=None, max_distance_multiline: int=10, ignore_toc: bool=True):
+    def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup=None, max_distance_multiline: int=300, ignore_toc: bool=True):
         '''look for possible headers based on styling of the elements.
 
         Ignores elements in the TOC table if found.
@@ -380,7 +380,7 @@ class HtmlFilingParser():
             ValueError: if the position of an element couldnt be determined
         '''
         str_doc = str(doc)
-        ignore_before = None
+        # weird start end of conesecutive elements (50k vs 800k ect)? why?
         toc_start_end = None
         if start_ele is None:
             start_ele = doc
@@ -410,7 +410,7 @@ class HtmlFilingParser():
                 after_toc = self.find_next_by_position(str_doc, toc_table, True)
                 print(f"toc_table span: {self.get_span_of_element(str_doc, toc_table)}")
                 print(f"after_toc span: {self.get_span_of_element(str_doc, after_toc)}")
-                ignore_before = re.search(re.escape(str(after_toc)), str_doc).span()[1]
+                # ignore_before = re.search(re.escape(str(after_toc)), str_doc).span()[1]
 
             except Exception as e:
                 print("handle the following exception in the ignore_toc=True block of _get_possible_headers_based_on_style")
@@ -436,61 +436,61 @@ class HtmlFilingParser():
         }
 
         matches = {}
-        ele_to_ignore = set()
+        entry_to_ignore = set()
         multilines_matches = 0
-        current_pos = 0
         for name, selector in selectors.items():
-            print("starting with new selectore----------")
             if isinstance(selector, list):
                 match = {"main": [], "sub":[]}
                 for s in selector:
-                    print("starting with new selector variation------------")
-                    last_ele = None
+                    last_entry = None
                     ele_group = []
                     # group together elements that are within close range of each other (how many chars?)
                     # -> multiline headers
-                    for ele in start_ele.select(selector=s):
+
+                    # try this
+                    selected_elements = start_ele.select(selector=s)
+                    elements = []
+                    for e in selected_elements:
+                        span = self.get_span_of_element(str_doc, e)
+                        elements.append((e, span))
+                    elements_sorted = sorted(elements, key=lambda x: x[1][1])
+
+
+
+                    for entry in elements_sorted:
+                        ele = entry[0]
                         if toc_start_end is not None:
-                            if ele not in ele_to_ignore:
+                            if entry not in entry_to_ignore:
                                 # if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
-                                # if self._ele_is_between(str_doc, ele, 0, toc_start_end[1]):
-                                    ele_to_ignore.add(ele)
+                                if self._ele_is_between(str_doc, ele, 0, toc_start_end[1]):
+                                    entry_to_ignore.add(entry)
                                     continue
                             else:
                                 continue
                         text_content = (ele.string if ele.string 
                                        else " ".join([s for s in ele.strings]))
-                        print(f"text content: {text_content}")
                         if text_content.isupper():
-                            if last_ele is None:
-                                last_ele = ele
+                            if last_entry is None:
+                                last_entry = entry
                             else:
                                 # if (last_ele == ele.previous_element) or (last_ele == ele.previous_element.previous_sibling.next_element) or (last_ele == ele.previous_element.previous_element.previous_sibling.next_element.next_element):
                                 # find distance between
-                                last_ele_match = re.search(re.escape(str(last_ele)), str_doc[current_pos:])
-                                if not last_ele_match:
-                                    print(last_ele)
-                                    raise ValueError(f"couldnt determine position of the last element")
-                                current_pos = last_ele_match.span()[1]
-                                if ignore_before is not None:
-                                    if current_pos < ignore_before:
-                                        last_ele = None
-                                        continue
-                                current_ele_match = re.search(re.escape(str(ele)), str_doc[current_pos:])
-                                if not current_ele_match:
-                                    print(ele)
-                                    raise ValueError(f"couldnt determine position of the current element")
-                                if (current_ele_match.span()[0] - last_ele_match.span()[1]) <= max_distance_multiline:
+
+                                # print(text_content, current_ele_match.span())
+                                # print(entry)
+                                if (entry[1][0] - last_entry[1][1]) <= max_distance_multiline:
                                     if ele_group == []:
-                                        ele_group.append(last_ele)
-                                    ele_group.append(ele)
-                                    last_ele = ele
+                                        ele_group.append(last_entry)
+                                        entry_to_ignore.add(entry)
+                                    ele_group.append(entry)
+                                    entry_to_ignore.add(entry)
+                                    last_entry = entry
                                     continue
                                 else:
                                     # finished possible multline title
                                     if ele_group != []:
                                         if len(ele_group) > 1:
-                                            match["main"].append(ele_group)
+                                            match["main"].append([e for e in ele_group])
                                             # print(f"1: ele_group is appended: {ele_group}")
                                             multilines_matches += 1
                                         else:
@@ -498,27 +498,27 @@ class HtmlFilingParser():
                                             # print(f"2: ele_group[0] is appended: {ele_group[0]}")
                                         ele_group = []
                                     else:
-                                        match["main"].append(last_ele)
+                                        match["main"].append(last_entry)
                                         # print(f"3: last_ele is appended: {last_ele}")
-                                    last_ele = None
+                                    last_entry = None
                                     continue
-                            last_ele = ele      
+                            last_entry = entry      
                         else:
                             match["sub"].append(ele)
                             if ele_group != []:
-                                match["main"].append(ele_group)
+                                match["main"].append([e for e in ele_group])
                                 ele_group = []
-                            if last_ele is not None:
-                                match["main"].append(last_ele)
+                            if last_entry is not None:
+                                match["main"].append(last_entry)
                                 # print(f"5: last_ele is appended: {last_ele}")
-                                last_ele = None
+                                last_entry = None
                     if ele_group == []:
-                        if last_ele is not None:
-                            match["main"].append(last_ele)
+                        if last_entry is not None:
+                            match["main"].append(last_entry)
                             # print(f"6: last_ele is appended: {last_ele}")
                     else:
                         # append ele group
-                        match["main"].append(ele_group)
+                        match["main"].append([e for e in ele_group])
                         # print(f"7: ele_group is appended: {ele_group}")
 
                         multilines_matches += 1
