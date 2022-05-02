@@ -59,6 +59,8 @@ TOC_ALTERNATIVES = {
 }
 
 IGNORE_HEADERS_BASED_ON_STYLE = set("TABLE OF CONTENTS")
+HEADERS_TO_DISCARD = ["(unaudited)"]
+
 
 class Parser8K:
     '''
@@ -265,16 +267,20 @@ class HtmlFilingParser():
         self.unparsed_tables = None
         self.tables = None
 
-    def get_span_of_element(self, doc: str, ele: element.Tag):
+    def get_span_of_element(self, doc: str, ele: element.Tag, pos: int=None):
         '''gets the span (start, end) of the element ele in doc
         
         Args:
             doc: html string'''
-        pos = re.search(re.escape(str(ele)), doc).span()
-        if not pos:
+        exp = re.compile(re.escape(
+                str(ele)))
+        span = exp.search(
+            doc,
+            pos=0 if pos is None else pos).span()
+        if not span:
             raise ValueError("span of element couldnt be found")
         else:
-            return pos
+            return span
     
     def find_next_by_position(self, doc: str, start_ele: element.Tag, filter):
         if not isinstance(filter, (bool, NoneType)) and not callable(filter):
@@ -303,7 +309,7 @@ class HtmlFilingParser():
 
 
     def _normalize_toc_title(self, title):
-        return re.sub("\s{1,}", " ", re.sub("\n{1,}", "", title)).lower().strip()
+        return re.sub("\s{1,}", " ", re.sub("\n{1,}", " ", title)).lower().strip()
     
     def _create_toc_re(self, search_term, max_length=None):
         if max_length is None:
@@ -359,7 +365,7 @@ class HtmlFilingParser():
         text = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", text)
         return text
 
-    def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup=None, max_distance_multiline: int=300, ignore_toc: bool=True):
+    def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup=None, max_distance_multiline: int=400, ignore_toc: bool=True):
         '''look for possible headers based on styling of the elements.
 
         Ignores elements in the TOC table if found.
@@ -450,40 +456,51 @@ class HtmlFilingParser():
                     # try this
                     selected_elements = start_ele.select(selector=s)
                     elements = []
-                    for e in selected_elements:
-                        span = self.get_span_of_element(str_doc, e)
+                    for idx, e in enumerate(selected_elements):
+                        if idx > 0:
+                            start_pos = elements[idx-1][1][1]
+                        else:
+                            start_pos = 0
+                        span = self.get_span_of_element(str_doc, e, pos=start_pos)
                         elements.append((e, span))
                     elements_sorted = sorted(elements, key=lambda x: x[1][1])
 
+                    ##debug
+                    # for idx, ele in enumerate(elements_sorted):
+                    #     if idx == 0:
+                    #         dif = 0
+                    #     else:
+                    #         dif = ele[1][1] - elements_sorted[idx-1][1][0]
+                        # t = (ele[0].string if ele[0].string else " ".join([s for s in ele[0].strings]))
+                        # parts = t.split()
+                        # t_re = " ".join(parts[:3 if len(parts) > 3 else len(parts)])
+                        # print(f"{t_re.isupper()}: \t {ele[1]} \t {dif} \t {(t)}")
 
 
                     for entry in elements_sorted:
                         ele = entry[0]
+                        if entry in entry_to_ignore:
+                            continue
+                        else:
+                            entry_to_ignore.add(entry)
                         if toc_start_end is not None:
-                            if entry not in entry_to_ignore:
-                                # if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
-                                if self._ele_is_between(str_doc, ele, 0, toc_start_end[1]):
-                                    entry_to_ignore.add(entry)
-                                    continue
-                            else:
+                            # if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
+                            if (0 <= entry[1][0] <= toc_start_end[1]):
                                 continue
                         text_content = (ele.string if ele.string 
                                        else " ".join([s for s in ele.strings]))
-                        if text_content.isupper():
+                        t_is_upper = (text_content.isupper() if len(text_content.split()) < 2 else " ".join(text_content.split()[:1]).isupper()) 
+                        # print(f"entry: \t {entry}")
+                        if t_is_upper:                            
                             if last_entry is None:
                                 last_entry = entry
                             else:
-                                # if (last_ele == ele.previous_element) or (last_ele == ele.previous_element.previous_sibling.next_element) or (last_ele == ele.previous_element.previous_element.previous_sibling.next_element.next_element):
-                                # find distance between
-
-                                # print(text_content, current_ele_match.span())
-                                # print(entry)
                                 if (entry[1][0] - last_entry[1][1]) <= max_distance_multiline:
                                     if ele_group == []:
                                         ele_group.append(last_entry)
                                         entry_to_ignore.add(entry)
-                                    ele_group.append(entry)
-                                    entry_to_ignore.add(entry)
+                                    if entry != last_entry:
+                                        ele_group.append(entry)
                                     last_entry = entry
                                     continue
                                 else:
@@ -504,7 +521,7 @@ class HtmlFilingParser():
                                     continue
                             last_entry = entry      
                         else:
-                            match["sub"].append(ele)
+                            match["sub"].append(entry)
                             if ele_group != []:
                                 match["main"].append([e for e in ele_group])
                                 ele_group = []
