@@ -233,9 +233,29 @@ class Parser8K:
 
 
 
-
+# class Filing(object):
+#     filing_date: str
+#     accession_number: str
+#     soup: BeautifulSoup
+#     str_doc: str
+#     cik: str
+#     file_number: str
+#     form_type: str
+#     sections: dict
     
-        
+    
+# class HTMLFiling(Filing):
+#     parser = HtmlFilingParser()
+
+# class FilingSectionBound:
+#     elements: list[element.Tag]
+#     elements_start: int
+#     elements_end: int
+#     parent_doc: str
+#     text: str
+#     norm_text: str
+
+
 
     
 class HtmlFilingParser():
@@ -544,6 +564,27 @@ class HtmlFilingParser():
                 raise TypeError(f"selectors should be wrapped in a list: got {type(selector)}")
         return matches
     
+    def _format_matches_based_on_style(self, matches, header_style="main"):
+        formatted_matches = []
+        for k, v in matches.items():
+            for i in v[header_style]:
+                if i:
+                    if isinstance(i, list):
+                        pos = i[0][1]
+                        first_match = self._normalize_toc_title(i[0][0].string if i[0][0].string else " ".join([s for s in i[0][0].strings]))
+                        full_text = self._normalize_toc_title(
+                            " ".join(
+                                sum(
+                                    [[i[idx][0].string if i[idx][0].string else " ".join([s for s in i[idx][0].strings]) for idx in range(len(i))]], [])))
+                        formatted_matches.append({"elements": i, "start_pos": pos[0], "end_pos": pos[1], "selector": k, "full_norm_text": text})
+                    else:
+                        pos = i[1]
+                        text = i[0].string if i[0].string else " ".join([s for s in i[0].strings])
+                        text = self._normalize_toc_title(text)
+                        # make this dict with start_ele, end_ele, first_ele_text_norm, full_text_norm, pos_start, pos_end
+                        formatted_matches.append({"elements": [i], "start_pos": pos[0], "end_pos": pos[1], "selector": k, "full_norm_text": text})
+        return formatted_matches
+    
     def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag=None):
         '''gets the elements of the TOC as a list.
         
@@ -780,6 +821,10 @@ class HtmlFilingParser():
             else:
                 title_matches.append(match[0])
         section_start_elements = []
+        headers_based_on_style = self._format_matches_based_on_style(self._get_possible_headers_based_on_style(doc, doc), header_style="main")
+        print()
+        print("ALL MATCHES BASED ON HEADERS")
+        print(title_matches, headers_based_on_style)
         for match in title_matches:
             _title = match.string if match.string else " ".join([s for s in match.strings])
             section_title = self._normalize_toc_title(_title)

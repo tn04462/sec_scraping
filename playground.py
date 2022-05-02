@@ -284,7 +284,7 @@ def try_htmlparser():
     root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_des
+    root_filing = root_lap
     file_paths = get_all_filings_path(Path(root_filing), "S-1")
     file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
@@ -309,27 +309,13 @@ def try_htmlparser():
             print(p)
             parser.make_soup(f.read())
             doc = str(parser.soup)
-            matches = parser._get_possible_headers_based_on_style(parser.soup)
-            for k, v in matches.items():
-                for i in v["main"]:
-                    if i:
-                        if isinstance(i, list):
-                            pos = i[0][1]
-                            first_match = parser._normalize_toc_title(i[0][0].string if i[0][0].string else " ".join([s for s in i[0][0].strings]))
-                            full_text = parser._normalize_toc_title(
-                                " ".join(
-                                    flatten(
-                                    [i[idx][0].string if i[idx][0].string else " ".join([s for s in i[idx][0].strings]) for idx in range(len(i))])))
-                            main.append((first_match, full_text, k, pos[0], pos[1], p))
-                        else:
-                            pos = i[1]
-                            text = i[0].string if i[0].string else " ".join([s for s in i[0].strings])
-                            text = parser._normalize_toc_title(text)
-                            main.append((text, text, k, pos[0], pos[1], p))   
-    with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
-        # print(main)
-        df = pd.DataFrame(main)
-        df.to_csv(f)
+            matches = parser._split_by_table_of_content_based_on_headers(parser.soup)
+            # matches = parser._get_possible_headers_based_on_style(parser.soup)
+            # main = parser._format_matches_based_on_style(matches)
+    # with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
+    #     # print(main)
+    #     df = pd.DataFrame(main)
+    #     df.to_csv(f)
 
 def parse_headers():
     pd.read_csv(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\headers.csv")
