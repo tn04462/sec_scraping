@@ -284,7 +284,7 @@ def try_htmlparser():
     root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_lap
+    root_filing = root_des
     file_paths = get_all_filings_path(Path(root_filing), "S-1")
     file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
@@ -296,12 +296,8 @@ def try_htmlparser():
     # for p in [r"F:\example_filing_set_100_companies\filings\0001556266\S-3\0001213900-20-018486\ea124224-s3a1_tdholdings.htm"]:
     file_count = 0
     test = "<body><p><a style='text-align:CENTER font: bold 1px color: red'>THIS<b>HI</b></a></p></body>"
-    html = BeautifulSoup(test)
-    print(html)
-    found = html.select("[style*='text-align:center' i]")
-                
-
-    print(found[0].__dict__)
+    html = BeautifulSoup(test, features="html5lib")
+   
     main = []
     for p in file_paths[:1]:
         file_count += 1
@@ -310,6 +306,8 @@ def try_htmlparser():
             parser.make_soup(f.read())
             doc = str(parser.soup)
             matches = parser._split_by_table_of_content_based_on_headers(parser.soup)
+            for k, v in matches.items():
+                print(k , len(v))
             # matches = parser._get_possible_headers_based_on_style(parser.soup)
             # main = parser._format_matches_based_on_style(matches)
     # with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:

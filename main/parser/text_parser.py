@@ -62,6 +62,37 @@ IGNORE_HEADERS_BASED_ON_STYLE = set("TABLE OF CONTENTS")
 HEADERS_TO_DISCARD = ["(unaudited)"]
 
 
+
+
+class Filing:
+    path: Path
+    filing_date: str
+    accession_number: str
+    cik: str
+    file_number: str
+    form_type: str
+
+class FilingSection:
+    def __init__(self, title: str, content: str):
+        self.title = title
+        self.content = content
+
+
+
+class AbstractFilingParser:
+    def split_into_sections(self, doc: BeautifulSoup):
+        '''
+        returns:
+            list[FilingSection]'''
+        return
+
+    def get_important_tables(self, doc: BeautifulSoup):
+        '''
+        returns:
+            list[dict] with "table_name" and "parsed_table" key"'''
+        return 
+
+
 class Parser8K:
     '''
     process and parse 8-k filing.
@@ -233,30 +264,6 @@ class Parser8K:
 
 
 
-# class Filing(object):
-#     filing_date: str
-#     accession_number: str
-#     soup: BeautifulSoup
-#     str_doc: str
-#     cik: str
-#     file_number: str
-#     form_type: str
-#     sections: dict
-    
-    
-# class HTMLFiling(Filing):
-#     parser = HtmlFilingParser()
-
-# class FilingSectionBound:
-#     elements: list[element.Tag]
-#     elements_start: int
-#     elements_end: int
-#     parent_doc: str
-#     text: str
-#     norm_text: str
-
-
-
     
 class HtmlFilingParser():
     '''
@@ -337,6 +344,9 @@ class HtmlFilingParser():
         else:
             pass
         return (re.compile("^\s*"+re.sub("(\s){1,}", "(?:.){0,4}", search_term)+"\s*$", re.I | re.DOTALL | re.MULTILINE), max_length)
+    
+    def split_into_sections(self, doc: BeautifulSoup):
+        return self.split_into_sections(doc)
     
     def split_by_table_of_contents(self, doc: BeautifulSoup):
         '''split a filing with a TOC into sections base on the TOC.
@@ -434,12 +444,12 @@ class HtmlFilingParser():
                         found_toc = True
 
                 after_toc = self.find_next_by_position(str_doc, toc_table, True)
-                print(f"toc_table span: {self.get_span_of_element(str_doc, toc_table)}")
-                print(f"after_toc span: {self.get_span_of_element(str_doc, after_toc)}")
+                logger.debug(f"toc_table span: {self.get_span_of_element(str_doc, toc_table)}")
+                logger.debug(f"after_toc span: {self.get_span_of_element(str_doc, after_toc)}")
                 # ignore_before = re.search(re.escape(str(after_toc)), str_doc).span()[1]
 
             except Exception as e:
-                print("handle the following exception in the ignore_toc=True block of _get_possible_headers_based_on_style")
+                logger.debug("handle the following exception in the ignore_toc=True block of _get_possible_headers_based_on_style")
                 raise e 
 
         
@@ -463,7 +473,7 @@ class HtmlFilingParser():
 
         matches = {}
         entry_to_ignore = set()
-        multilines_matches = 0
+        multiline_matches = 0
         for name, selector in selectors.items():
             if isinstance(selector, list):
                 match = {"main": [], "sub":[]}
@@ -485,18 +495,6 @@ class HtmlFilingParser():
                         elements.append((e, span))
                     elements_sorted = sorted(elements, key=lambda x: x[1][1])
 
-                    ##debug
-                    # for idx, ele in enumerate(elements_sorted):
-                    #     if idx == 0:
-                    #         dif = 0
-                    #     else:
-                    #         dif = ele[1][1] - elements_sorted[idx-1][1][0]
-                        # t = (ele[0].string if ele[0].string else " ".join([s for s in ele[0].strings]))
-                        # parts = t.split()
-                        # t_re = " ".join(parts[:3 if len(parts) > 3 else len(parts)])
-                        # print(f"{t_re.isupper()}: \t {ele[1]} \t {dif} \t {(t)}")
-
-
                     for entry in elements_sorted:
                         ele = entry[0]
                         if entry in entry_to_ignore:
@@ -504,13 +502,12 @@ class HtmlFilingParser():
                         else:
                             entry_to_ignore.add(entry)
                         if toc_start_end is not None:
-                            # if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
-                            if (0 <= entry[1][0] <= toc_start_end[1]):
+                            if self._ele_is_between(str_doc, ele, toc_start_end[0], toc_start_end[1]):
+                            # if (0 <= entry[1][0] <= toc_start_end[1]):
                                 continue
                         text_content = (ele.string if ele.string 
                                        else " ".join([s for s in ele.strings]))
                         t_is_upper = (text_content.isupper() if len(text_content.split()) < 2 else " ".join(text_content.split()[:1]).isupper()) 
-                        # print(f"entry: \t {entry}")
                         if t_is_upper:                            
                             if last_entry is None:
                                 last_entry = entry
@@ -528,15 +525,12 @@ class HtmlFilingParser():
                                     if ele_group != []:
                                         if len(ele_group) > 1:
                                             match["main"].append([e for e in ele_group])
-                                            # print(f"1: ele_group is appended: {ele_group}")
-                                            multilines_matches += 1
+                                            multiline_matches += 1
                                         else:
                                             match["main"].append(ele_group[0])
-                                            # print(f"2: ele_group[0] is appended: {ele_group[0]}")
                                         ele_group = []
                                     else:
                                         match["main"].append(last_entry)
-                                        # print(f"3: last_ele is appended: {last_ele}")
                                     last_entry = None
                                     continue
                             last_entry = entry      
@@ -547,21 +541,18 @@ class HtmlFilingParser():
                                 ele_group = []
                             if last_entry is not None:
                                 match["main"].append(last_entry)
-                                # print(f"5: last_ele is appended: {last_ele}")
                                 last_entry = None
                     if ele_group == []:
                         if last_entry is not None:
                             match["main"].append(last_entry)
-                            # print(f"6: last_ele is appended: {last_ele}")
                     else:
                         # append ele group
                         match["main"].append([e for e in ele_group])
-                        # print(f"7: ele_group is appended: {ele_group}")
-
-                        multilines_matches += 1
+                        multiline_matches += 1
                 matches[name] = match
             else:
                 raise TypeError(f"selectors should be wrapped in a list: got {type(selector)}")
+            logger.debug(f"found {multiline_matches} multiline matches")
         return matches
     
     def _format_matches_based_on_style(self, matches, header_style="main"):
@@ -571,18 +562,17 @@ class HtmlFilingParser():
                 if i:
                     if isinstance(i, list):
                         pos = i[0][1]
-                        first_match = self._normalize_toc_title(i[0][0].string if i[0][0].string else " ".join([s for s in i[0][0].strings]))
                         full_text = self._normalize_toc_title(
                             " ".join(
                                 sum(
                                     [[i[idx][0].string if i[idx][0].string else " ".join([s for s in i[idx][0].strings]) for idx in range(len(i))]], [])))
-                        formatted_matches.append({"elements": i, "start_pos": pos[0], "end_pos": pos[1], "selector": k, "full_norm_text": text})
+                        formatted_matches.append({"elements": [f[0] for f in i], "start_pos": pos[0], "end_pos": pos[1], "selector": k, "full_norm_text": full_text})
                     else:
                         pos = i[1]
                         text = i[0].string if i[0].string else " ".join([s for s in i[0].strings])
                         text = self._normalize_toc_title(text)
                         # make this dict with start_ele, end_ele, first_ele_text_norm, full_text_norm, pos_start, pos_end
-                        formatted_matches.append({"elements": [i], "start_pos": pos[0], "end_pos": pos[1], "selector": k, "full_norm_text": text})
+                        formatted_matches.append({"elements": [i[0]], "start_pos": pos[0], "end_pos": pos[1], "selector": k, "full_norm_text": text})
         return formatted_matches
     
     def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag=None):
@@ -731,29 +721,38 @@ class HtmlFilingParser():
         '''
         sections = {}
         for section_nr, start_element in enumerate(section_start_elements):
+            
             ele = start_element["ele"]
-            if len(section_start_elements)-1 == section_nr:
-                section_start_elements.append({"ele": ele, "section_title": "REST_OF_DOC"})
-                ele.insert_before("-START_SECTION_TITLE_REST_OF_DOC")
-                while ele:
-                    previous_ele = ele
-                    ele = ele.find_next()
-                previous_ele.insert_after("-STOP_SECTION_TITLE_REST_OF_DOC")
-                break
+            
+                # ele.insert_before("-START_SECTION_TITLE_REST_OF_DOC")
+                # while ele:
+                #     previous_ele = ele
+                #     ele = ele.find_next()
+                # previous_ele.insert_after("-STOP_SECTION_TITLE_REST_OF_DOC")
+                # break
+            
             ele.insert_before("-START_SECTION_TITLE_"+start_element["section_title"])
-            while ele != section_start_elements[section_nr + 1]["ele"]:
+            if len(section_start_elements)-1 == section_nr:
+                continue
+            while (ele != section_start_elements[section_nr + 1]["ele"]):
                 ele = ele.next_element
             ele.insert_before("-STOP_SECTION_TITLE_"+start_element["section_title"])
         
         text = str(doc)
-        for sec in section_start_elements:
+        for idx, sec in enumerate(section_start_elements):
             start = re.search(re.compile("-START_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
-            end = re.search(re.compile("-STOP_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
+            if len(section_start_elements)-1 == idx:
+                pass
+            else:
+                end = re.search(re.compile("-STOP_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
             try:
-                sections[sec["section_title"]] = text[start.span()[1]:end.span()[0]]
+                if len(section_start_elements)-1 == idx:
+                    sections[sec["section_title"]] = text[start.span()[1]:]
+                else:
+                    sections[sec["section_title"]] = text[start.span()[1]:end.span()[0]]
             except Exception as e:
                 print("FAILURE TO SPLIT SECTION BECAUSE:")
-                print(f"start: {start}, end: {end}, section_title: {sec['section_title']}, section_nr/total: {section_nr}/{len(section_start_elements)-1}")
+                print(f"start: {start}, end: {end}, section_title: {sec['section_title']}, section_idx/total: {idx}/{len(section_start_elements)-1}")
                 print(e)
                 print("----------------")
         return sections
@@ -822,29 +821,78 @@ class HtmlFilingParser():
                 title_matches.append(match[0])
         section_start_elements = []
         headers_based_on_style = self._format_matches_based_on_style(self._get_possible_headers_based_on_style(doc, doc), header_style="main")
-        print()
-        print("ALL MATCHES BASED ON HEADERS")
-        print(title_matches, headers_based_on_style)
+        # print()
+        # print("ALL MATCHES BASED ON HEADERS")
+        # print(title_matches, headers_based_on_style)
+        replace_headers = []
+        add_headers = []
+        for idx, headers in enumerate(headers_based_on_style):
+            for tm_idx, tm in enumerate(title_matches):
+                if isinstance(tm, list):
+                    ele = tm[0]
+                else:
+                    ele = tm
+                if ele in headers["elements"]:
+                    replace_headers.append((tm_idx, headers["elements"]))
+                else:
+                    if headers["elements"] not in add_headers:
+                        add_headers.append(headers["elements"])
+        for idx, replace_header in replace_headers:
+            title_matches[idx] = replace_header
+        for add_header in add_headers:
+            # print(add_header)
+            title_matches.append(add_header)
+        for tm_idx, tm in enumerate(title_matches):
+            if not isinstance(tm, list):
+                title_matches[tm_idx] = [tm]
+        
+        title_matches.sort(key= lambda x: x[0].sourceline)
+
+        offset = 0
+        copy_title_matches = title_matches.copy()
+        for idx, tm in enumerate(copy_title_matches):
+            if idx < (len(title_matches) - 1):
+                next_item_sourcelines = [t.sourceline for t in copy_title_matches[idx + 1]]
+                current_sourcelines = [t.sourceline for t in tm]
+                # print(tm, "\t" ,copy_title_matches[idx + 1])
+                for csourceline in current_sourcelines:
+                    if csourceline in next_item_sourcelines:
+                        if len(tm) == len(copy_title_matches[idx + 1]):
+                            title_matches.pop(idx + 1 - offset)
+                            offset += 1
+                        else:
+                            if len(tm) > len(copy_title_matches[idx + 1]):
+                                title_matches.pop(idx + 1 - offset)
+                            else:
+                                title_matches.pop(idx - offset)
+                            offset += 1
+                            break
+
         for match in title_matches:
-            _title = match.string if match.string else " ".join([s for s in match.strings])
+            _title = " ".join(
+                        sum(
+                            [[match[idx].string if match[idx].string else " ".join([s for s in match[idx].strings]) for idx in range(len(match))]], []))
             section_title = self._normalize_toc_title(_title)
-            section_start_elements.append({"section_title": section_title, "ele": match})
+            if section_title not in HEADERS_TO_DISCARD:
+                # print({"section_title": section_title, "ele": match[0]})
+                section_start_elements.append({"section_title": section_title, "ele": match[0]})
+            else:
+                logger.info(f"_split_by_table_of_content_based_on_headers: \t Discarded section: {section_title} because it was in HEADERS_TO_DISCARD")
+        
         return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
 
-
-
-
-
-        # #issues: 
-        # #   1) multi element strings
-        # #   2) title not equal to toc_title
-        # #   3) cant reliably split without all sections found...   
-       
-        return toc
         
     
     def _split_by_table_of_contents_based_on_hrefs(self, doc: BeautifulSoup):
         '''split the filing based on the hrefs, linking to different parts of the filing, from the TOC.'''
+        #
+        #!
+        #!
+        #  ADD HEADERS BASED ON STYLE TO THIS FUNCTION TO MAKE IT MORE EQUIVALENT TO SPLITTING BY HEADERS
+        #!
+        #!
+        #
+
         # get close to TOC
         try:
             close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))
@@ -910,18 +958,16 @@ class HtmlFilingParser():
                     print("NO ID MATCH FOR", entry)
 
         return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
-                
 
-        #insert text markers at the tags href'ed by the toc
-        #then seperate based on  those inserted markers
 
     
     def make_soup(self, doc):
-        self.soup = BeautifulSoup(doc, "lxml")
+        self.soup = BeautifulSoup(doc, features="html5lib")
         return self.soup
 
     def get_unparsed_tables(self):
         self.unparsed_tables = self.soup.find_all("table")
+        return self.unparsed_tables
     
     def get_element_text_content(self, ele):
         content = " ".join([s.strip().replace("\n", " ") for s in ele.strings]).strip()
@@ -1193,8 +1239,26 @@ class Parser424B5(HtmlFilingParser):
 
     #         if re.search(re.compile("check the appropiate box", re.I), first_entry):
     #             print(table)
+    
+    
+
+
+
+    
+
+# class FilingSectionBound:
+#     elements: list[element.Tag]
+#     elements_start: int
+#     elements_end: int
+#     parent_doc: str
+#     text: str
+#     norm_text: str
+
+
 
             
+class HTMLFiling(Filing):
+    parser = HtmlFilingParser()
 
 
 parser = Parser8K()
