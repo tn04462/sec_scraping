@@ -8,8 +8,8 @@ import pandas as pd
 from bs4 import BeautifulSoup, NavigableString, element
 import re
 from pyparsing import Each
-import soupsieve
-
+from dataclasses import dataclass
+from abc import ABC
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -62,35 +62,84 @@ IGNORE_HEADERS_BASED_ON_STYLE = set("TABLE OF CONTENTS")
 HEADERS_TO_DISCARD = ["(unaudited)"]
 
 
-
-
+@dataclass
 class Filing:
-    path: Path
+    path: str
     filing_date: str
     accession_number: str
     cik: str
     file_number: str
     form_type: str
 
+
+class HTMFiling(Filing):
+    def __init__(self, doc: str):
+        self.parser: HtmlFilingParser = HtmlFilingParser()
+        self.doc: str = doc
+        self.soup: BeautifulSoup = self.parser.make_soup(doc)
+        self.sections: list[HTMFilingSection] = self.parser.split_into_sections()
+    
+    def get_preprocessed_text_content(self) -> str:
+        return self.parser.preprocess_text(self.doc)
+
+    def get_preprocessed_section(self, identifier: str|int):
+        section = self.get_section(identifier=identifier)
+        return # get text content of section and preprocess it
+        
+    
+    def get_section(self, identifier: str|int):
+        if not isinstance(identifier, (str, int)):
+            raise ValueError
+        if self.sections == []:
+            return []
+        if isinstance(identifier, int):
+            try:
+                self.sections[identifier]
+            except IndexError:
+                logger.info("no section with that identifier found")
+                return []
+        else:
+            for sec in self.sections:
+                if sec.name == identifier:
+                    return sec
+            return []
+    
+
+
+
+@dataclass
 class FilingSection:
-    def __init__(self, title: str, content: str):
-        self.title = title
-        self.content = content
+    title: str
+    content: str
+
+@dataclass
+class HTMFilingSection(FilingSection):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.soup = self.make_soup(self.content)
+
+    def make_soup(self):
+        return BeautifulSoup(self.content, features="html5lib")
 
 
 
-class AbstractFilingParser:
+
+
+
+class AbstractFilingParser(ABC):
     def split_into_sections(self, doc: BeautifulSoup):
         '''
+        Must be implemented by the subclass.
+        Should split the filing into logical sections.
         returns:
             list[FilingSection]'''
-        return
+        pass
+    
+    
 
-    def get_important_tables(self, doc: BeautifulSoup):
-        '''
-        returns:
-            list[dict] with "table_name" and "parsed_table" key"'''
-        return 
+
+    
+    
 
 
 class Parser8K:
@@ -346,7 +395,12 @@ class HtmlFilingParser():
         return (re.compile("^\s*"+re.sub("(\s){1,}", "(?:.){0,4}", search_term)+"\s*$", re.I | re.DOTALL | re.MULTILINE), max_length)
     
     def split_into_sections(self, doc: BeautifulSoup):
-        return self.split_into_sections(doc)
+            sections_by_toc = self.split_by_table_of_contents(doc)
+            if sections_by_toc:
+                return sections_by_toc
+            else:
+                raise NotImplementedError("no way to split into sections is implemented for this case")
+
     
     def split_by_table_of_contents(self, doc: BeautifulSoup):
         '''split a filing with a TOC into sections base on the TOC.
@@ -719,7 +773,7 @@ class HtmlFilingParser():
         Args:
             section_start_elements: {"section_title": section_title, "ele": element.Tag}
         '''
-        sections = {}
+        sections = []
         for section_nr, start_element in enumerate(section_start_elements):
             
             ele = start_element["ele"]
@@ -747,9 +801,13 @@ class HtmlFilingParser():
                 end = re.search(re.compile("-STOP_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
             try:
                 if len(section_start_elements)-1 == idx:
-                    sections[sec["section_title"]] = text[start.span()[1]:]
+                    sections.append(FilingSection(
+                        title=sec["section_title"],
+                        content=text[start.span()[1]:]))
                 else:
-                    sections[sec["section_title"]] = text[start.span()[1]:end.span()[0]]
+                    sections.append(FilingSection(
+                        title=sec["section_title"],
+                        content=text[start.span()[1]:end.span()[0]]))
             except Exception as e:
                 print("FAILURE TO SPLIT SECTION BECAUSE:")
                 print(f"start: {start}, end: {end}, section_title: {sec['section_title']}, section_idx/total: {idx}/{len(section_start_elements)-1}")
