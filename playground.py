@@ -284,7 +284,7 @@ def try_htmlparser():
     root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_des
+    root_filing = root_lap
     file_paths = get_all_filings_path(Path(root_filing), "S-1")
     file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
@@ -302,10 +302,15 @@ def try_htmlparser():
     for p in file_paths[:1]:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
-            file_content = f.read()
-            filing = HTMFiling(file_content, path=p, form_type="S-1")
-            print(p)
-            print(filing.get_section("prospectus summary").tables)
+            pars = HtmlFilingParser()
+            # file_content = f.read()
+            # filing = HTMFiling(file_content, path=p, form_type="S-1")
+            # print(p)
+            # pro_summary = filing.get_section("prospectus summary")
+            # print(pro_summary.tables[0])
+            # test_table = pro_summary.tables[0]
+            test_table = [['●', 'Increasing our customer base by offering unique and compelling, patent protected technology solutions;']]
+            pars.classify_table(test_table)
     #         # print(p)
             # parser.make_soup(f.read())+
             # doc = str(html)

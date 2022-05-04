@@ -84,8 +84,9 @@ class HTMFilingSection(FilingSection):
         super().__init__(**kwargs)
         self.parser = HtmlFilingParser()
         self.soup: BeautifulSoup = self.parser.make_soup(self.content)
-        self.text_only = self.parser.get_text_content(self.soup, exclude=["table", "script", "title", "head"])
         self.tables: list[pd.DataFrame] = self.extract_tables()
+        self.text_only = self.parser.get_text_content(self.soup, exclude=["table", "script", "title", "head"])
+
     
     def extract_tables(self):
         pt = self.parser.preprocess_text(self.content)
@@ -507,6 +508,46 @@ class HtmlFilingParser():
         '''return all table tags in soup'''
         unparsed_tables = soup.find_all("table")
         return unparsed_tables
+    
+    def list_bool_mask(self, ls, query="●"):
+        bool_mask = [False]*len(ls)
+        for idx, x in enumerate(ls):
+            if x == query:
+                bool_mask[idx] = True
+            else:
+                pass
+        return bool_mask
+    
+    def classify_table(self, table: list[list]):
+        ''''classify a table into subcategories so they can
+        be processed further. 
+        
+        Args:
+            table: should be a list of lists cleaned with clean_parsed_table.
+        '''
+        # assume header
+        table_shape = (len(table), len(table[0]))
+        # could be a bullet point table
+        if table_shape[1] == 2:
+            # unicode_symbol_mask = [[False*table_shape[0]] for x in range(table_shape[1])]
+            unicode_symbol_mask = [self.list_bool_mask(nl, query="●") for nl in table]
+            all_unicode_col = False
+            for col in range(table_shape[1]):
+                for row in range(table_shape[0]):
+                
+
+            print()
+   
+    
+                 
+    def reintegrate_bullet_point_tables_as_text(self, doc: BeautifulSoup):
+        # get all tables and parse
+        # clean all tables
+        # check if one row is unicode bullet point • \u2022 &#149;  &#183;  &#186;  &#176;
+        # convert table to p with custom class and string prefix: BPListItem:
+        # replace table element with all p's in doc
+        # return none bullet point tables
+        pass
     
     def get_element_text_content(self, ele):
         '''gets the cleaned text content of a single element.Tag'''

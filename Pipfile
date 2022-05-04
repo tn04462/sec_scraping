@@ -13,6 +13,7 @@ python-dotenv = "*"
 pysec-downloader = "*"
 spacy = "*"
 dkpro-cassis = "*"
+html5lib = "*"
 
 [dev-packages]
 black = "*"
