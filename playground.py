@@ -10,7 +10,7 @@ from urllib3 import connection_from_url
 # from main.data_aggregation.bulk_files import update_bulk_files
 
 
-from main.parser.text_parser import HtmlFilingParser, Parser8K
+from main.parser.text_parser import HtmlFilingParser, Parser8K, HTMFiling
 from pathlib import Path
 parser = Parser8K()
 
@@ -295,19 +295,23 @@ def try_htmlparser():
     # file_paths = retrieve(root_lap)
     # for p in [r"F:\example_filing_set_100_companies\filings\0001556266\S-3\0001213900-20-018486\ea124224-s3a1_tdholdings.htm"]:
     file_count = 0
-    test = "<body><p><a style='text-align:CENTER font: bold 1px color: red'>THIS<b>HI</b></a></p></body>"
-    html = BeautifulSoup(test, features="html5lib")
    
     main = []
+
+
     for p in file_paths[:1]:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
+            file_content = f.read()
+            filing = HTMFiling(file_content, path=p, form_type="S-1")
             print(p)
-            parser.make_soup(f.read())
-            doc = str(parser.soup)
-            matches = parser._split_by_table_of_content_based_on_headers(parser.soup)
-            for k, v in matches.items():
-                print(k , len(v))
+            print(filing.get_section("prospectus summary").tables)
+    #         # print(p)
+            # parser.make_soup(f.read())+
+            # doc = str(html)
+            # matches = parser._split_by_table_of_content_based_on_headers(html)
+            # for k, v in matches.items():
+            #     print(k , len(v))
             # matches = parser._get_possible_headers_based_on_style(parser.soup)
             # main = parser._format_matches_based_on_style(matches)
     # with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:

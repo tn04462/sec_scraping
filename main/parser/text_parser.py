@@ -5,6 +5,7 @@ from pathlib import Path
 from types import NoneType
 from attr import Attribute
 import pandas as pd
+import numpy as np
 from bs4 import BeautifulSoup, NavigableString, element
 import re
 from pyparsing import Each
@@ -72,20 +73,63 @@ class Filing:
     form_type: str
 
 
+@dataclass
+class FilingSection:
+    title: str
+    content: str
+
+
+class HTMFilingSection(FilingSection):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.parser = HtmlFilingParser()
+        self.soup: BeautifulSoup = self.parser.make_soup(self.content)
+        self.text_only = self.parser.get_text_content(self.soup, exclude=["table", "script", "title", "head"])
+        self.tables: list[pd.DataFrame] = self.extract_tables()
+    
+    def extract_tables(self):
+        pt = self.parser.preprocess_text(self.content)
+        unparsed_tables = self.parser.get_unparsed_tables(self.parser.make_soup(pt))
+        parsed_tables = []
+        for t in unparsed_tables:
+            parsed_table = None
+            if self.parser.table_has_header(t):
+                parsed_table = self.parser.parse_htmltable_with_header(t)
+            else:
+                parsed_table = self.parser.primitive_htmltable_parse(t)
+            parsed_tables.append(self.parser.clean_parsed_table(parsed_table))
+        return parsed_tables
+            # print()
+            
+            # print(pd.DataFrame(parsed_table))
+    
+    
+
+
 class HTMFiling(Filing):
-    def __init__(self, doc: str):
+    def __init__(self, doc: str, path: str=None, filing_date: str=None, accession_number: str=None, cik: str=None, file_number: str=None, form_type: str=None):
+        super().__init__(
+                path=path,
+                filing_date=filing_date,
+                accession_number=accession_number,
+                cik=cik,
+                file_number=file_number,
+                form_type=form_type)
         self.parser: HtmlFilingParser = HtmlFilingParser()
         self.doc: str = doc
         self.soup: BeautifulSoup = self.parser.make_soup(doc)
-        self.sections: list[HTMFilingSection] = self.parser.split_into_sections()
+        self.sections: list[HTMFilingSection] = self.parser.split_into_sections(self.soup)
     
     def get_preprocessed_text_content(self) -> str:
+        '''get all the text content of the Filing'''
         return self.parser.preprocess_text(self.doc)
 
     def get_preprocessed_section(self, identifier: str|int):
         section = self.get_section(identifier=identifier)
-        return # get text content of section and preprocess it
-        
+        if section != []:
+            return self.preprocess_section(section)
+        else:
+            return []
     
     def get_section(self, identifier: str|int):
         if not isinstance(identifier, (str, int)):
@@ -100,30 +144,14 @@ class HTMFiling(Filing):
                 return []
         else:
             for sec in self.sections:
-                if sec.name == identifier:
+                if sec.title == identifier:
                     return sec
             return []
     
-
-
-
-@dataclass
-class FilingSection:
-    title: str
-    content: str
-
-@dataclass
-class HTMFilingSection(FilingSection):
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.soup = self.make_soup(self.content)
-
-    def make_soup(self):
-        return BeautifulSoup(self.content, features="html5lib")
-
-
-
-
+    def preprocess_section(self, section: HTMFilingSection):
+        text_content = self.parser.make_soup(section.content).getText()
+        return self.parser.preprocess_section_content(text_content)
+    
 
 
 class AbstractFilingParser(ABC):
@@ -131,9 +159,20 @@ class AbstractFilingParser(ABC):
         '''
         Must be implemented by the subclass.
         Should split the filing into logical sections.
-        returns:
+
+        Returns:
             list[FilingSection]'''
         pass
+    
+    def preprocess_section(self, section: FilingSection):
+        '''
+        Must be implemented by the subclass.
+        Should preprocess the content of the section for
+        further processing.
+
+        Returns:
+            str
+        '''
     
     
 
@@ -213,12 +252,12 @@ class Parser8K:
             return {"cik": str(cik), "file_date": valid_date, "items": items}
             
     
-    def get_text_content(self, filing: BeautifulSoup=None):
+    def get_text_content(self, doc: BeautifulSoup=None, exclude=["table", "script"]):
         '''extract the unstructured language'''
-        if filing is None:
-            filing = self.soup
-        # [s.extract() for s in filing(['style', 'script', '[document]', 'head', "title"])]
-        return filing.getText()
+        doc_copy = doc.__copy__()
+        if exclude != [] or exclude is not None:
+            [s.extract() for s in doc_copy(exclude)]
+        return doc_copy.getText()
 
     def get_item_matches(self, filing: str):
         '''get matches for the 8-k items.
@@ -296,10 +335,10 @@ class Parser8K:
     def preprocess_filing(self, filing: str):
         '''cleanes filing and returns only text'''
         if isinstance(filing, BeautifulSoup):
-            self.soup = filing
+            soup = filing
         else:
-            self.make_soup(filing)
-        filing = self.get_text_content()
+            soup = self.make_soup(filing)
+        filing = self.get_text_content(soup, exclude=[])
         # replace unwanted unicode characters
         filing.replace("\xa04", "")
         filing.replace("\xa0", " ")
@@ -339,9 +378,40 @@ class HtmlFilingParser():
 
     '''
     def __init__(self):
-        self.soup = None
-        self.unparsed_tables = None
-        self.tables = None
+        pass
+    
+    def get_text_content(self, doc: BeautifulSoup=None, exclude=["table", "script"]):
+        '''extract the unstructured language'''
+        doc_copy = doc.__copy__()
+        if exclude != [] or exclude is not None:
+            [s.extract() for s in doc_copy(exclude)]
+        return doc_copy.getText()
+    
+    def classify_table(self, parsed_table: list[list]):
+        pass
+    
+    def clean_parsed_table(self, table: list[list], remove_identifier: list = ["", "None", None, " "]):
+        '''clean a parsed table of shape m,n by removing all columns whose row values are a combination of remove_identifier'''
+        tablec = table.copy()
+        nr_rows = len(tablec)
+        nr_cols = len(tablec[0])
+        boolean_matrix = [[True]*nr_cols for n in range(nr_rows)]
+        for row in range(nr_rows):
+            for col in range(nr_cols):
+                if tablec[row][col] in remove_identifier:
+                    boolean_matrix[row][col] = False
+        cols_to_remove = []
+        for col in range(nr_cols):
+            all_empty = True
+            for row in range(nr_rows):
+                if boolean_matrix[row][col] is True:
+                    all_empty = False
+            if all_empty is True:
+                cols_to_remove.insert(0, col)
+        for rmv in cols_to_remove:
+            for row in range(nr_rows):
+                tablec[row].pop(rmv)
+        return tablec
 
     def get_span_of_element(self, doc: str, ele: element.Tag, pos: int=None):
         '''gets the span (start, end) of the element ele in doc
@@ -374,25 +444,7 @@ class HtmlFilingParser():
                         return ele
         return None
     
-    def _ele_is_between(self, doc: str, ele: element.Tag, x1, x2):
-        '''check if ele is between x1 and x2 in the document (by regex span)'''
-        ele_span = self.get_span_of_element(doc, ele)
-        if (x1 > ele_span[0]) and (x2 < ele_span[1]):
-            return True
-        else:
-            return False
     
-
-
-    def _normalize_toc_title(self, title):
-        return re.sub("\s{1,}", " ", re.sub("\n{1,}", " ", title)).lower().strip()
-    
-    def _create_toc_re(self, search_term, max_length=None):
-        if max_length is None:
-            max_length = len(search_term) + 4
-        else:
-            pass
-        return (re.compile("^\s*"+re.sub("(\s){1,}", "(?:.){0,4}", search_term)+"\s*$", re.I | re.DOTALL | re.MULTILINE), max_length)
     
     def split_into_sections(self, doc: BeautifulSoup):
             sections_by_toc = self.split_by_table_of_contents(doc)
@@ -400,8 +452,7 @@ class HtmlFilingParser():
                 return sections_by_toc
             else:
                 raise NotImplementedError("no way to split into sections is implemented for this case")
-
-    
+ 
     def split_by_table_of_contents(self, doc: BeautifulSoup):
         '''split a filing with a TOC into sections base on the TOC.
         
@@ -411,8 +462,6 @@ class HtmlFilingParser():
         Returns:
             {section_title: section_content} Where section_content is malformed html and section_title a string
         '''
-        if doc is None:
-            doc = self.soup
         # try and split by document by hrefs of the toc
         try:
             sections = self._split_by_table_of_contents_based_on_hrefs(doc)
@@ -448,6 +497,166 @@ class HtmlFilingParser():
         # fold multiple spaces into one
         text = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", text)
         return text
+    
+    def make_soup(self, doc):
+        '''creates a BeautifulSoup from string html'''
+        soup = BeautifulSoup(doc, features="html5lib")
+        return soup
+
+    def get_unparsed_tables(self, soup: BeautifulSoup):
+        '''return all table tags in soup'''
+        unparsed_tables = soup.find_all("table")
+        return unparsed_tables
+    
+    def get_element_text_content(self, ele):
+        '''gets the cleaned text content of a single element.Tag'''
+        content = " ".join([s.strip().replace("\n", " ") for s in ele.strings]).strip()
+        return content
+    
+    def primitive_htmltable_parse(self, htmltable):
+        '''parse simple html tables without col or rowspan'''
+        rows = htmltable.find_all("tr")
+        amount_rows = len(rows)
+        amount_columns = 0
+        table = None
+        for row in rows:
+            nr_columns = len(row.find_all("td"))
+            if nr_columns > amount_columns:
+                amount_columns = nr_columns
+        # create empty table 
+        table = [[None] * amount_columns for each in range(amount_rows)]
+        # write each row
+        for row_idx, row in enumerate(rows):
+            for field_idx, field in enumerate(row.find_all("td")):
+                content = self.get_element_text_content(field)
+                # adjust row_idx for header
+                table[row_idx][field_idx] = content
+        return table
+
+    def parse_htmltable_with_header(self, htmltable, colspan_mode="separate", merge_delimiter=" "):
+        # parse the header
+        header, colspans, body = self.parse_htmltable_header(htmltable)
+        # get number of rows (assuming rowspan=1 for each row)
+        rows = htmltable.find_all("tr")
+        amount_rows = len(rows)
+        amount_columns = None
+        table = None
+
+        # mode to write duplicate column names for colspan > 1
+        if colspan_mode == "separate":
+            # get total number columns including colspan
+            amount_columns = sum([col for col in colspans])
+            # create empty table 
+            table = [[None] * amount_columns for each in range(amount_rows)]
+            # parse, write each row (ommiting the header)
+            for row_idx, row in enumerate(rows[1:]):
+                for field_idx, field in enumerate(row.find_all("td")):
+                    content = self.get_element_text_content(field)
+                    # adjust row_idx for header
+                    table[row_idx+1][field_idx] = content
+
+        # mode to merge content of a colspan column under one unique column
+        # splitting field content by the merge_delimiter
+        elif colspan_mode == "merge":
+            #get number of columns ignoring colspan
+            amount_columns = sum([1 for col in colspans])
+            #create empty table
+            table = [[None] * amount_columns for each in range(amount_rows)]
+
+            # parse, merge and write each row excluding header
+            for row_idx, row in enumerate(rows[1:]):
+                # get list of content in row
+                unmerged_row_content = [self.get_element_text_content(td) for td in row.find_all("td")]
+                merged_row_content = [None] * amount_columns
+                # what we need to shift by to adjust for total of colspan > 1
+                colspan_offset = 0
+                for idx, colspan in enumerate(colspans):
+                    unmerged_idx = idx + colspan_offset
+                    merged_row_content[idx] = merge_delimiter.join(unmerged_row_content[unmerged_idx:(unmerged_idx+colspan)])
+                    colspan_offset += colspan - 1
+                # write merged rows to table
+                for r in range(amount_columns):
+                    # adjust row_idx for header
+                    table[row_idx+1][r] = merged_row_content[r]
+
+            # change colspans to reflect the merge and write header correctly
+            colspans = [1] * len(colspans)
+
+
+        # write header
+        cspan_offset = 0
+        for idx, h in enumerate(header):
+            colspan = colspans[idx]
+            if colspan > 1:
+                for r in range(colspan-1):
+                    table[0][idx + cspan_offset] = h
+                    cspan_offset = cspan_offset + 1
+
+            else:
+                table[0][idx + cspan_offset] = h
+
+        return table
+             
+    def parse_htmltable_header(self, htmltable):
+        parsed_header = []
+        unparsed_header = []
+        body = []
+        colspans = []
+        # first case with actual table header tag <th>
+        if htmltable.find_all("th") != (None or []):
+            for th in htmltable.find_all("th"):
+                colspan = 1
+                if "colspan" in th.attrs:
+                    colspan = int(th["colspan"])
+                parsed_header.append(self.get_element_text_content(th))
+                colspans.append(colspan)
+            body = [row for row in htmltable.find_all("tr")]
+        # second case where first <tr> is header 
+        else:
+            unparsed_header = htmltable.find("tr")
+            for td in unparsed_header.find_all("td"):
+                colspan = 1
+                if "colspan" in td.attrs:
+                    colspan = int(td["colspan"])
+                parsed_header.append(self.get_element_text_content(td))
+                colspans.append(colspan)
+            body = [row for row in htmltable.find_all("tr")][1:]
+        return parsed_header, colspans, body
+
+    def preprocess_section_content(self, section_content: str):
+        '''cleanes section_content and returns only text'''
+        if isinstance(section_content, BeautifulSoup):
+            soup = section_content
+        else:
+            soup = self.make_soup(section_content)
+        section_content = soup.getText()
+        # replace unwanted unicode characters
+        section_content.replace("\xa04", "")
+        section_content.replace("\xa0", " ")
+        section_content.replace("\u200b", " ")
+        # fold multiple empty newline rows into one
+        section_content = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", section_content)
+        section_content = re.sub(re.compile("(\n)", re.MULTILINE), " ", section_content)
+        # fold multiple spaces into one
+        section_content = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", section_content)
+        return section_content
+
+    def table_has_header(self, htmltable):
+        has_header = False
+        #has header if it has <th> tags in table
+        if htmltable.find("th"):
+            has_header = True
+            return has_header
+        else:
+            # finding first <tr> element to check if it is empty
+            # otherwise consider it a header
+            possible_header = htmltable.find("tr")
+            header_fields = [self.get_element_text_content(td) for td in possible_header.find_all("td")]
+            for h in header_fields:
+                if (h != "") and (h != []):
+                    has_header = True
+                    break
+        return has_header
 
     def _get_possible_headers_based_on_style(self, doc: BeautifulSoup, start_ele: element.Tag|BeautifulSoup=None, max_distance_multiline: int=400, ignore_toc: bool=True):
         '''look for possible headers based on styling of the elements.
@@ -767,6 +976,24 @@ class HtmlFilingParser():
                         raise e
             return matches
     
+    def _ele_is_between(self, doc: str, ele: element.Tag, x1, x2):
+        '''check if ele is between x1 and x2 in the document (by regex span)'''
+        ele_span = self.get_span_of_element(doc, ele)
+        if (x1 > ele_span[0]) and (x2 < ele_span[1]):
+            return True
+        else:
+            return False
+    
+    def _normalize_toc_title(self, title):
+        return re.sub("\s{1,}", " ", re.sub("\n{1,}", " ", title)).lower().strip()
+    
+    def _create_toc_re(self, search_term, max_length=None):
+        if max_length is None:
+            max_length = len(search_term) + 4
+        else:
+            pass
+        return (re.compile("^\s*"+re.sub("(\s){1,}", "(?:.){0,4}", search_term)+"\s*$", re.I | re.DOTALL | re.MULTILINE), max_length)
+    
     def _split_into_sections_by_tags(self, doc: BeautifulSoup, section_start_elements: dict):
         '''
         splits html doc into malformed html strings by section_start_elements.
@@ -801,11 +1028,11 @@ class HtmlFilingParser():
                 end = re.search(re.compile("-STOP_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
             try:
                 if len(section_start_elements)-1 == idx:
-                    sections.append(FilingSection(
+                    sections.append(HTMFilingSection(
                         title=sec["section_title"],
                         content=text[start.span()[1]:]))
                 else:
-                    sections.append(FilingSection(
+                    sections.append(HTMFilingSection(
                         title=sec["section_title"],
                         content=text[start.span()[1]:end.span()[0]]))
             except Exception as e:
@@ -938,9 +1165,7 @@ class HtmlFilingParser():
                 logger.info(f"_split_by_table_of_content_based_on_headers: \t Discarded section: {section_title} because it was in HEADERS_TO_DISCARD")
         
         return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
-
-        
-    
+  
     def _split_by_table_of_contents_based_on_hrefs(self, doc: BeautifulSoup):
         '''split the filing based on the hrefs, linking to different parts of the filing, from the TOC.'''
         #
@@ -1016,156 +1241,14 @@ class HtmlFilingParser():
                     print("NO ID MATCH FOR", entry)
 
         return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
-
-
+ 
     
-    def make_soup(self, doc):
-        self.soup = BeautifulSoup(doc, features="html5lib")
-        return self.soup
-
-    def get_unparsed_tables(self):
-        self.unparsed_tables = self.soup.find_all("table")
-        return self.unparsed_tables
-    
-    def get_element_text_content(self, ele):
-        content = " ".join([s.strip().replace("\n", " ") for s in ele.strings]).strip()
-        return content
-    
-    def primitive_htmltable_parse(self, htmltable):
-        '''parse simple html tables without col or rowspan'''
-        rows = htmltable.find_all("tr")
-        amount_rows = len(rows)
-        amount_columns = 0
-        table = None
-        for row in rows:
-            nr_columns = len(row.find_all("td"))
-            if nr_columns > amount_columns:
-                amount_columns = nr_columns
-        # create empty table 
-        table = [[None] * amount_columns for each in range(amount_rows)]
-        # write each row
-        for row_idx, row in enumerate(rows):
-            for field_idx, field in enumerate(row.find_all("td")):
-                content = self.get_element_text_content(field)
-                # adjust row_idx for header
-                table[row_idx][field_idx] = content
-        return table
-
-
-    def parse_htmltable_with_header(self, htmltable, colspan_mode="separate", merge_delimiter=" "):
-        # parse the header
-        header, colspans, body = self.parse_htmltable_header(htmltable)
-        # get number of rows (assuming rowspan=1 for each row)
-        rows = htmltable.find_all("tr")
-        amount_rows = len(rows)
-        amount_columns = None
-        table = None
-
-        # mode to write duplicate column names for colspan > 1
-        if colspan_mode == "separate":
-            # get total number columns including colspan
-            amount_columns = sum([col for col in colspans])
-            # create empty table 
-            table = [[None] * amount_columns for each in range(amount_rows)]
-            # parse, write each row (ommiting the header)
-            for row_idx, row in enumerate(rows[1:]):
-                for field_idx, field in enumerate(row.find_all("td")):
-                    content = self.get_element_text_content(field)
-                    # adjust row_idx for header
-                    table[row_idx+1][field_idx] = content
-
-        # mode to merge content of a colspan column under one unique column
-        # splitting field content by the merge_delimiter
-        elif colspan_mode == "merge":
-            #get number of columns ignoring colspan
-            amount_columns = sum([1 for col in colspans])
-            #create empty table
-            table = [[None] * amount_columns for each in range(amount_rows)]
-
-            # parse, merge and write each row excluding header
-            for row_idx, row in enumerate(rows[1:]):
-                # get list of content in row
-                unmerged_row_content = [self.get_element_text_content(td) for td in row.find_all("td")]
-                merged_row_content = [None] * amount_columns
-                # what we need to shift by to adjust for total of colspan > 1
-                colspan_offset = 0
-                for idx, colspan in enumerate(colspans):
-                    unmerged_idx = idx + colspan_offset
-                    merged_row_content[idx] = merge_delimiter.join(unmerged_row_content[unmerged_idx:(unmerged_idx+colspan)])
-                    colspan_offset += colspan - 1
-                # write merged rows to table
-                for r in range(amount_columns):
-                    # adjust row_idx for header
-                    table[row_idx+1][r] = merged_row_content[r]
-
-            # change colspans to reflect the merge and write header correctly
-            colspans = [1] * len(colspans)
-
-
-        # write header
-        cspan_offset = 0
-        for idx, h in enumerate(header):
-            colspan = colspans[idx]
-            if colspan > 1:
-                for r in range(colspan-1):
-                    table[0][idx + cspan_offset] = h
-                    cspan_offset = cspan_offset + 1
-
-            else:
-                table[0][idx + cspan_offset] = h
-
-        return table
-           
-        
-    
-    def parse_htmltable_header(self, htmltable):
-        parsed_header = []
-        unparsed_header = []
-        body = []
-        colspans = []
-        # first case with actual table header tag <th>
-        if htmltable.find_all("th") != (None or []):
-            for th in htmltable.find_all("th"):
-                colspan = 1
-                if "colspan" in th.attrs:
-                    colspan = int(th["colspan"])
-                parsed_header.append(self.get_element_text_content(th))
-                colspans.append(colspan)
-            body = [row for row in htmltable.find_all("tr")]
-        # second case where first <tr> is header 
-        else:
-            unparsed_header = htmltable.find("tr")
-            for td in unparsed_header.find_all("td"):
-                colspan = 1
-                if "colspan" in td.attrs:
-                    colspan = int(td["colspan"])
-                parsed_header.append(self.get_element_text_content(td))
-                colspans.append(colspan)
-            body = [row for row in htmltable.find_all("tr")][1:]
-        return parsed_header, colspans, body
-
-    def table_has_header(self, htmltable):
-        has_header = False
-        #has header if it has <th> tags in table
-        if htmltable.find("th"):
-            has_header = True
-            return has_header
-        else:
-            # finding first <tr> element to check if it is empty
-            # otherwise consider it a header
-            possible_header = htmltable.find("tr")
-            header_fields = [self.get_element_text_content(td) for td in possible_header.find_all("td")]
-            for h in header_fields:
-                if (h != "") and (h != []):
-                    has_header = True
-                    break
-        return has_header
 
 
 
 class ParserS1(HtmlFilingParser):
 
-    def get_calculation_of_registration_fee_table(self):
+    def get_calculation_of_registration_fee_table(self, doc: BeautifulSoup):
         wanted_field = [
             # "Title of Each Class of Securities to be Registered",
             # "Title of Each Class of Security Being Registered",
@@ -1173,7 +1256,7 @@ class ParserS1(HtmlFilingParser):
             "Title(\s*)of(\s*)Each(\s*)Class(\s*)(.*)Regi(.*)",
             "Amount(\s*)(Being|to(\s*)be)(\s*)Registered"
         ]
-        for table in self.unparsed_tables:
+        for table in self.get_unparsed_tables(doc):
             if self.table_has_header(table):
                 header, colspans, body = self.parse_htmltable_header(table)
                 if not header:
@@ -1209,7 +1292,7 @@ class Parser424B5(HtmlFilingParser):
                     table[values[0]] = values[1:]
         return table
 
-    def get_offering_table(self):
+    def get_offering_table(self, doc: BeautifulSoup):
         def is_offering_div(tag):
             if tag.name != "div":
                 return False
@@ -1218,7 +1301,7 @@ class Parser424B5(HtmlFilingParser):
             elif tag.find("font", string=re.compile("the(\s*)offering(\s*)$", re.I)):
                 return True
             return False
-        divs = self.soup.find_all(is_offering_div)
+        divs = doc.find_all(is_offering_div)
         max_distance = 10
         current_distance = 0
         table = []
@@ -1234,7 +1317,7 @@ class Parser424B5(HtmlFilingParser):
                     current_distance += 1
         return table
     
-    def get_dilution_table(self):
+    def get_dilution_table(self, doc: BeautifulSoup):
         def is_dilution_div(tag):
             if tag.name != "div":
                 return False
@@ -1243,7 +1326,7 @@ class Parser424B5(HtmlFilingParser):
             elif tag.find("font", string=re.compile("dilution$", re.I)):
                 return True
             return False
-        divs = self.soup.find_all(is_dilution_div)
+        divs = doc.find_all(is_dilution_div)
         max_distance = 10
         table = []
         for div in divs:
@@ -1313,10 +1396,6 @@ class Parser424B5(HtmlFilingParser):
 #     norm_text: str
 
 
-
-            
-class HTMLFiling(Filing):
-    parser = HtmlFilingParser()
 
 
 parser = Parser8K()
