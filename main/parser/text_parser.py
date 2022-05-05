@@ -536,6 +536,7 @@ class HtmlFilingParser():
                 for row in range(table_shape[0]):
                     pass
                 
+                
 
             print()
    
