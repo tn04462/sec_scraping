@@ -534,6 +534,7 @@ class HtmlFilingParser():
             all_unicode_col = False
             for col in range(table_shape[1]):
                 for row in range(table_shape[0]):
+                    pass
                 
 
             print()
