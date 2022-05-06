@@ -62,6 +62,12 @@ TOC_ALTERNATIVES = {
 IGNORE_HEADERS_BASED_ON_STYLE = set("TABLE OF CONTENTS")
 HEADERS_TO_DISCARD = ["(unaudited)"]
 
+RE_COMPILED = {
+    "two_newlines_or_more": re.compile("(\n){2,}", re.MULTILINE),
+    "one_newline": re.compile("(\n)", re.MULTILINE),
+    "two_spaces_or_more": re.compile("(\s){2,}", re.MULTILINE)
+}
+
 
 @dataclass
 class Filing:
@@ -84,22 +90,76 @@ class HTMFilingSection(FilingSection):
         super().__init__(**kwargs)
         self.parser = HtmlFilingParser()
         self.soup: BeautifulSoup = self.parser.make_soup(self.content)
-        self.tables: list[pd.DataFrame] = self.extract_tables()
+        self.tables: dict = self.extract_tables()
         self.text_only = self.parser.get_text_content(self.soup, exclude=["table", "script", "title", "head"])
 
     
-    def extract_tables(self):
-        pt = self.parser.preprocess_text(self.content)
-        unparsed_tables = self.parser.get_unparsed_tables(self.parser.make_soup(pt))
-        parsed_tables = []
+    def extract_tables(self, reintegrate=["ul_bullet_points"]):
+        '''extract the tables, parse them and return them as a dict of nested lists.
+
+        side effect: modifies the soup attribute if reintegrate isnt an empty list
+        
+        Args:
+            reintegrate: which tables to reintegrate as text. if this is an empty list
+                         all tables will be returned in the "extracted" section of the dict
+                         and the "reintegrated" section will be an empty list
+        Returns:
+            a dict of form: {
+                "reintegrated": [
+                        {
+                        "classification": classification,
+                        "reintegrated_as": new elements that were added to the original doc
+                        "table_element": the original <table> element,
+                        "parsed_table": parsed representation of the table before reintegration
+                        }
+                    ],
+                "extracted": [
+                        {
+                        "classification": classification,
+                        "table_element": the original <table> element,
+                        "parsed_table": parsed representation of table,
+                        }
+                    ]
+                }
+        '''
+        # pt = self.parser.preprocess_text(self.content)
+        unparsed_tables = self.parser.get_unparsed_tables(self.soup)
+        tables = {"reintegrated": [], "extracted": []}
         for t in unparsed_tables:
             parsed_table = None
             if self.parser.table_has_header(t):
                 parsed_table = self.parser.parse_htmltable_with_header(t)
             else:
                 parsed_table = self.parser.primitive_htmltable_parse(t)
-            parsed_tables.append(self.parser.clean_parsed_table(parsed_table))
-        return parsed_tables
+                
+            cleaned_table = self.parser._clean_parsed_table(
+                self.parser._preprocess_table(parsed_table))
+            classification = self.parser.classify_table(cleaned_table)
+            # print()
+            # print(cleaned_table, "\t", classification)
+            # print()
+            if classification in reintegrate:
+                reintegrate_html = self.parser._make_reintegrate_html_of_table(
+                    classification, cleaned_table)
+                t.replace_with(reintegrate_html)
+                tables["reintegrated"].append(
+                    {"classification": classification,
+                     "reintegrated_as": reintegrate_html,
+                     "table_element": t,
+                     "parsed_table": cleaned_table}
+                )
+            else:
+                # further reformat the table
+                tables["extracted"].append(
+                    {"classification": classification,
+                     "table_element": t,
+                     "parsed_table": cleaned_table}
+                )
+        return tables
+
+
+        #     parsed_tables.append(self.parser.clean_parsed_table(parsed_table))
+        # return parsed_tables
             # print()
             
             # print(pd.DataFrame(parsed_table))
@@ -388,31 +448,7 @@ class HtmlFilingParser():
             [s.extract() for s in doc_copy(exclude)]
         return doc_copy.getText()
     
-    def classify_table(self, parsed_table: list[list]):
-        pass
     
-    def clean_parsed_table(self, table: list[list], remove_identifier: list = ["", "None", None, " "]):
-        '''clean a parsed table of shape m,n by removing all columns whose row values are a combination of remove_identifier'''
-        tablec = table.copy()
-        nr_rows = len(tablec)
-        nr_cols = len(tablec[0])
-        boolean_matrix = [[True]*nr_cols for n in range(nr_rows)]
-        for row in range(nr_rows):
-            for col in range(nr_cols):
-                if tablec[row][col] in remove_identifier:
-                    boolean_matrix[row][col] = False
-        cols_to_remove = []
-        for col in range(nr_cols):
-            all_empty = True
-            for row in range(nr_rows):
-                if boolean_matrix[row][col] is True:
-                    all_empty = False
-            if all_empty is True:
-                cols_to_remove.insert(0, col)
-        for rmv in cols_to_remove:
-            for row in range(nr_rows):
-                tablec[row].pop(rmv)
-        return tablec
 
     def get_span_of_element(self, doc: str, ele: element.Tag, pos: int=None):
         '''gets the span (start, end) of the element ele in doc
@@ -493,10 +529,10 @@ class HtmlFilingParser():
             ).replace("\u200b", " "
             )
         # fold multiple empty newline rows into one
-        text = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", text)
-        text = re.sub(re.compile("(\n)", re.MULTILINE), " ", text)
+        text = re.sub(RE_COMPILED["two_newlines_or_more"], "\n", text)
+        text = re.sub(RE_COMPILED["one_newline"], " ", text)
         # fold multiple spaces into one
-        text = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", text)
+        text = re.sub(RE_COMPILED["two_spaces_or_more"], " ", text)
         return text
     
     def make_soup(self, doc):
@@ -509,14 +545,6 @@ class HtmlFilingParser():
         unparsed_tables = soup.find_all("table")
         return unparsed_tables
     
-    def list_bool_mask(self, ls, query="●"):
-        bool_mask = [False]*len(ls)
-        for idx, x in enumerate(ls):
-            if x == query:
-                bool_mask[idx] = True
-            else:
-                pass
-        return bool_mask
     
     def classify_table(self, table: list[list]):
         ''''classify a table into subcategories so they can
@@ -527,29 +555,78 @@ class HtmlFilingParser():
         '''
         # assume header
         table_shape = (len(table), len(table[0]))
+        logger.debug(f"table shape is: {table_shape}")
         # could be a bullet point table
         if table_shape[1] == 2:
-            # unicode_symbol_mask = [[False*table_shape[0]] for x in range(table_shape[1])]
-            unicode_symbol_mask = [self.list_bool_mask(nl, query="●") for nl in table]
-            all_unicode_col = False
-            for col in range(table_shape[1]):
-                for row in range(table_shape[0]):
-                    pass
-                
-                
-
-            print()
-   
+            if self._is_bullet_point_table(table) is True:
+                return "ul_bullet_points"
+            else:
+                return "unclassified"
+        return "unclassified"
     
-                 
-    def reintegrate_bullet_point_tables_as_text(self, doc: BeautifulSoup):
-        # get all tables and parse
-        # clean all tables
-        # check if one row is unicode bullet point • \u2022 &#149;  &#183;  &#186;  &#176;
-        # convert table to p with custom class and string prefix: BPListItem:
-        # replace table element with all p's in doc
-        # return none bullet point tables
-        pass
+    def _preprocess_table(self, table: list[list]):
+        '''preprocess the strings in the table, removing multiple whitespaces and newlines
+        Returns:
+            a new (preprocessed) table with the same dimensions as the original
+        '''
+        t = table.copy()
+        for ridx, _ in enumerate(t):
+            for cidx, _ in enumerate(t[ridx]):
+                field_content = t[ridx][cidx]
+                if isinstance(field_content, str):
+                    t[ridx][cidx] = self.preprocess_text(field_content)
+        return t
+    
+    def _clean_parsed_table(self, table: list[list], remove_identifier: list = ["", "None", None, " "]):
+        '''clean a parsed table of shape m,n by removing all columns whose row values are a combination of remove_identifier'''
+        tablec = table.copy()
+        nr_rows = len(tablec)
+        nr_cols = len(tablec[0])
+        boolean_matrix = [[True]*nr_cols for n in range(nr_rows)]
+        for row in range(nr_rows):
+            for col in range(nr_cols):
+                if tablec[row][col] in remove_identifier:
+                    boolean_matrix[row][col] = False
+        cols_to_remove = []
+        for col in range(nr_cols):
+            all_empty = True
+            for row in range(nr_rows):
+                if boolean_matrix[row][col] is True:
+                    all_empty = False
+            if all_empty is True:
+                cols_to_remove.insert(0, col)
+        for rmv in cols_to_remove:
+            for row in range(nr_rows):
+                tablec[row].pop(rmv)
+        return tablec
+    
+    def _is_bullet_point_table(self, table: list[list]):
+        table_shape = (len(table), len(table[0]))
+        if table_shape[1] != 2:
+            return False
+        bullet = "●"
+        cols_unicode = [True]*table_shape[1]
+        for col in range(table_shape[1]):
+            for row in range(table_shape[0]):
+                if table[row][col] not in  ["●", '● ●', "●●", '', ""]:
+                    # print(table[row][col], row, col)
+                    cols_unicode[col] = False
+        if cols_unicode[0] is True:
+            return True
+        else:
+            return False
+
+   
+    def _make_reintegrate_html_of_table(self, classification, table: list[list]):
+        empty_soup = BeautifulSoup("", features="html5lib")
+        base_element =  empty_soup.new_tag("p")
+        if classification == "ul_bullet_points":
+            for idx, row in enumerate(table):
+                ele = empty_soup.new_tag("span")
+                ele.string = " ".join(row) + "\n"
+                base_element.insert(idx+2, ele)
+        return  base_element
+        
     
     def get_element_text_content(self, ele):
         '''gets the cleaned text content of a single element.Tag'''

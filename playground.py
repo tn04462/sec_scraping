@@ -284,7 +284,7 @@ def try_htmlparser():
     root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_lap
+    root_filing = root_des
     file_paths = get_all_filings_path(Path(root_filing), "S-1")
     file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
@@ -298,27 +298,36 @@ def try_htmlparser():
    
     main = []
 
+    # html = "<p> this is p <table><td><tr>1</tr><tr>2</tr></table> </p>"
+    # soup = BeautifulSoup(html, features="html5lib")
+    # print(soup)
+    # soup2 = BeautifulSoup("", features="html5lib")
+    # print(soup2)
+    # from bs4 import element
+    
+    # new_tag = soup2.new_tag("p")
+    # new_tag.string = "START TAG"
+    # first_line = soup2.new_tag("p")
+    # first_line.string = "this is the first line"
+    # new_tag.insert(1,first_line)
+
+    # soup.find("table").replace_with(new_tag)
+    # print(soup)
+    
 
     for p in file_paths[:1]:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
-            pars = HtmlFilingParser()
-            # file_content = f.read()
-            # filing = HTMFiling(file_content, path=p, form_type="S-1")
-            # print(p)
-            # pro_summary = filing.get_section("prospectus summary")
+            file_content = f.read()
+            filing = HTMFiling(file_content, path=p, form_type="S-1")
+            print(p)
+            pro_summary = filing.get_section("prospectus summary")
+            # print([(par["parsed_table"], par["reintegrated_as"]) for par in pro_summary.tables["reintegrated"]])
+            print(pro_summary.text_only)
+            # print(pro_summary.soup.getText())
             # print(pro_summary.tables[0])
             # test_table = pro_summary.tables[0]
-            test_table = [['●', 'Increasing our customer base by offering unique and compelling, patent protected technology solutions;']]
-            pars.classify_table(test_table)
-    #         # print(p)
-            # parser.make_soup(f.read())+
-            # doc = str(html)
-            # matches = parser._split_by_table_of_content_based_on_headers(html)
-            # for k, v in matches.items():
-            #     print(k , len(v))
-            # matches = parser._get_possible_headers_based_on_style(parser.soup)
-            # main = parser._format_matches_based_on_style(matches)
+    #       
     # with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
     #     # print(main)
     #     df = pd.DataFrame(main)
