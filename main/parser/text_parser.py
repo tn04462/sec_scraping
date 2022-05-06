@@ -122,7 +122,6 @@ class HTMFilingSection(FilingSection):
                     ]
                 }
         '''
-        # pt = self.parser.preprocess_text(self.content)
         unparsed_tables = self.parser.get_unparsed_tables(self.soup)
         tables = {"reintegrated": [], "extracted": []}
         for t in unparsed_tables:
@@ -130,14 +129,10 @@ class HTMFilingSection(FilingSection):
             if self.parser.table_has_header(t):
                 parsed_table = self.parser.parse_htmltable_with_header(t)
             else:
-                parsed_table = self.parser.primitive_htmltable_parse(t)
-                
+                parsed_table = self.parser.primitive_htmltable_parse(t)           
             cleaned_table = self.parser._clean_parsed_table(
                 self.parser._preprocess_table(parsed_table))
             classification = self.parser.classify_table(cleaned_table)
-            # print()
-            # print(cleaned_table, "\t", classification)
-            # print()
             if classification in reintegrate:
                 reintegrate_html = self.parser._make_reintegrate_html_of_table(
                     classification, cleaned_table)
@@ -156,13 +151,6 @@ class HTMFilingSection(FilingSection):
                      "parsed_table": cleaned_table}
                 )
         return tables
-
-
-        #     parsed_tables.append(self.parser.clean_parsed_table(parsed_table))
-        # return parsed_tables
-            # print()
-            
-            # print(pd.DataFrame(parsed_table))
     
     
 
