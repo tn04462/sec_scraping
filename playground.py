@@ -284,7 +284,7 @@ def try_htmlparser():
     root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_lap
+    root_filing = root_des
     file_paths = get_all_filings_path(Path(root_filing), "DEF 14A")
     # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
@@ -298,9 +298,12 @@ def try_htmlparser():
    
     main = []
 
-    # html = "<p> this is p <table><td><tr>1</tr><tr>2</tr></table> </p>"
-    # soup = BeautifulSoup(html, features="html5lib")
+    html = ('<p style="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><font style="font-family: Times New Roman, Times, Serif"><b>THE BOARD OF DIRECTORS UNANIMOUSLY RECOMMENDS A VOTE “FOR” THE ELECTION OF <br> ALL FIVE NOMINEES LISTED BELOW.</b></font></p>')
+    soup = BeautifulSoup(html, features="html5lib")
+    # print(soup.select("[style*='text-align: center' i]  b"))
+    # print(parser._get_possible_headers_based_on_style(soup, ignore_toc=False))
     # print(soup)
+    
     # soup2 = BeautifulSoup("", features="html5lib")
     # print(soup2)
     # from bs4 import element
@@ -314,23 +317,28 @@ def try_htmlparser():
     # soup.find("table").replace_with(new_tag)
     # print(soup)
     
-
-    for p in file_paths[1:2]:
+    for p in [r"F:\example_filing_set_100_companies\filings\0001501697\DEF 14A\0001193125-20-123073\d866498ddef14a.htm"]:
+    # for p in file_paths[:10]:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
             file_content = f.read()
             print(p)
+            # soup = parser.make_soup(file_content)
+            # headers = parser._format_matches_based_on_style(parser._get_possible_headers_based_on_style(soup, ignore_toc=False))
+            # for h in headers:
+            #     print(h)
             filing = HTMFiling(file_content, path=p, form_type="S-1")
             
             try:
                 sections = sum([filing.get_sections(ident) for ident in ["share ownership", "beneficial"]], [])
                 for sec in sections:
                     print(sec.text_only)
-                    print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
+                    # print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
             except KeyError:
                 pass
             except IndexError:
                 pass
+
             # print(filing.get_sections("beneficial"))
             # print([fil.title for fil in filing.sections])
             # pro_summary = filing.get_section("prospectus summary")

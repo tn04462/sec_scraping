@@ -499,22 +499,25 @@ class HtmlFilingParser():
             # logging.debug(e, exc_info=True)
             pass
         print()
-        print(f"sections1: {sections}")
-        print()
+        print(f"sections1: {len(sections) if sections is not None else []}")
+        # print()
         possible_headers = self._get_possible_headers_based_on_style(doc=doc, ignore_toc=False)
-        print(f"possible_headers: {possible_headers}")
-        headers_style = self._format_matches_based_on_style(possible_headers
+        headers_style = self._format_matches_based_on_style(possible_headers)
+        # print(f"headers_style: {headers_style}")
+
                 
-            )
-        print(headers_style)
+            
+        # print(headers_style)
         section_start_elements = [{"section_title": k["full_norm_text"], "ele": k["elements"][0]} for k in headers_style]
         print(section_start_elements)
         sections = self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
-        print()
-        print(f"sections2: {sections}")
+        # print()
+        print(f"sections2: {len(sections) if sections is not None else []}")
         print()
         if (sections is None) or (sections == []):
             raise NotImplementedError("no way to split into sections is implemented for this case")
+        else:
+            return sections
     
  
     def split_by_table_of_contents(self, doc: BeautifulSoup):
@@ -830,10 +833,10 @@ class HtmlFilingParser():
         # weird start end of conesecutive elements (50k vs 800k ect)? why?
         toc_start_end = None
         if start_ele is None:
-            start_ele = doc.find("title")
+            start_ele = doc #.find("title") if doc.find("title") else doc
         if ignore_toc is True:
             try:
-                close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))
+                close_to_toc = doc.find(string=re.compile("(toc|table..?.?of..?.?contents)", re.I | re.DOTALL))
                 if isinstance(close_to_toc, NavigableString):
                     close_to_toc = close_to_toc.parent
                 if "href" in close_to_toc.attrs:
@@ -865,13 +868,20 @@ class HtmlFilingParser():
 
         
         # use i in css selector for case insensitive match
-        style_textalign = ["[style*='text-align: center' i]", "[style*='text-align:center' i]"]
+        style_textalign = [
+            "[style*='text-align: center' i]",
+            "[style*='text-align:center' i]"
+            ]
         style_weight = [
             "[style*='font-weight: bold' i]",
             "[style*='font-weight:bold' i]",
             "[style*='font-weight:700']",
-            "[style*='font-weight: 700']"]
-        style_font = ["[style*='font: bold' i]", "[style*='font:bold' i]"]
+            "[style*='font-weight: 700']"
+            ]
+        style_font = [
+            "[style*='font: bold' i]",
+            "[style*='font:bold' i]"
+            ]
         attr_align = "[align='center' i]"
         # add a total count and thresholds for different selector groups
         # eg: we dont find enough textcenter_b and textcenter_eigth candidates go to next group
@@ -1168,9 +1178,11 @@ class HtmlFilingParser():
             if len(section_start_elements)-1 == section_nr:
                 continue
             while (ele != section_start_elements[section_nr + 1]["ele"]):
-                ele = ele.next_element
+                next_ele = ele.next_element
+                if not next_ele:
+                    break
+                ele = next_ele
             ele.insert_before("-STOP_SECTION_TITLE_"+start_element["section_title"])
-        
         text = str(doc)
         for idx, sec in enumerate(section_start_elements):
             start = re.search(re.compile("-START_SECTION_TITLE_"+re.escape(sec["section_title"]), re.MULTILINE), text)
