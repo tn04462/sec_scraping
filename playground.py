@@ -284,11 +284,11 @@ def try_htmlparser():
     root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_des
-    file_paths = get_all_filings_path(Path(root_filing), "S-1")
-    file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
+    root_filing = root_lap
+    file_paths = get_all_filings_path(Path(root_filing), "DEF 14A")
+    # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
-    file_paths.append(file_paths2)
+    # file_paths.append(file_paths2)
     # # file_paths.append(file_paths3)
     file_paths = flatten(file_paths)
     # store(r"F:\example_filing_set_100_companies\s1s3paths.txt", file_paths)$
@@ -315,15 +315,26 @@ def try_htmlparser():
     # print(soup)
     
 
-    for p in file_paths[:1]:
+    for p in file_paths[1:2]:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
             file_content = f.read()
-            filing = HTMFiling(file_content, path=p, form_type="S-1")
             print(p)
-            pro_summary = filing.get_section("prospectus summary")
+            filing = HTMFiling(file_content, path=p, form_type="S-1")
+            
+            try:
+                sections = sum([filing.get_sections(ident) for ident in ["share ownership", "beneficial"]], [])
+                for sec in sections:
+                    print(sec.text_only)
+                    print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
+            except KeyError:
+                pass
+            except IndexError:
+                pass
+            # print(filing.get_sections("beneficial"))
+            # print([fil.title for fil in filing.sections])
+            # pro_summary = filing.get_section("prospectus summary")
             # print([(par["parsed_table"], par["reintegrated_as"]) for par in pro_summary.tables["reintegrated"]])
-            print(pro_summary.text_only)
             # print(pro_summary.soup.getText())
             # print(pro_summary.tables[0])
             # test_table = pro_summary.tables[0]

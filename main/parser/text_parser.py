@@ -181,6 +181,10 @@ class HTMFiling(Filing):
             return []
     
     def get_section(self, identifier: str|int):
+        '''gets a section either by index or by exact title match.
+        
+        Returns:
+            FilingSection or [], if no section was found.'''
         if not isinstance(identifier, (str, int)):
             raise ValueError
         if self.sections == []:
@@ -192,10 +196,22 @@ class HTMFiling(Filing):
                 logger.info("no section with that identifier found")
                 return []
         else:
+            sec_matches = []
             for sec in self.sections:
                 if sec.title == identifier:
                     return sec
             return []
+    
+    def get_sections(self, identifier: str|re.Pattern):
+        '''gets sections based on a re.search of identifier.
+        Returns:
+            list[FilingSection] or [], if no matching sections were found.'''
+        sec_matches = []
+        for sec in self.sections:
+            if re.search(identifier, sec.title):
+                sec_matches.append(sec)
+        return sec_matches
+
     
     def preprocess_section(self, section: HTMFilingSection):
         text_content = self.parser.make_soup(section.content).getText()
@@ -434,7 +450,7 @@ class HtmlFilingParser():
         doc_copy = doc.__copy__()
         if exclude != [] or exclude is not None:
             [s.extract() for s in doc_copy(exclude)]
-        return doc_copy.getText()
+        return doc_copy.getText(separator=" ", strip=True)
     
     
 
@@ -472,11 +488,34 @@ class HtmlFilingParser():
     
     
     def split_into_sections(self, doc: BeautifulSoup):
-            sections_by_toc = self.split_by_table_of_contents(doc)
-            if sections_by_toc:
-                return sections_by_toc
-            else:
-                raise NotImplementedError("no way to split into sections is implemented for this case")
+        try:
+            sections = self.split_by_table_of_contents(doc)
+            if sections is not None:
+                return sections
+        except ValueError as e:
+            # logging.debug(e, exc_info=True)
+            pass
+        except AttributeError as e:
+            # logging.debug(e, exc_info=True)
+            pass
+        print()
+        print(f"sections1: {sections}")
+        print()
+        possible_headers = self._get_possible_headers_based_on_style(doc=doc, ignore_toc=False)
+        print(f"possible_headers: {possible_headers}")
+        headers_style = self._format_matches_based_on_style(possible_headers
+                
+            )
+        print(headers_style)
+        section_start_elements = [{"section_title": k["full_norm_text"], "ele": k["elements"][0]} for k in headers_style]
+        print(section_start_elements)
+        sections = self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
+        print()
+        print(f"sections2: {sections}")
+        print()
+        if (sections is None) or (sections == []):
+            raise NotImplementedError("no way to split into sections is implemented for this case")
+    
  
     def split_by_table_of_contents(self, doc: BeautifulSoup):
         '''split a filing with a TOC into sections base on the TOC.
@@ -508,6 +547,7 @@ class HtmlFilingParser():
         except Exception as e:
             #debug
             logger.info(e, exc_info=True)
+            return None
         return sections
     
     def preprocess_text(self, text):
@@ -543,7 +583,7 @@ class HtmlFilingParser():
         '''
         # assume header
         table_shape = (len(table), len(table[0]))
-        logger.debug(f"table shape is: {table_shape}")
+        # logger.debug(f"table shape is: {table_shape}")
         # could be a bullet point table
         if table_shape[1] == 2:
             if self._is_bullet_point_table(table) is True:
@@ -790,7 +830,7 @@ class HtmlFilingParser():
         # weird start end of conesecutive elements (50k vs 800k ect)? why?
         toc_start_end = None
         if start_ele is None:
-            start_ele = doc
+            start_ele = doc.find("title")
         if ignore_toc is True:
             try:
                 close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))
@@ -826,7 +866,11 @@ class HtmlFilingParser():
         
         # use i in css selector for case insensitive match
         style_textalign = ["[style*='text-align: center' i]", "[style*='text-align:center' i]"]
-        style_weight = ["[style*='font-weight: bold' i]", "[style*='font-weight:bold' i]"]
+        style_weight = [
+            "[style*='font-weight: bold' i]",
+            "[style*='font-weight:bold' i]",
+            "[style*='font-weight:700']",
+            "[style*='font-weight: 700']"]
         style_font = ["[style*='font: bold' i]", "[style*='font:bold' i]"]
         attr_align = "[align='center' i]"
         # add a total count and thresholds for different selector groups
@@ -923,7 +967,7 @@ class HtmlFilingParser():
                 matches[name] = match
             else:
                 raise TypeError(f"selectors should be wrapped in a list: got {type(selector)}")
-            logger.debug(f"found {multiline_matches} multiline matches")
+            # logger.debug(f"found {multiline_matches} multiline matches")
         return matches
     
     def _format_matches_based_on_style(self, matches, header_style="main"):
@@ -1286,7 +1330,7 @@ class HtmlFilingParser():
 
         # get close to TOC
         try:
-            close_to_toc = doc.find(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))
+            close_to_toc = doc.find(string=re.compile("(table..?.?of..?.?contents)", re.I | re.DOTALL))
             if isinstance(close_to_toc, NavigableString):
                     close_to_toc = close_to_toc.parent
             if "href" in close_to_toc.attrs:
@@ -1300,7 +1344,7 @@ class HtmlFilingParser():
             n = 0
             if first_ids == []:
                 while (first_ids == []) or (n < 5):
-                    close_to_toc = close_to_toc.find_next(string=re.compile("(toc|table.of.contents)", re.I | re.DOTALL))       
+                    close_to_toc = close_to_toc.find_next(string=re.compile("(toc|table..?.?of..?.?contents)", re.I | re.DOTALL))       
                     toc_table = close_to_toc.find_next("table")
                     hrefs = toc_table.findChildren("a", href=True)
                     first_ids = [h["href"] for h in hrefs]
@@ -1343,7 +1387,7 @@ class HtmlFilingParser():
                     id_match = doc.find(attrs={"name":id[1:]})
                 track_ids_done.append(id)
                 if id_match:
-                    print(id_match, entry)
+                    # print(id_match, entry)
                     section_start_elements.append({"ele": id_match, "section_title": entry[1]})
                 else:
                     print("NO ID MATCH FOR", entry)
