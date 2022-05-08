@@ -318,7 +318,7 @@ def try_htmlparser():
     # print(soup)
     
     # for p in [r"C:/Users/Public/Desktop/sec_scraping_testsets/example_filing_set_100_companies/filings/0001731727/DEF 14A/0001213900-21-063709/ea151593-def14a_lmpautomot.htm"]:
-    for p in file_paths[10:]:
+    for p in file_paths:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
             file_content = f.read()
@@ -330,13 +330,15 @@ def try_htmlparser():
             filing = HTMFiling(file_content, path=p, form_type="S-1")
 
             # ??? why does it skip the adding of ele group ?
-            print(f"FILING: {filing}")
-            print([(s.title, len(s.text_only)) for s in filing.sections])
+            # print(f"FILING: {filing}")
+            # print([(s.title, len(s.text_only)) for s in filing.sections])
             try:
                 sections = sum([filing.get_sections(ident) for ident in ["share ownership", "beneficial"]], [])
                 for sec in sections:
                     print(sec.title)
-                    print(sec.tables["extracted"])
+                    print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
+                    # print(sec.text_only)
+                    print("\n")
                     # print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
             except KeyError:
                 print([s.title for s in filing.sections])
