@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS companies (
             REFERENCES sics(sic)
 );
 
+CREATE TABLE IF NOT EXISTS cusips(
+    company_id SERIAL,
+    cusip_number VARCHAR (12),
+    class VARCHAR (20)
+);
+
 CREATE TABLE IF NOT EXISTS company_last_update(
     company_id SERIAL,
     outstanding_shares_lud DATE,
