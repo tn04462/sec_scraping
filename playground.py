@@ -21,7 +21,7 @@ from psycopg_pool import ConnectionPool
 
 import pandas as pd
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 
@@ -284,7 +284,7 @@ def try_htmlparser():
     root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
     root_des = Path(r"F:\example_filing_set_100_companies\filings")
     parser = HtmlFilingParser()
-    root_filing = root_des
+    root_filing = root_lap
     file_paths = get_all_filings_path(Path(root_filing), "DEF 14A")
     # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
     # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
@@ -317,8 +317,8 @@ def try_htmlparser():
     # soup.find("table").replace_with(new_tag)
     # print(soup)
     
-    for p in [r"F:\example_filing_set_100_companies\filings\0001501697\DEF 14A\0001193125-20-123073\d866498ddef14a.htm"]:
-    # for p in file_paths[:10]:
+    # for p in [r"C:/Users/Public/Desktop/sec_scraping_testsets/example_filing_set_100_companies/filings/0001731727/DEF 14A/0001213900-21-063709/ea151593-def14a_lmpautomot.htm"]:
+    for p in file_paths[10:]:
         file_count += 1
         with open(p, "r", encoding="utf-8") as f:
             file_content = f.read()
@@ -328,16 +328,20 @@ def try_htmlparser():
             # for h in headers:
             #     print(h)
             filing = HTMFiling(file_content, path=p, form_type="S-1")
-            
+
+            # ??? why does it skip the adding of ele group ?
+            print(f"FILING: {filing}")
+            print([(s.title, len(s.text_only)) for s in filing.sections])
             try:
                 sections = sum([filing.get_sections(ident) for ident in ["share ownership", "beneficial"]], [])
                 for sec in sections:
-                    print(sec.text_only)
+                    print(sec.title)
+                    print(sec.tables["extracted"])
                     # print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
             except KeyError:
-                pass
+                print([s.title for s in filing.sections])
             except IndexError:
-                pass
+                print([s.title for s in filing.sections])
 
             # print(filing.get_sections("beneficial"))
             # print([fil.title for fil in filing.sections])

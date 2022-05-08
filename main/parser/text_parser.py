@@ -14,8 +14,8 @@ from abc import ABC
 
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger()
-
+logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
 
 
 DATE_OF_REPORT_PATTERN = r'(?:(?:(?:Date(?:.?|\n?)of(?:.?|\n?)report(?:[^\d]){0,40})((?:(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d))|(?:(?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d))))|(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d(?:\n{0,3}))(?:.){0,10}(?:date(?:.){0,3}of(?:.){0,3}report)))|(?:(?:(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report(?:[^\d]){0,40})(?:((?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d))|((?:(?:\d\d)|(?:[^\d]\d))(?:.){0,2}(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d)))|(?:(?:(?:(?:(?:January)|(?:February)|(?:March)|(?:April)|(?:May)|(?:June)|(?:July)|(?:August)|(?:September)|(?:October)|(?:November)|(?:December))|(?:(?:Jan(?:(?:\D){0,4}))|(?:Feb(?:(?:\D){0,5}))|(?:Mar(?:(?:\D){0,2}))|(?:Apr(?:(?:\D){0,2}))|(?:May)|(?:Jun(?:(?:\D){0,1}))|(?:Jul(?:(?:\D){0,1}))|(?:Aug(?:(?:\D){0,4}))|(?:Sep(?:(?:\D){0,6}))|(?:Oct(?:(?:\D){0,4}))|(?:Nov(?:(?:\D){0,5}))|(?:Dec(?:(?:\D){0,6}))))(?:[^\d]){0,5}\d.(?:[^\d]){0,6}\d\d\d\d(?:\n{0,3}))(?:.){0,5}(?:Date(?:[^\d]){0,5}of(?:[^\d]){0,20}report))))'
@@ -214,7 +214,7 @@ class HTMFiling(Filing):
 
     
     def preprocess_section(self, section: HTMFilingSection):
-        text_content = self.parser.make_soup(section.content).getText()
+        text_content = self.parser.make_soup(section.content).getText(separator=" ", strip=True)
         return self.parser.preprocess_section_content(text_content)
     
 
@@ -322,7 +322,7 @@ class Parser8K:
         doc_copy = doc.__copy__()
         if exclude != [] or exclude is not None:
             [s.extract() for s in doc_copy(exclude)]
-        return doc_copy.getText()
+        return doc_copy.getText(separator=" ", strip=True)
 
     def get_item_matches(self, filing: str):
         '''get matches for the 8-k items.
@@ -498,22 +498,16 @@ class HtmlFilingParser():
         except AttributeError as e:
             # logging.debug(e, exc_info=True)
             pass
-        print()
-        print(f"sections1: {len(sections) if sections is not None else []}")
+        logger.debug(f"sections1: {len(sections) if sections is not None else []}")
         # print()
         possible_headers = self._get_possible_headers_based_on_style(doc=doc, ignore_toc=False)
         headers_style = self._format_matches_based_on_style(possible_headers)
-        # print(f"headers_style: {headers_style}")
-
-                
-            
-        # print(headers_style)
+        logger.debug(f"headers by style: {[s['full_norm_text'] for s in headers_style]}")
         section_start_elements = [{"section_title": k["full_norm_text"], "ele": k["elements"][0]} for k in headers_style]
-        print(section_start_elements)
+        logger.debug(f"split_into_sections(): section_start_elements for splitting by style: {section_start_elements}")
         sections = self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
         # print()
-        print(f"sections2: {len(sections) if sections is not None else []}")
-        print()
+        logger.debug(f"sections2: {len(sections) if sections is not None else []}")
         if (sections is None) or (sections == []):
             raise NotImplementedError("no way to split into sections is implemented for this case")
         else:
@@ -780,7 +774,7 @@ class HtmlFilingParser():
             soup = section_content
         else:
             soup = self.make_soup(section_content)
-        section_content = soup.getText()
+        section_content = soup.getText(separator=" ", strip=True)
         # replace unwanted unicode characters
         section_content.replace("\xa04", "")
         section_content.replace("\xa0", " ")
@@ -933,10 +927,12 @@ class HtmlFilingParser():
                         text_content = (ele.string if ele.string 
                                        else " ".join([s for s in ele.strings]))
                         t_is_upper = (text_content.isupper() if len(text_content.split()) < 2 else " ".join(text_content.split()[:1]).isupper()) 
-                        if t_is_upper:                            
+                        if t_is_upper:                           
                             if last_entry is None:
                                 last_entry = entry
+                                logger.debug(f"entry (last_entry was None): {entry}")
                             else:
+                                logger.debug(f"entry: {entry} \t last_entry: {last_entry} \t distance: {(entry[1][0] - last_entry[1][1])}")
                                 if (entry[1][0] - last_entry[1][1]) <= max_distance_multiline:
                                     if ele_group == []:
                                         ele_group.append(last_entry)
@@ -947,26 +943,34 @@ class HtmlFilingParser():
                                     continue
                                 else:
                                     # finished possible multline title
+                                    logger.debug(f"ELE_GROUP (main): {ele_group}")
                                     if ele_group != []:
                                         if len(ele_group) > 1:
                                             match["main"].append([e for e in ele_group])
                                             multiline_matches += 1
                                         else:
                                             match["main"].append(ele_group[0])
-                                        ele_group = []
+                                        ele_group = [entry]
                                     else:
-                                        match["main"].append(last_entry)
+                                        if entry not in match["main"]:
+                                            match["main"].append(entry)
+                                            logger.debug("entry was missing from main so we added it")
+                                        if last_entry not in match["main"]:
+                                            logger.debug("last_entry was missing from main so we added it")
+                                            match["main"].append(last_entry)
                                     last_entry = None
                                     continue
                             last_entry = entry      
                         else:
                             match["sub"].append(entry)
-                            if ele_group != []:
-                                match["main"].append([e for e in ele_group])
-                                ele_group = []
-                            if last_entry is not None:
+                            if (last_entry is not None) and (last_entry not in ele_group):
                                 match["main"].append(last_entry)
                                 last_entry = None
+                            if ele_group != []:
+                                logger.debug(f"ELE_GROUP (sub): {ele_group}")
+                                match["main"].append([e for e in ele_group])
+                                ele_group = []
+                            
                     if ele_group == []:
                         if last_entry is not None:
                             match["main"].append(last_entry)
@@ -1163,23 +1167,22 @@ class HtmlFilingParser():
             section_start_elements: {"section_title": section_title, "ele": element.Tag}
         '''
         sections = []
-        for section_nr, start_element in enumerate(section_start_elements):
+        # make sure that the section_start_elements are sorted in ascending order by sourceline
+        sorted_section_start_elements = sorted(section_start_elements, key=lambda x: x["ele"].sourceline)
+        for section_nr, start_element in enumerate(sorted_section_start_elements):
             
             ele = start_element["ele"]
-            
-                # ele.insert_before("-START_SECTION_TITLE_REST_OF_DOC")
-                # while ele:
-                #     previous_ele = ele
-                #     ele = ele.find_next()
-                # previous_ele.insert_after("-STOP_SECTION_TITLE_REST_OF_DOC")
-                # break
-            
             ele.insert_before("-START_SECTION_TITLE_"+start_element["section_title"])
             if len(section_start_elements)-1 == section_nr:
                 continue
             while (ele != section_start_elements[section_nr + 1]["ele"]):
                 next_ele = ele.next_element
                 if not next_ele:
+                    logger.debug(f"element that should be reached before advancing with insertin end: {section_start_elements[section_nr + 1]['ele']}")
+                    logger.debug(f"sourceline stop ele: {section_start_elements[section_nr + 1]['ele'].sourceline}")
+                    logger.debug(f"_split_into_sections_by_tag: next_element was none. start_element['ele']: {start_element['ele']} \t section_nr: {section_nr}")
+                    logger.debug(f"sourceline start ele: {start_element['ele'].sourceline}")
+                    # --> sort by sourceline at start to avoid fuckupy
                     break
                 ele = next_ele
             ele.insert_before("-STOP_SECTION_TITLE_"+start_element["section_title"])
