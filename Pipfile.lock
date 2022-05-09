@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2ef41440d65a084c07ca95a6a136ffd7d417f6ba7ac8b26a9f62b020cd84df36"
+            "sha256": "db02daad14c038daf397cec775e071dc2e2f6d42eae6ec801b7010c8fa96b7d4"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -193,12 +193,28 @@
             ],
             "version": "==2.1.0"
         },
+        "distro": {
+            "hashes": [
+                "sha256:151aeccf60c216402932b52e40ee477a939f8d58898927378a02abbe852c1c39",
+                "sha256:d596311d707e692c2160c37807f83e3820c5d539d5a83e87cfb6babd8ba3a06b"
+            ],
+            "markers": "python_version >= '3.6'",
+            "version": "==1.7.0"
+        },
         "dkpro-cassis": {
             "hashes": [
                 "sha256:e14ef08c5e7c80fde19badfc82e56550981ddfb47c61d6aae4d1475f09cd8cb5"
             ],
             "index": "pypi",
             "version": "==0.7.1"
+        },
+        "ghostscript": {
+            "hashes": [
+                "sha256:97c70e27ba6b1cab4ab1d9b4cc82d89b8b53e57971f608ded4950b8aa20c78a7",
+                "sha256:b7875a87098740eb0be3de2d9662d15db727305ca9a6d4b7534a3cc33a4b965a"
+            ],
+            "index": "pypi",
+            "version": "==0.7"
         },
         "html5lib": {
             "hashes": [
@@ -404,7 +420,7 @@
                 "sha256:fade0d4f4d292b6f39951b6836d7a3c7ef5b2347f3c420cd9820a1d90d794802",
                 "sha256:fdf3c08bce27132395d3c3ba1503cac12e17282358cb4bddc25cc46b0aca07aa"
             ],
-            "markers": "python_version >= '3.8'",
+            "markers": "python_version >= '3.10'",
             "version": "==1.22.3"
         },
         "packaging": {
@@ -733,6 +749,14 @@
             ],
             "markers": "python_version >= '3.6'",
             "version": "==2.4.3"
+        },
+        "tabula-py": {
+            "hashes": [
+                "sha256:784c37a9a46bc8b928cf31cef1d7ed1c9db8af19fb6bb1e63a481ecda0d169d1",
+                "sha256:9da61aa5d4256f79e7fa64d1fb09956d4c104d1a0116566c43bf9f612f37c149"
+            ],
+            "index": "pypi",
+            "version": "==2.3.0"
         },
         "thinc": {
             "hashes": [

@@ -15,6 +15,8 @@ spacy = "*"
 dkpro-cassis = "*"
 html5lib = "*"
 "pdfminer.six" = "*"
+ghostscript = "*"
+tabula-py = "*"
 
 [dev-packages]
 black = "*"
