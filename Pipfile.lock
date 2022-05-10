@@ -622,11 +622,11 @@
         },
         "pysec-downloader": {
             "hashes": [
-                "sha256:5f848e1ef795e575480ce18e5e6095fddf960c88cca743d0d123a06a3db4d760",
-                "sha256:cfc12bc3596a7ea6bcb15a72612782f41aaa7c17e4c96f0c63a0f08879d679eb"
+                "sha256:5bf37c44e148029eaef448796b2442781bcb75f3151267a03a05b635321cd828",
+                "sha256:e10a6ebd2ae2985218dc72cff9e7092f7970dc35ed5d6aaa2575063730944d19"
             ],
             "index": "pypi",
-            "version": "==0.0.27"
+            "version": "==0.0.28"
         },
         "python-dateutil": {
             "hashes": [

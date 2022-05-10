@@ -54,7 +54,12 @@ tracked_forms = cnf.APP_CONFIG.TRACKED_FORMS
 3) think how i can update daily    
 '''
 
-    
+class DilutionDBUpdater:
+    def __init__(self, db: DilutionDB):
+        self.db = db
+        # what to update: cusips, filings, from new filings -> data in database
+        # filings: update submissions.zip -> get date of last update for ticker -> get list of filings after that date -> download filings -> write new update date for filings download
+            # add a table to keep track which filings have been processed 
 
 def inital_population(db: DilutionDB, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
     polygon_client = PolygonClient(polygon_api_key)
