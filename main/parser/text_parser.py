@@ -1179,7 +1179,7 @@ class HtmlFilingParser():
                 next_ele = ele.next_element
                 if not next_ele:
                     logger.debug(f"element that should be reached before advancing with insertin end: {section_start_elements[section_nr + 1]['ele']}")
-                    logger.debug(f"sourceline stop ele: {section_start_elements[section_nr + 1]['ele'].sourceline}")
+                    # logger.debug(f"sourceline stop ele: {section_start_elements[section_nr + 1]['ele'].sourceline}")
                     logger.debug(f"_split_into_sections_by_tag: next_element was none. start_element['ele']: {start_element['ele']} \t section_nr: {section_nr}")
                     logger.debug(f"sourceline start ele: {start_element['ele'].sourceline}")
                     # --> sort by sourceline at start to avoid fuckupy
