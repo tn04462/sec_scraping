@@ -84,12 +84,12 @@ class FilingSection:
     title: str
     content: str
 
-
+'I need: extracted tables: dict[lists], full_text: str, raw_html: str'
 class HTMFilingSection(FilingSection):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.parser = HtmlFilingParser()
-        self.soup: BeautifulSoup = self.parser.make_soup(self.content)
+        self.soup: BeautifulSoup =  self.parser.make_soup(self.content)
         self.tables: dict = self.extract_tables()
         self.text_only = self.parser.get_text_content(self.soup, exclude=["table", "script", "title", "head"])
 
@@ -150,6 +150,7 @@ class HTMFilingSection(FilingSection):
                      "table_element": t,
                      "parsed_table": cleaned_table}
                 )
+        del parser
         return tables
     
     
