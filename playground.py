@@ -365,7 +365,11 @@ if __name__ == "__main__":
     # init_DilutionDB()
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     dbu = DilutionDBUpdater(db)
-    dbu.update_bulk_files()            
+    # db.util.reset_database()
+    print(db.read("SELECT * FROM files_last_update", []))
+    from datetime import datetime
+    db._update_files_lud("submissions_zip_lud", datetime.utcnow().date())
+    # dbu.update_bulk_files()            
     # try_htmlparser()
 
     # download_samples(r"F:\example_filing_set_100_companies")

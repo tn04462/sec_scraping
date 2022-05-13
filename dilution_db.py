@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
 from psycopg_pool import ConnectionPool
-from psycopg import Connection
+from psycopg import Connection, sql
 from json import load, dump
 from functools import reduce
 from os import PathLike, path
@@ -463,8 +463,24 @@ class DilutionDB:
         )
         return cash_burn
     
+    def _assert_files_last_update_row(self):
+        luds = self.read("SELECT * FROM files_last_update", [])
+        if luds == []:
+            with self.conn() as conn:
+                conn.execute("INSERT INTO files_last_update(filing_links_lud, submissions_zip_lud, companyfacts_zip_lud) VALUES(%s, %s, %s)",[None, None, None])
+    
     def _update_files_lud(self, col_name: str, lud: datetime):
-        self.read("UPDATE files_last_update SET %(1)s = %(2)s WHERE %(1)s = (SELECT %(1)s as old_lud FROM files_last_update LIMIT 1)", {"1": col_name, "2": lud})
+        self._assert_files_last_update_row()
+        with self.conn() as conn:
+            old_lud = self.read("SELECT * FROM files_last_update", [])
+            print(old_lud)
+            try:
+                old_lud = old_lud[0][col_name]
+            except KeyError as e:
+                old_lud = None
+            print(old_lud)
+            # cannot adapt type dict using placeholder %s, why?
+            conn.execute("UPDATE files_last_update SET submissions_zip_lud = %s  WHERE submissions_zip_lud = %s", [lud, old_lud])
     
 class DilutionDBUpdater:
     def __init__(self, db: DilutionDB):
@@ -585,6 +601,13 @@ class DilutionDBUtil:
         self.logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         self.logger_handler.setLevel(logging.INFO)
         self.logger.addHandler(self.logger_handler)
+    
+    def reset_database(self):
+        '''delete all data and recreate the tables'''
+        self.db._delete_all_tables()
+        self.db._create_tables()
+        self.db.create_sics()
+        self.db.create_form_types()
 
     def format_submissions_json_for_db(self, cik: str, sub: json, base_url: str=EDGAR_BASE_ARCHIVE_URL):
         '''

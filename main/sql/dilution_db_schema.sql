@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS filing_parse_history(
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id)
-)
+);
 
 -- not sure if it makes sense to store the values like this after parsing
 -- JSON structure has to be enforced application side with value, unit, ect for given field_name
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS filing_values(
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id) 
-)
+);
 
 -- maybe add taxonomy, name and accn to know source
 CREATE TABLE IF NOT EXISTS outstanding_shares(
