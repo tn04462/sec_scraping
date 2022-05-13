@@ -21,21 +21,27 @@ CREATE TABLE IF NOT EXISTS companies (
     sic INT,
     symbol VARCHAR(10) UNIQUE,
     name_ VARCHAR(255),
-    description_ VARCHAR(3000),
+    description_ VARCHAR,
     
     CONSTRAINT fk_sic
         FOREIGN KEY (sic)
             REFERENCES sics(sic)
 );
 
-CREATE TABLE IF NOT EXISTS cusips(
-    company_id SERIAL,
-    cusip_number VARCHAR (12),
-    class VARCHAR (20)
+
+CREATE TABLE IF NOT EXISTS securities(
+    company_id SERIAL, --issuer
+    cusip_number VARCHAR (16) PRIMARY KEY,
+    class VARCHAR,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id)
 );
 
 CREATE TABLE IF NOT EXISTS company_last_update(
     company_id SERIAL,
+    filings_download_lud DATE,
     outstanding_shares_lud DATE,
     net_cash_and_equivalents_lud DATE,
     cash_burn_rate_lud DATE,
@@ -44,6 +50,32 @@ CREATE TABLE IF NOT EXISTS company_last_update(
         FOREIGN KEY (company_id)
             REFERENCES companies(id)
 );
+
+-- so i know which filings have been parsed
+CREATE TABLE IF NOT EXISTS filing_parse_history(
+    company_id SERIAL,
+    accession_number VARCHAR,
+    date_parsed DATE,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id)
+)
+
+-- not sure if it makes sense to store the values like this after parsing
+-- JSON structure has to be enforced application side with value, unit, ect for given field_name
+-- reasoning: this way i can add new fields more easily and keep the validation on the parsing side, does it make sense to do it this way?
+CREATE TABLE IF NOT EXISTS filing_values(
+    company_id SERIAL, -- which company filed it
+    accession_number VARCHAR, -- what filing the values come from
+    date_parsed DATE, -- on which date the parse was done
+    field_name VARCHAR NOT NULL, -- the field name
+    field_values JSON,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id) 
+)
 
 -- maybe add taxonomy, name and accn to know source
 CREATE TABLE IF NOT EXISTS outstanding_shares(
@@ -164,7 +196,6 @@ CREATE TABLE IF NOT EXISTS form_types(
     category VARCHAR(200)
 );
 
--- check performance with index and without 
 CREATE TABLE IF NOT EXISTS filing_links(
     company_id SERIAL,
     filing_html VARCHAR(500),
@@ -240,7 +271,7 @@ CREATE TABLE IF NOT EXISTS filing_status(
 CREATE TABLE IF NOT EXISTS offerings(
     offering_id SERIAL PRIMARY KEY,
     company_id SERIAL,
-    acn_number VARCHAR(255) NOT NULL,
+    accession_number VARCHAR(255) NOT NULL,
     inital_form_type VARCHAR(255) NOT NULL,
     underwriter_id SERIAL,
     final_offering_amount_usd BIGINT,

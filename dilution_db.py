@@ -12,11 +12,15 @@ from posixpath import join as urljoin
 from pathlib import Path
 from requests.exceptions import HTTPError
 from tqdm import tqdm
+import json
+from datetime import datetime
 
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
+from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
 from main.configs import cnf
-from _constants import FORM_TYPES_INFO
+from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -29,65 +33,8 @@ else:
     logger.setLevel(logging.INFO)
 
 
-class DilutionDBUtil:
-    def __init__(self):
-        self.logging_file = cnf.DEFAULT_LOGGING_FILE
-        self.logger = logging.getLogger("DilutionDBUtil")
-        self.logger_handler = logging.FileHandler(self.logging_file)
-        self.logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        self.logger_handler.setLevel(logging.INFO)
-        self.logger.addHandler(self.logger_handler)
 
-    def format_submissions_json_for_db(self, base_url, cik, sub):
-        filings = sub["filings"]["recent"]
-        wanted_fields = ["accessionNumber", "filingDate", "form", "fileNumber", "primaryDocument", "primaryDocDescription", "primaryDocument"]
-        cleaned = []
-        for r in range(0, len(filings["accessionNumber"]), 1):
-            entry = {}
-            for field in wanted_fields:
-                entry[field] = filings[field][r]
-            entry["filing_html"] = self.build_submission_link(base_url, cik, entry["accessionNumber"].replace("-", ""), entry["primaryDocument"])
-            cleaned.append(entry)
-        return cleaned
-    
-    def build_submission_link(self, base_url, cik, accession_number, primary_document):
-        return urljoin(urljoin(urljoin(base_url, cik), accession_number), primary_document)
-    
-    def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
-        # # download the last 2 years of relevant filings
-        if after is None:
-            after = str((datetime.now() - timedelta(weeks=104)).date())
-        for form in forms:
-        #     # add check for existing file in pysec_donwloader so i dont download file twice
-            try:
-                downloader.get_filings(ticker, form, after, number_of_filings=number_of_filings)
-            except Exception as e:
-                self.logger.info((ticker, form, e), exc_info=True)
-                pass
 
-    def get_overview_files(self, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
-        polygon_client = PolygonClient(polygon_api_key)
-        dl = Downloader(dl_root_path)
-        if not Path(polygon_overview_files_path).exists():
-            Path(polygon_overview_files_path).mkdir(parents=True)
-            logger.debug(
-                f"created overview_files_path and parent folders: {polygon_overview_files_path}")
-        for ticker in tqdm(tickers):
-            logger.info(f"currently working on: {ticker}")
-            # get basic info and create company
-            try:
-                ov = polygon_client.get_overview_single_ticker(ticker)
-            except HTTPError as e:
-                logger.critical((e, ticker, "couldnt get overview file"), exc_info=True)
-                logger.info("couldnt get overview file")
-                continue
-            try:
-                ov["cik"]
-            except KeyError as e:
-                print(e)
-                continue
-            with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
-                dump(ov, f)
 
 class DilutionDB:
     def __init__(self, connectionString):
@@ -97,10 +44,15 @@ class DilutionDB:
         )
         self.conn = self.pool.connection
         self.tracked_tickers = self._get_tracked_tickers_from_config()
-        self.util = DilutionDBUtil()
+        self.tracked_forms = self._get_tracked_forms_from_config()
+        self.util = DilutionDBUtil(self)
+        
 
     def _get_tracked_tickers_from_config(self):
         return cnf.APP_CONFIG.TRACKED_TICKERS
+    
+    def _get_tracked_forms_from_config(self):
+        return cnf.APP_CONFIG.TRACKED_FORMS
 
     def execute_sql_file(self, path):
         with self.conn() as c:
@@ -455,49 +407,6 @@ class DilutionDB:
                 logger.debug(e)
                 raise e
     
-    def force_cashBurn_update(self, ticker: str):
-        '''clear cash burn rate and summary data and recalculate for one company
-        based on the available data from the database. Doesnt pull new data.'''
-        company = db.read_company_by_symbol(ticker)[0]
-        id = company["id"]
-        try:
-            with self.conn() as connection:
-                try:
-                    connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
-                    connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
-                    self.init_cash_burn_rate(connection, id)
-                    self.init_cash_burn_summary(connection, id)
-                except Exception as e:
-                    connection.rollback()
-                    logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
-                    print(e)
-                    pass
-                else:
-                    connection.commit()
-        except KeyError as e:
-            logger.info((e, company))
-
-    def force_cashBurn_update_all(self):
-        '''clear cash burn rate and summary data and recalculate for all companies
-        based on the available data from the database. Doesnt pull new data.'''
-        companies = self.read_all_companies()
-        for company in companies:
-            id = company["id"]
-            try:
-                with self.conn() as connection:
-                    try:
-                        connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
-                        connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
-                        self.init_cash_burn_rate(connection, id)
-                        self.init_cash_burn_summary(connection, id)
-                    except Exception as e:
-                        connection.rollback()
-                        logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
-                        pass
-                    else:
-                        connection.commit()
-            except KeyError as e:
-                logger.info((e, company))
 
     def _clean_df_cash_burn(self, cash_burn: pd.DataFrame):
         cash_burn["burn_rate_total"] = cash_burn[
@@ -553,8 +462,397 @@ class DilutionDB:
             {"burn_rate": "burn_rate_financing"}, axis=1
         )
         return cash_burn
+    
+    def _update_files_lud(self, col_name: str, lud: datetime):
+        self.read("UPDATE files_last_update SET %(1)s = %(2)s WHERE %(1)s = (SELECT %(1)s as old_lud FROM files_last_update LIMIT 1)", {"1": col_name, "2": lud})
+    
+class DilutionDBUpdater:
+    def __init__(self, db: DilutionDB):
+        self.db = db
+        self.dl = Downloader(root_path=cnf.DOWNLOADER_ROOT_PATH)
+    
+    def file_update_check(self):
+        '''check filings and bulk files and update if needed'''
+    
+    def _needs_filing_update(self, ticker: str):
+        '''checks if the ticker has newer filings available with submissions.zip'''
+        pass
+    
+    def update_filings(self, ticker: str):
+        '''download new filings if available'''
+        pass
+    
+    def _file_needs_update(self, col_name: str, max_age: int):
+        '''check if files need an update
+        
+        Args:
+            col_name: the name of the column in the db files_last_update
+                      table corresponding to the file we want to check
+            max_age: max age that is allowed in hours
+        
+        Returns:
+            bool: False if file age is less than max_age.
+                  True if file age is more than max_age or no entry in db is present.
+        '''
+        lud = self.db.read("SELECT %s as _lud FROM files_last_update", [col_name])
+        if lud == []:
+            return True
+        _lud = lud["_lud"]
+        print(_lud)
+        now = datetime.utcnow()
+        if (now - pd.to_datetime(_lud)) >= timedelta(hours=max_age):
+            return True
+        else:
+            return False
 
 
+    def _companyfacts_zip_needs_update(self):
+        return self._file_needs_update("companyfacts_zip_lud", max_age=24)
+    
+    def _submissions_zip_needs_update(self):
+        return self._file_needs_update("submissions_zip_lud", max_age=24)
+
+    
+    def update_bulk_files(self):
+        '''update submissions and companyfacts bulk files'''
+        update = False
+        if self._submissions_zip_needs_update():
+            print("updating submissions")
+            self.dl.get_bulk_submissions()
+            self.db._update_files_lud("submissions_zip_lud", datetime.utcnow())
+            update = True
+        if self._companyfacts_zip_needs_update():
+            self.dl.get_bulk_companyfacts()
+            self.db._update_files_lud("companyfacts_zip_lud", datetime.utcnow())
+            update = True
+        if update is False:
+            logger.info("No Bulk Files were updated as they are still current enough.")
+        else:
+            logger.info("Bulk Files were successfully updated")
+
+    
+    def force_cashBurn_update(self, ticker: str):
+        '''clear cash burn rate and summary data and recalculate for one company
+        based on the available data from the database. Doesnt pull new data.'''
+        company = db.read_company_by_symbol(ticker)[0]
+        id = company["id"]
+        try:
+            with self.db.conn() as connection:
+                try:
+                    connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
+                    connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
+                    self.db.init_cash_burn_rate(connection, id)
+                    self.db.init_cash_burn_summary(connection, id)
+                except Exception as e:
+                    connection.rollback()
+                    logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
+                    print(e)
+                    pass
+                else:
+                    connection.commit()
+        except KeyError as e:
+            logger.info((e, company))
+
+    def force_cashBurn_update_all(self):
+        '''clear cash burn rate and summary data and recalculate for all companies
+        based on the available data from the database. Doesnt pull new data.'''
+        companies = self.db.read_all_companies()
+        for company in companies:
+            id = company["id"]
+            try:
+                with self.db.conn() as connection:
+                    try:
+                        connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
+                        connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
+                        self.db.init_cash_burn_rate(connection, id)
+                        self.db.init_cash_burn_summary(connection, id)
+                    except Exception as e:
+                        connection.rollback()
+                        logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
+                        pass
+                    else:
+                        connection.commit()
+            except KeyError as e:
+                logger.info((e, company))
+    
+
+class DilutionDBUtil:
+    def __init__(self, db):
+        self.db = db
+        self.logging_file = cnf.DEFAULT_LOGGING_FILE
+        self.logger = logging.getLogger("DilutionDBUtil")
+        self.logger_handler = logging.FileHandler(self.logging_file)
+        self.logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        self.logger_handler.setLevel(logging.INFO)
+        self.logger.addHandler(self.logger_handler)
+
+    def format_submissions_json_for_db(self, cik: str, sub: json, base_url: str=EDGAR_BASE_ARCHIVE_URL):
+        '''
+        converts submissions of a company file from submission.zip into a 
+        list[dict] that is easier to use to create a filings_link entry in the DilutionDB.
+        
+        cik: 10 digit CIK
+        sub: company file from submission.zip
+
+        Returns:
+            a list[dict] with following keys:
+                "accessionNumber",
+                "filingDate",
+                "form",
+                "fileNumber",
+                "primaryDocument",
+                "primaryDocDescription",
+                "primaryDocument",
+                "filing_html"
+        '''
+        filings = sub["filings"]["recent"]
+        wanted_fields = ["accessionNumber", "filingDate", "form", "fileNumber", "primaryDocument", "primaryDocDescription", "primaryDocument"]
+        cleaned = []
+        for r in range(0, len(filings["accessionNumber"]), 1):
+            entry = {}
+            for field in wanted_fields:
+                entry[field] = filings[field][r]
+            entry["filing_html"] = self.build_submission_link(base_url, cik, entry["accessionNumber"].replace("-", ""), entry["primaryDocument"])
+            cleaned.append(entry)
+        return cleaned
+    
+
+    def build_submission_link(self, base_url, cik, accession_number, primary_document):
+        return urljoin(urljoin(urljoin(base_url, cik), accession_number), primary_document)
+
+    
+    def inital_setup(
+            self,
+            dl_root_path: str,
+            polygon_overview_files_path: str,
+            polygon_api_key: str,
+            forms: list[str],
+            tickers: list[str],
+            after: str=None):
+        '''inital download of filings and data for population and inital population of the DilutionDB.
+        
+        Args:
+            dl_root_path: root path for the downloaded data
+            polygon_overview_files_path: path for the overview files
+            polygon_api_key: api key for polygon
+            forms: list of forms to download
+            tickers: list of symbols to add
+            after: after what date filings should be downloaded
+            
+        Returns:
+            Nothing
+        '''
+        dl = Downloader(root_path=dl_root_path, user_agent=cnf.SEC_USER_AGENT)
+        polygon_client = PolygonClient(polygon_api_key)
+        if not Path(polygon_overview_files_path).exists():
+            Path(polygon_overview_files_path).mkdir(parents=True)
+            logger.debug(
+                f"created overview_files_path and parent folders: {polygon_overview_files_path}")
+        for ticker in tqdm(tickers, mininterval=0.5):
+            self.get_filing_set(dl, ticker, forms, after=after, number_of_filings=9999)
+            id = self._inital_population(self.db, dl, polygon_client, polygon_overview_files_path, ticker)
+    
+    def _inital_population(self, db: DilutionDB,  dl: Downloader, polygon_client: PolygonClient, polygon_overview_files_path: str, ticker: str):
+        '''
+        download none filing data and populate base information for a company.
+        
+        Returns:
+            None when failing at some stage
+            company.id of DilutionDB if successfull
+        '''
+        logger.info(f"currently working on: {ticker}")
+        # get basic info and create company
+        try:
+            ov = polygon_client.get_overview_single_ticker(ticker)
+        except HTTPError as e:
+            logger.critical((e, ticker, "couldnt get overview file"))
+            logger.info("couldnt get overview file")
+            return None
+        with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
+            json.dump(ov, f)
+        logger.debug(f"overview_data: {ov}")
+        # check that we have a sic otherwise assign  9999 --> nonclassifable
+        try:
+            ov["sic_code"]
+        except KeyError:
+            ov["sic_code"] = "9999"
+            ov["sic_description"] = "Nonclassifiable"
+        
+        # load the xbrl facts 
+        companyfacts_file_path = dl.root_path / "companyfacts" / ("CIK"+ov["cik"]+".json")
+        recent_submissions_file_path = dl.root_path / "submissions" / ("CIK"+ov["cik"]+".json")
+        try:
+            with open(companyfacts_file_path, "r") as f:
+                companyfacts = json.load(f)
+                
+                # query for wanted xbrl facts and write to db
+                try:
+                    outstanding_shares = get_outstanding_shares(companyfacts)
+                    if outstanding_shares is None:
+                        logger.critical(("couldnt get outstanding_shares extracted", ticker))
+                        return None
+                except ValueError as e:
+                    logger.critical((e, ticker))
+                    return None
+                except KeyError as e:
+                    logger.critical((e, ticker))
+                    return None
+                logger.debug(f"outstanding_shares: {outstanding_shares}")
+                # start db transaction to ensure only complete companies get added
+                id = None
+                with db.conn() as connection:
+                    try:
+                        id = db.create_company(
+                            connection,
+                            ov["cik"],
+                            ov["sic_code"],
+                            ticker, ov["name"],
+                            ov["description"],
+                            ov["sic_description"])
+                        if not id:
+                            raise ValueError("couldnt get the company id from create_company")
+                        for fact in outstanding_shares:
+                            db.create_outstanding_shares(
+                                connection,
+                                id, fact["end"], fact["val"])
+                        try:
+                            net_cash = get_cash_and_equivalents(companyfacts)
+                            if net_cash is None:
+                                logger.critical(("couldnt get netcash extracted", ticker))
+                                return None
+                        except ValueError as e:
+                            logger.critical((e, ticker))
+                            raise e
+                        except KeyError as e:
+                            logger.critical((e, ticker))
+                            raise e
+                        logger.debug(f"net_cash: {net_cash}")
+                        for fact in net_cash:
+                            db.create_net_cash_and_equivalents(
+                                connection,
+                                id, fact["end"], fact["val"])
+                        # get the cash flow, partially tested
+                        try:
+                            cash_financing = get_cash_financing(companyfacts)
+                            for fact in cash_financing:
+                                db.create_cash_financing(
+                                    connection,
+                                    id, fact["start"], fact["end"], fact["val"]
+                                )
+                            cash_operating = get_cash_operating(companyfacts)
+                            for fact in cash_operating:
+                                db.create_cash_operating(
+                                    connection,
+                                    id, fact["start"], fact["end"], fact["val"]
+                                )
+                            cash_investing = get_cash_investing(companyfacts)
+                            for fact in cash_investing:
+                                db.create_cash_investing(
+                                    connection,
+                                    id, fact["start"], fact["end"], fact["val"]
+                                )
+                        except ValueError as e:
+                            logger.critical((e, ticker))
+                            logger.debug((e, ticker))
+                            raise e 
+                        # calculate cash burn per day
+                    except Exception as e:
+                        logger.critical(("Phase1", e, ticker), exc_info=True)
+                        connection.rollback()
+                        return None
+                    else:
+                        connection.commit()
+                    
+                    
+                with db.conn() as connection:
+                    try:
+                        db.init_cash_burn_rate(connection, id)
+                    except KeyError as e:
+                        logger.critical(("Phase2.1", e, ticker), exc_info=True)
+                        connection.rollback()
+                        raise e
+                    else:
+                        connection.commit()
+                    try:
+                        db.init_cash_burn_summary(connection, id)
+                    except KeyError as e:
+                        logger.critical(("Phase2.2", e, ticker), exc_info=True)
+                        connection.rollback()
+                        raise e
+                    else:
+                        connection.commit()
+                    
+                with db.conn() as connection1:      
+                    # populate filing_links table from submissions.zip
+                    try:
+                        with open(recent_submissions_file_path, "r") as f:
+                            submissions = db.util.format_submissions_json_for_db(
+                                ov["cik"],
+                                json.load(f))
+                            for s in submissions:
+                                with db.conn() as connection2:
+                                    try:
+                                        db.create_filing_link(
+                                            connection2,
+                                            id,
+                                            s["filing_html"],
+                                            s["form"],
+                                            s["filingDate"],
+                                            s["primaryDocDescription"],
+                                            s["fileNumber"])
+                                    except Exception as e:
+                                        logger.debug((e, s))
+                                        connection2.rollback()
+                                    else:
+                                        connection2.commit()
+                    except Exception as e:
+                        logger.critical(("Phase3", e, ticker), exc_info=True)
+                        connection1.rollback()
+                        raise e
+                    else:
+                        connection1.commit()
+        except FileNotFoundError as e:
+            logger.critical((e,"This is mostlikely a fund or trust and not a company.", ticker))
+            return None
+        else:
+            return id
+    
+    def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
+        # download the last 2 years of relevant filings
+        if after is None:
+            after = str((datetime.now() - timedelta(weeks=104)).date())
+        for form in forms:
+        #     # add check for existing file in pysec_donwloader so i dont download file twice
+            try:
+                downloader.get_filings(ticker, form, after, number_of_filings=number_of_filings)
+            except Exception as e:
+                self.logger.info((ticker, form, e), exc_info=True)
+                pass
+
+    def _get_overview_files(self, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
+        # get the polygon overview files
+        polygon_client = PolygonClient(polygon_api_key)
+        dl = Downloader(dl_root_path)
+        if not Path(polygon_overview_files_path).exists():
+            Path(polygon_overview_files_path).mkdir(parents=True)
+            logger.debug(
+                f"created overview_files_path and parent folders: {polygon_overview_files_path}")
+        for ticker in tqdm(tickers):
+            logger.info(f"currently working on: {ticker}")
+            # get basic info and create company
+            try:
+                ov = polygon_client.get_overview_single_ticker(ticker)
+            except HTTPError as e:
+                logger.critical((e, ticker, "couldnt get overview file"), exc_info=True)
+                logger.info("couldnt get overview file")
+                continue
+            try:
+                ov["cik"]
+            except KeyError as e:
+                print(e)
+                continue
+            with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
+                dump(ov, f)
 
     # def create_tracked_companies(self):
     #     base_path = config["polygon"]["overview_files_path"]
@@ -580,7 +878,7 @@ if __name__ == "__main__":
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     with open("./resources/company_tickers.json", "r") as f:
         tickers = list(load(f).keys())
-        db.util.get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
+        db.util._get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
     
     # fake_args1 = [1, 0, 0, 0, 0, "2010-04-01", "2011-02-27"]
     # fake_args2 = [1, 0, 0, 0, 0, "2010-04-01", "2011-04-27"]

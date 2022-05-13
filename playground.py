@@ -1,8 +1,7 @@
 
-from inspect import Attribute
-from turtle import update
 from bs4 import BeautifulSoup
 from urllib3 import connection_from_url
+from dilution_db import DilutionDBUpdater
 # from dilution_db import DilutionDB
 # from main.data_aggregation.polygon_basic import PolygonClient
 # from main.configs import cnf
@@ -12,7 +11,6 @@ from urllib3 import connection_from_url
 
 from main.parser.text_parser import HtmlFilingParser, Parser8K, HTMFiling
 from pathlib import Path
-parser = Parser8K()
 
 from psycopg import Connection
 from psycopg.rows import dict_row
@@ -176,13 +174,11 @@ if __name__ == "__main__":
     
 
     from main.configs import cnf
-    from db_updater import get_filing_set
     from pysec_downloader.downloader import Downloader
     from tqdm import tqdm
     from dilution_db import DilutionDB
     import json
     import csv
-    from main.parser.text_parser import Parser8K
     import spacy
     import datetime
     from spacy import displacy
@@ -209,189 +205,186 @@ if __name__ == "__main__":
 # important for querying the results later) if not other way, get filing date 
 # by using cik and accn to query the submissions file 
 
-def init_fdb():
-    connection_string = "postgres://postgres:admin@localhost/postgres"
-    fdb = FilingDB(connection_string)
+    def init_fdb():
+        connection_string = "postgres://postgres:admin@localhost/postgres"
+        fdb = FilingDB(connection_string)
 
-    fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
-    fdb.execute_sql("./main/sql/filings_db_schema.sql")
-    fdb.init_8k_items()
-    paths = []
-    with open(r"E:\pysec_test_folder\paths.txt", "r") as pf:
-        while len(paths) < 20000:
-            paths.append(pf.readline().strip("\n").lstrip("."))
-    # paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
-    fdb.parse_and_add_all_8k_content(paths)
-    return fdb
+        fdb.execute_sql("./main/sql/db_delete_all_tables.sql")
+        fdb.execute_sql("./main/sql/filings_db_schema.sql")
+        fdb.init_8k_items()
+        paths = []
+        with open(r"E:\pysec_test_folder\paths.txt", "r") as pf:
+            while len(paths) < 20000:
+                paths.append(pf.readline().strip("\n").lstrip("."))
+        # paths = get_all_8k(Path(r"E:\sec_scraping\resources\datasets") / "filings")
+        fdb.parse_and_add_all_8k_content(paths)
+        return fdb
 
-def retrieve_data_set():
-    data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' AND f.file_date > %s ORDER BY f.file_date LIMIT 1", [datetime.datetime(2021, 1, 1)])
-    j = []
-    for d in data:
-        pass
-    with open(r"E:\pysec_test_folder\k8s1v1.txt", "w", encoding="utf-8") as f:
-        # json.dump(j, f)
-        for r in data:
-                f.write(r["content"].replace("\n", " ") + "\n")
+    def retrieve_data_set():
+        data = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' AND f.file_date > %s ORDER BY f.file_date LIMIT 1", [datetime.datetime(2021, 1, 1)])
+        j = []
+        for d in data:
+            pass
+        with open(r"E:\pysec_test_folder\k8s1v1.txt", "w", encoding="utf-8") as f:
+            # json.dump(j, f)
+            for r in data:
+                    f.write(r["content"].replace("\n", " ") + "\n")
 
-# init_fdb()
-# items = parser.split_into_items(r"E:\sec_scraping\resources\datasets\filings\0000023197\8-K\0000023197-20-000144\cmtl-20201130.htm")
-# print(items)
-# retrieve_data_set()
-# print(fdb.get_items_count_summary())
+    # init_fdb()
+    # items = parser.split_into_items(r"E:\sec_scraping\resources\datasets\filings\0000023197\8-K\0000023197-20-000144\cmtl-20201130.htm")
+    # print(items)
+    # retrieve_data_set()
+    # print(fdb.get_items_count_summary())
 
-def try_spacy():
-    texts = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' ORDER BY f.file_date LIMIT 30", [])
-    text = ""
-    contents = [text["content"] for text in texts]
-    for content in nlp.pipe(contents, disable=["attribute_ruler", "lemmatizer", "ner"]):
-        # text = text + "\n\n" + content
-        print([s for s in content.sents])
-    # displacy.serve(doc, style="ent")
+    def try_spacy():
+        texts = fdb.read("SELECT f.item_id as item_id, f.file_date, i.item_name as item_name, f.content FROM form8k as f JOIN items8k as i ON i.id = f.item_id WHERE item_name = 'item801' ORDER BY f.file_date LIMIT 30", [])
+        text = ""
+        contents = [text["content"] for text in texts]
+        for content in nlp.pipe(contents, disable=["attribute_ruler", "lemmatizer", "ner"]):
+            # text = text + "\n\n" + content
+            print([s for s in content.sents])
+        # displacy.serve(doc, style="ent")
+            
+    # try_spacy()
+
+    import re
+    from datetime import timedelta
+    import pickle
+    def download_samples(root, forms=["S-1", "S-3", "SC13D"]):
+        dl = Downloader(root, user_agent="P licker p@licker.com")
+        def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
+            # # download the last 2 years of relevant filings
+            if after is None:
+                after = str((datetime.now() - timedelta(weeks=104)).date())
+            for form in forms:
+            #     # add check for existing file in pysec_donwloader so i dont download file twice
+                try:
+                    downloader.get_filings(ticker, form, after, number_of_filings=number_of_filings)
+                except Exception as e:
+                    print((ticker, form, e))
+                    pass
+        with open("./resources/company_tickers.json", "r") as f:
+            tickers = list(json.load(f).keys())
+            for ticker in tqdm(tickers[5020:5120]):
+                get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
+
+    def store(path: str, obj: list):
+        with open(path, "wb") as f:
+                pickle.dump(obj, f)
+
+    def retrieve(path: str):
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
+    def try_htmlparser():
+        root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
+        root_des = Path(r"F:\example_filing_set_100_companies\filings")
+        parser = HtmlFilingParser()
+        root_filing = root_des
+        file_paths = get_all_filings_path(Path(root_filing), "DEF 14A")
+        # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
+        # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
+        # file_paths.append(file_paths2)
+        # # file_paths.append(file_paths3)
+        file_paths = flatten(file_paths)
+        # store(r"F:\example_filing_set_100_companies\s1s3paths.txt", file_paths)$
+        # file_paths = retrieve(root_lap)
+        # for p in [r"F:\example_filing_set_100_companies\filings\0001556266\S-3\0001213900-20-018486\ea124224-s3a1_tdholdings.htm"]:
+        file_count = 0
+    
+        # main = []
+
+        html = ('<p style="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><font style="font-family: Times New Roman, Times, Serif"><b>THE BOARD OF DIRECTORS UNANIMOUSLY RECOMMENDS A VOTE “FOR” THE ELECTION OF <br> ALL FIVE NOMINEES LISTED BELOW.</b></font></p>')
+        # soup = BeautifulSoup(html, features="html5lib")
+        # print(soup.select("[style*='text-align: center' i]  b"))
+        # print(parser._get_possible_headers_based_on_style(soup, ignore_toc=False))
+        # print(soup)
         
-# try_spacy()
+        # soup2 = BeautifulSoup("", features="html5lib")
+        # print(soup2)
+        # from bs4 import element
+        
+        # new_tag = soup2.new_tag("p")
+        # new_tag.string = "START TAG"
+        # first_line = soup2.new_tag("p")
+        # first_line.string = "this is the first line"
+        # new_tag.insert(1,first_line)
 
-import re
-from datetime import timedelta
-import pickle
-def download_samples(root, forms=["S-1", "S-3", "SC13D"]):
-    dl = Downloader(root, user_agent="P licker p@licker.com")
-    def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
-        # # download the last 2 years of relevant filings
-        if after is None:
-            after = str((datetime.now() - timedelta(weeks=104)).date())
-        for form in forms:
-        #     # add check for existing file in pysec_donwloader so i dont download file twice
-            try:
-                downloader.get_filings(ticker, form, after, number_of_filings=number_of_filings)
-            except Exception as e:
-                print((ticker, form, e))
-                pass
-    with open("./resources/company_tickers.json", "r") as f:
-        tickers = list(json.load(f).keys())
-        for ticker in tqdm(tickers[5020:5120]):
-            get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
+        # soup.find("table").replace_with(new_tag)
+        # print(soup)
+        
+        # for p in [r"C:/Users/Public/Desktop/sec_scraping_testsets/example_filing_set_100_companies/filings/0001731727/DEF 14A/0001213900-21-063709/ea151593-def14a_lmpautomot.htm"]:
+        
 
-def store(path: str, obj: list):
-    with open(path, "wb") as f:
-            pickle.dump(obj, f)
+        for p in file_paths[0:1]:
+            file_count += 1
+            with open(p, "r", encoding="utf-8") as f:
+                file_content = f.read()
+                print(p)
+                # soup = parser.make_soup(file_content)
+                # headers = parser._format_matches_based_on_style(parser._get_possible_headers_based_on_style(soup, ignore_toc=False))
+                # for h in headers:
+                #     print(h)
+                filing = HTMFiling(file_content, path=p, form_type="S-1")
 
-def retrieve(path: str):
-    with open(path, "rb") as f:
-        return pickle.load(f)
+                # ??? why does it skip the adding of ele group ?
+                print(f"FILING: {filing}")
+                print([(s.title, len(s.text_only)) for s in filing.sections])
+                try:
+                    sections = sum([filing.get_sections(ident) for ident in ["share ownership", "beneficial"]], [])
+                    for sec in sections:
+                        print(sec.title)
+                        print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
+                        # print(sec.text_only)
+                        print("\n")
+                        # print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
+                except KeyError:
+                    print([s.title for s in filing.sections])
+                except IndexError:
+                    print([s.title for s in filing.sections])
 
-def try_htmlparser():
-    root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
-    root_des = Path(r"F:\example_filing_set_100_companies\filings")
-    parser = HtmlFilingParser()
-    root_filing = root_lap
-    file_paths = get_all_filings_path(Path(root_filing), "DEF 14A")
-    # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
-    # # file_paths3 = get_all_filings_path(Path(root_filing), "S-1")
-    # file_paths.append(file_paths2)
-    # # file_paths.append(file_paths3)
-    file_paths = flatten(file_paths)
-    # store(r"F:\example_filing_set_100_companies\s1s3paths.txt", file_paths)$
-    # file_paths = retrieve(root_lap)
-    # for p in [r"F:\example_filing_set_100_companies\filings\0001556266\S-3\0001213900-20-018486\ea124224-s3a1_tdholdings.htm"]:
-    file_count = 0
-   
-    main = []
-
-    html = ('<p style="font: 10pt Times New Roman, Times, Serif; margin-top: 0pt; margin-bottom: 0pt; text-align: center"><font style="font-family: Times New Roman, Times, Serif"><b>THE BOARD OF DIRECTORS UNANIMOUSLY RECOMMENDS A VOTE “FOR” THE ELECTION OF <br> ALL FIVE NOMINEES LISTED BELOW.</b></font></p>')
-    soup = BeautifulSoup(html, features="html5lib")
-    # print(soup.select("[style*='text-align: center' i]  b"))
-    # print(parser._get_possible_headers_based_on_style(soup, ignore_toc=False))
-    # print(soup)
-    
-    # soup2 = BeautifulSoup("", features="html5lib")
-    # print(soup2)
-    # from bs4 import element
-    
-    # new_tag = soup2.new_tag("p")
-    # new_tag.string = "START TAG"
-    # first_line = soup2.new_tag("p")
-    # first_line.string = "this is the first line"
-    # new_tag.insert(1,first_line)
-
-    # soup.find("table").replace_with(new_tag)
-    # print(soup)
-    
-    # for p in [r"C:/Users/Public/Desktop/sec_scraping_testsets/example_filing_set_100_companies/filings/0001731727/DEF 14A/0001213900-21-063709/ea151593-def14a_lmpautomot.htm"]:
-    
-    import dill
-    for p in file_paths[0:1]:
-        file_count += 1
-        with open(p, "r", encoding="utf-8") as f:
-            file_content = f.read()
-            print(p)
-            # soup = parser.make_soup(file_content)
-            # headers = parser._format_matches_based_on_style(parser._get_possible_headers_based_on_style(soup, ignore_toc=False))
-            # for h in headers:
-            #     print(h)
-            import sys
-            sys.setrecursionlimit(10000)
-            # filing = HTMFiling(file_content, path=p, form_type="S-1")
-            # with open(str(p).replace(".htm", ".pickle"), "wb") as pf:
-            #     dill.dump(filing, pf)
-
-            with open(str(p).replace(".htm", ".pickle"), "rb") as pf:
-                filing = dill.load(pf)
-                print(filing.sections)
-
-            # ??? why does it skip the adding of ele group ?
-            # print(f"FILING: {filing}")
-            # print([(s.title, len(s.text_only)) for s in filing.sections])
-            # try:
-            #     sections = sum([filing.get_sections(ident) for ident in ["share ownership", "beneficial"]], [])
-            #     for sec in sections:
-            #         print(sec.title)
-            #         print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
-            #         # print(sec.text_only)
-            #         print("\n")
-            #         # print([pd.DataFrame(s["parsed_table"]) for s in sec.tables["extracted"]])
-            # except KeyError:
-            #     print([s.title for s in filing.sections])
-            # except IndexError:
-            #     print([s.title for s in filing.sections])
-
-            # print(filing.get_sections("beneficial"))
-            # print([fil.title for fil in filing.sections])
-            # pro_summary = filing.get_section("prospectus summary")
-            # print([(par["parsed_table"], par["reintegrated_as"]) for par in pro_summary.tables["reintegrated"]])
-            # print(pro_summary.soup.getText())
-            # print(pro_summary.tables[0])
-            # test_table = pro_summary.tables[0]
-    #       
-    # with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
-    #     # print(main)
-    #     df = pd.DataFrame(main)
-    #     df.to_csv(f)
-
-def parse_headers():
-    pd.read_csv(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\headers.csv")
-
-                
-try_htmlparser()
-# parse_headers()
-
-# download_samples(r"F:\example_filing_set_100_companies")
+                # print(filing.get_sections("beneficial"))
+                # print([fil.title for fil in filing.sections])
+                # pro_summary = filing.get_section("prospectus summary")
+                # print([(par["parsed_table"], par["reintegrated_as"]) for par in pro_summary.tables["reintegrated"]])
+                # print(pro_summary.soup.getText())
+                # print(pro_summary.tables[0])
+                # test_table = pro_summary.tables[0]
+        #       
+        # with open(root_filing.parent / "headers.csv", "w", newline="", encoding="utf-8") as f:
+        #     # print(main)
+        #     df = pd.DataFrame(main)
+        #     df.to_csv(f)
 
 
-# from main.data_aggregation.bulk_files import update_bulk_files
-# update_bulk_files()
-# from spacy.tokens import DocBin, Doc
-# Doc.set_extension("rel", default={}, force=True)
+    def init_DilutionDB():
+        # connect 
+        db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+        db.util.inital_setup(db, cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, cnf.APP_CONFIG.TRACKED_FORMS, ["CEI", "HYMC", "GOEV", "SKLZ", "ACTG", "INO", "GNUS"])
 
-# docbin = DocBin(store_user_data=True)
-# docbin.from_disk(r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
-# doc = list(docbin.get_docs(nlp.vocab))[0]
+    # init_DilutionDB()
+    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    dbu = DilutionDBUpdater(db)
+    dbu.update_bulk_files()            
+    # try_htmlparser()
+
+    # download_samples(r"F:\example_filing_set_100_companies")
+
+
+    # from main.data_aggregation.bulk_files import update_bulk_files
+    # update_bulk_files()
+    # from spacy.tokens import DocBin, Doc
+    # Doc.set_extension("rel", default={}, force=True)
+
+    # docbin = DocBin(store_user_data=True)
+    # docbin.from_disk(r"C:\Users\Olivi\Desktop\spacy_example2.spacy")
+    # doc = list(docbin.get_docs(nlp.vocab))[0]
 
 
 
-    # with open(p, "r", encoding="utf-8") as f:
-    #     filing = parser.preprocess_filing(f.read())
-    #     # print(filing)
-    #     print(len(parser.parse_items(filing)))
+        # with open(p, "r", encoding="utf-8") as f:
+        #     filing = parser.preprocess_filing(f.read())
+        #     # print(filing)
+        #     print(len(parser.parse_items(filing)))
 
-# item count in all 8-k's of the filings-database
+    # item count in all 8-k's of the filings-database

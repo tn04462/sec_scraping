@@ -44,13 +44,6 @@ import numpy as np
 logger = logging.getLogger(__package__)
 
 
-def _clean_outstanding_shares(facts: dict):
-    try:
-        df = pd.DataFrame(facts["CommonStockSharesOutstanding"])
-    except KeyError:
-        df = pd.DataFrame(facts["EntityCommonStockSharesOutstanding"])
-    cleaned = df.drop_duplicates(["end", "val"])
-    return cleaned.to_dict("records")
 
 def get_outstanding_shares(companyfacts):
     dfs = []

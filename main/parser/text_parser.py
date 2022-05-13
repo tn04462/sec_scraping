@@ -150,7 +150,6 @@ class HTMFilingSection(FilingSection):
                      "table_element": t,
                      "parsed_table": cleaned_table}
                 )
-        del parser
         return tables
     
     
@@ -1566,8 +1565,8 @@ class Parser424B5(HtmlFilingParser):
 
 
 
-parser = Parser8K()
-Items = {}
+# parser = Parser8K()
+# Items = {}
 # for p in [[s for s in r.glob("*.htm")][0] for r in Path(r"C:\Users\Olivi\Testing\sec_scraping\resources\test_set\0001718405\8-K").glob("*")]:
 #     with open(p, "r") as f:
 #         h = f.read()
