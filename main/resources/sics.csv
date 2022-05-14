@@ -60,6 +60,7 @@ SIC,Industry,Sector,Division
 1011,Iron Ores,Metal Mining,Mining
 1021,Copper Ores,Metal Mining,Mining
 1031,Lead and Zinc Ores,Metal Mining,Mining
+1040,Gold and Silver Ores, Metal Mining, Mining
 1041,Gold Ores,Metal Mining,Mining
 1044,Silver Ores,Metal Mining,Mining
 1061,"Ferroalloy Ores, Except Vanadium",Metal Mining,Mining

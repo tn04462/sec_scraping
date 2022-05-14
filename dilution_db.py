@@ -85,6 +85,16 @@ class DilutionDB:
 
     def read_company_by_symbol(self, symbol: str):
         return self.read("SELECT * FROM companies WHERE symbol = %s", [symbol.upper()])
+    
+    def read_company_id_by_symbol(self, symbol: str):
+        id = self.read("SELECT id FROM companies WHERE symbol = %s", [symbol.upper()])
+        if id:
+            return id
+        else:
+            return None
+    
+    def read_company_last_update(self, id: int):
+        return self.read("SELECT * FROM companies_last_update WHERE company_id = %s", [id])
 
     def create_form_types(self):
         with self.conn() as c:
@@ -130,7 +140,9 @@ class DilutionDB:
                 "INSERT INTO companies(cik, sic, symbol, name_, description_) VALUES(%s, %s, %s, %s, %s) RETURNING id",
                 [cik, sic, symbol, name, description],
             )
-            return id.fetchone()["id"]
+            id = id.fetchone()["id"]
+            self.create_empty_company_last_update(c, id)
+            return id
         except UniqueViolation:
             # logger.debug(f"couldnt create {symbol}:company, already present in db.")
             # logger.debug(f"querying and the company_id instead of creating it")
@@ -159,6 +171,9 @@ class DilutionDB:
                 return id
             else:
                 raise e
+    
+    def create_empty_company_last_update(self, c: Connection, id: int):
+        c.execute("INSERT INTO company_last_update(company_id) VALUES(%s)", [id])
 
     def create_outstanding_shares(self, c: Connection, company_id, instant, amount):
         try:
@@ -467,32 +482,53 @@ class DilutionDB:
         luds = self.read("SELECT * FROM files_last_update", [])
         if luds == []:
             with self.conn() as conn:
-                conn.execute("INSERT INTO files_last_update(filing_links_lud, submissions_zip_lud, companyfacts_zip_lud) VALUES(%s, %s, %s)",[None, None, None])
+                conn.execute("INSERT INTO files_last_update(submissions_zip_lud, companyfacts_zip_lud) VALUES(NULL, NULL)", [])
     
-    def _update_files_lud(self, col_name: str, lud: datetime):
+    def _update_files_lud(self, c: Connection, col_name: str, lud: datetime):
         self._assert_files_last_update_row()
-        with self.conn() as conn:
-            old_lud = self.read("SELECT * FROM files_last_update", [])
-            print(old_lud)
-            try:
-                old_lud = old_lud[0][col_name]
-            except KeyError as e:
-                old_lud = None
-            print(old_lud)
-            # cannot adapt type dict using placeholder %s, why?
-            conn.execute("UPDATE files_last_update SET submissions_zip_lud = %s  WHERE submissions_zip_lud = %s", [lud, old_lud])
-    
+        old_lud = self.read("SELECT * FROM files_last_update", [])
+        # print(old_lud)
+        try:
+            old_lud = old_lud[0][col_name]
+        except KeyError as e:
+            print(e)
+            old_lud = None
+        if old_lud is None:
+        # cannot adapt type dict using placeholder %s, why?
+            c.execute(sql.SQL("UPDATE files_last_update SET {} = %s").format(sql.Identifier(col_name)), [lud])
+        else:
+            c.execute(sql.SQL("UPDATE files_last_update SET {} = %s WHERE {} = %s").format(sql.Identifier(col_name), sql.Identifier(col_name)), [lud,  old_lud])
+
+    def _update_company_lud(self, c: Connection, id: int, col_name: str, lud: datetime):
+        res = c.execute(sql.SQL("UPDATE company_last_update SET {} = %s WHERE company_id = %s").format(sql.Identifier(col_name)), [lud, id])
+        try:
+            res.fetchall()
+        except ProgrammingError as e:
+            logger.debug(f"except ProgrammingError e: {e} and raise ValueError instead", exc_info=True)
+            raise ValueError(f"No entry found for col_name and id. Make sure the entry for the id({id}) was created, and the col_name({col_name}) is spelled correctly.")
+
+
 class DilutionDBUpdater:
     def __init__(self, db: DilutionDB):
         self.db = db
         self.dl = Downloader(root_path=cnf.DOWNLOADER_ROOT_PATH)
     
-    def file_update_check(self):
+    def _update_check(self):
         '''check filings and bulk files and update if needed'''
+        self.update_bulk_files()
+        self.update_filings()
     
     def _needs_filing_update(self, ticker: str):
         '''checks if the ticker has newer filings available with submissions.zip'''
-        pass
+        id = self.db.read_company_id_by_symbol(ticker)
+        if id is not None:
+            luds = self.db.read_company_last_update(id)
+            if luds != []:
+                filings_lud = luds[0]["filings_download_lud"]
+                print(filings_lud)
+            else:
+                raise ValueError("company wasnt added to company_last_update table, make sure it was when creating the company!")
+
     
     def update_filings(self, ticker: str):
         '''download new filings if available'''
@@ -510,41 +546,36 @@ class DilutionDBUpdater:
             bool: False if file age is less than max_age.
                   True if file age is more than max_age or no entry in db is present.
         '''
-        lud = self.db.read("SELECT %s as _lud FROM files_last_update", [col_name])
+        lud = self.db.read(sql.SQL("SELECT {} as _lud FROM files_last_update").format(sql.Identifier(col_name)), [])
         if lud == []:
             return True
         _lud = lud["_lud"]
+        if _lud is None:
+            return True
         print(_lud)
         now = datetime.utcnow()
         if (now - pd.to_datetime(_lud)) >= timedelta(hours=max_age):
             return True
         else:
             return False
-
-
-    def _companyfacts_zip_needs_update(self):
-        return self._file_needs_update("companyfacts_zip_lud", max_age=24)
-    
-    def _submissions_zip_needs_update(self):
-        return self._file_needs_update("submissions_zip_lud", max_age=24)
-
     
     def update_bulk_files(self):
         '''update submissions and companyfacts bulk files'''
         update = False
-        if self._submissions_zip_needs_update():
-            print("updating submissions")
-            self.dl.get_bulk_submissions()
-            self.db._update_files_lud("submissions_zip_lud", datetime.utcnow())
-            update = True
-        if self._companyfacts_zip_needs_update():
-            self.dl.get_bulk_companyfacts()
-            self.db._update_files_lud("companyfacts_zip_lud", datetime.utcnow())
-            update = True
-        if update is False:
-            logger.info("No Bulk Files were updated as they are still current enough.")
-        else:
-            logger.info("Bulk Files were successfully updated")
+        with self.db.conn() as conn:
+            if self._file_needs_update("submissions_zip_lud", max_age=24):
+                print("updating submissions")
+                self.dl.get_bulk_submissions()
+                self.db._update_files_lud(conn, "submissions_zip_lud", datetime.utcnow())
+                update = True
+            if self._file_needs_update("companyfacts_zip_lud", max_age=24):
+                self.dl.get_bulk_companyfacts()
+                self.db._update_files_lud(conn, "companyfacts_zip_lud", datetime.utcnow())
+                update = True
+            if update is False:
+                logger.info("No Bulk Files were updated as they are still current enough.")
+            else:
+                logger.info("Bulk Files were successfully updated")
 
     
     def force_cashBurn_update(self, ticker: str):
@@ -675,6 +706,18 @@ class DilutionDBUtil:
             self.get_filing_set(dl, ticker, forms, after=after, number_of_filings=9999)
             id = self._inital_population(self.db, dl, polygon_client, polygon_overview_files_path, ticker)
     
+    def _get_companyfacts_file(self, cik10: str):
+        cp_path = Path(cnf.DOWNLOADER_ROOT_PATH) / "companyfacts" / ("CIK"+cik10+".json")
+        with open(cp_path, "r") as f:
+            cp = json.load(f)
+            return cp
+    
+    def _get_submissions_file(self, cik10: str):
+        sub_path = Path(cnf.DOWNLOADER_ROOT_PATH) / "submissions" / ("CIK"+cik10+".json")
+        with open(sub_path, "r") as f:
+            sub = json.load(f)
+            return sub
+    
     def _inital_population(self, db: DilutionDB,  dl: Downloader, polygon_client: PolygonClient, polygon_overview_files_path: str, ticker: str):
         '''
         download none filing data and populate base information for a company.
@@ -709,18 +752,6 @@ class DilutionDBUtil:
                 companyfacts = json.load(f)
                 
                 # query for wanted xbrl facts and write to db
-                try:
-                    outstanding_shares = get_outstanding_shares(companyfacts)
-                    if outstanding_shares is None:
-                        logger.critical(("couldnt get outstanding_shares extracted", ticker))
-                        return None
-                except ValueError as e:
-                    logger.critical((e, ticker))
-                    return None
-                except KeyError as e:
-                    logger.critical((e, ticker))
-                    return None
-                logger.debug(f"outstanding_shares: {outstanding_shares}")
                 # start db transaction to ensure only complete companies get added
                 id = None
                 with db.conn() as connection:
@@ -734,6 +765,18 @@ class DilutionDBUtil:
                             ov["sic_description"])
                         if not id:
                             raise ValueError("couldnt get the company id from create_company")
+                        try:
+                            outstanding_shares = get_outstanding_shares(companyfacts)
+                            if outstanding_shares is None:
+                                logger.critical(("couldnt get outstanding_shares extracted", ticker))
+                                return None
+                        except ValueError as e:
+                            logger.critical((e, ticker))
+                            return None
+                        except KeyError as e:
+                            logger.critical((e, ticker))
+                            return None
+                        logger.debug(f"outstanding_shares: {outstanding_shares}")
                         for fact in outstanding_shares:
                             db.create_outstanding_shares(
                                 connection,
@@ -778,7 +821,6 @@ class DilutionDBUtil:
                             logger.critical((e, ticker))
                             logger.debug((e, ticker))
                             raise e 
-                        # calculate cash burn per day
                     except Exception as e:
                         logger.critical(("Phase1", e, ticker), exc_info=True)
                         connection.rollback()

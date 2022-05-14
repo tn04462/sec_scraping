@@ -20,6 +20,7 @@ FORM_TYPES_INFO = {
     "10-K": {"category": "Financials", "description": "Annual report"},
     "10-KT": {"category": "unspecified"},
     "10-Q": {"category": "Financials", "description": "Quarterly report"},
+    "10-Q/A": {"category": "Financials", "description": "Amendment to Quarterly report"},
     "10-QT": {"category": "unspecified"},
     "11-K": {"category": "unspecified"},
     "11-KT": {"category": "unspecified"},

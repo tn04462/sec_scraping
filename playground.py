@@ -366,9 +366,18 @@ if __name__ == "__main__":
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     dbu = DilutionDBUpdater(db)
     # db.util.reset_database()
-    print(db.read("SELECT * FROM files_last_update", []))
     from datetime import datetime
-    db._update_files_lud("submissions_zip_lud", datetime.utcnow().date())
+    print(db.read("SELECT * FROM company_last_update", []))
+    # db._update_company_lud(1, "filing_links_lud", datetime(year=2022, month=10, day=5))
+    # db.util.inital_setup(
+    #     cnf.DOWNLOADER_ROOT_PATH,
+    #     cnf.POLYGON_OVERVIEW_FILES_PATH,
+    #     cnf.POLYGON_API_KEY,
+    #     ["S-1"],
+    #     ["CEI"])
+
+    # db._update_files_lud("submissions_zip_lud", (datetime.utcnow()-timedelta(days=2)).date())
+    # print(db.read("SELECT * FROM files_last_update", []))
     # dbu.update_bulk_files()            
     # try_htmlparser()
 

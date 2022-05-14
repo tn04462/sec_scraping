@@ -1,7 +1,6 @@
 
 
 CREATE TABLE IF NOT EXISTS files_last_update(
-    filing_links_lud DATE,
     submissions_zip_lud DATE,
     companyfacts_zip_lud DATE
 );
@@ -40,8 +39,9 @@ CREATE TABLE IF NOT EXISTS securities(
 );
 
 CREATE TABLE IF NOT EXISTS company_last_update(
-    company_id SERIAL,
+    company_id SERIAL UNIQUE,
     filings_download_lud DATE,
+    filing_links_lud DATE,
     outstanding_shares_lud DATE,
     net_cash_and_equivalents_lud DATE,
     cash_burn_rate_lud DATE,
