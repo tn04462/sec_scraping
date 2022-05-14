@@ -11,6 +11,7 @@ import logging
 from posixpath import join as urljoin
 from pathlib import Path
 from requests.exceptions import HTTPError
+from scipy.fftpack import idct
 from tqdm import tqdm
 import json
 from datetime import datetime
@@ -46,6 +47,7 @@ class DilutionDB:
         self.tracked_tickers = self._get_tracked_tickers_from_config()
         self.tracked_forms = self._get_tracked_forms_from_config()
         self.util = DilutionDBUtil(self)
+        self.updater = DilutionDBUpdater(self)
         
 
     def _get_tracked_tickers_from_config(self):
@@ -356,7 +358,17 @@ class DilutionDB:
         except Exception as e:
             raise e
     
-    def init_cash_burn_summary(self, c: Connection, company_id):
+    def _init_outstanding_shares(self, connection: Connection, id: int, companyfacts):
+        '''inital population of outstanding shares based on companyfacts'''
+        self.updater._update_outstanding_shares_based_on_companyfacts(connection, id, companyfacts)
+        self._update_company_lud(connection, id, "outstanding_shares_lud", datetime.utcnow().date())
+    
+    def _init_net_cash_and_equivalents(self, connection: Connection, id: int, companyfacts):
+        '''inital population of net cash and equivalents based on companyfacts'''
+        self.updater._update_net_cash_and_equivalents_based_on_companyfacts(connection, id, companyfacts)
+        self._update_company_lud(connection, id, "net_cash_and_equivalents_lud", datetime.utcnow().date())
+    
+    def _init_cash_burn_summary(self, c: Connection, company_id):
         '''take the newest cash burn rate and net cash, calc days of cash left and UPSERT into summary'''
         net_cash = self.read(
             "SELECT * FROM net_cash_and_equivalents WHERE company_id = %s "
@@ -391,7 +403,7 @@ class DilutionDB:
         )                
                 
 
-    def init_cash_burn_rate(self, c: Connection, company_id):
+    def _init_cash_burn_rate(self, c: Connection, company_id):
         """calculate cash burn rate from db data and UPSERT into cash_burn_rate"""
         operating = self._calc_cash_burn_operating(company_id)
         investing = self._calc_cash_burn_investing(company_id)
@@ -500,7 +512,7 @@ class DilutionDB:
             c.execute(sql.SQL("UPDATE files_last_update SET {} = %s WHERE {} = %s").format(sql.Identifier(col_name), sql.Identifier(col_name)), [lud,  old_lud])
 
     def _update_company_lud(self, c: Connection, id: int, col_name: str, lud: datetime):
-        res = c.execute(sql.SQL("UPDATE company_last_update SET {} = %s WHERE company_id = %s").format(sql.Identifier(col_name)), [lud, id])
+        res = c.execute(sql.SQL("UPDATE company_last_update SET {} = %s WHERE company_id = %s RETURNING *").format(sql.Identifier(col_name)), [lud, id])
         try:
             res.fetchall()
         except ProgrammingError as e:
@@ -512,14 +524,38 @@ class DilutionDBUpdater:
     def __init__(self, db: DilutionDB):
         self.db = db
         self.dl = Downloader(root_path=cnf.DOWNLOADER_ROOT_PATH)
+
+    def update_ticker(self, ticker: str):
+        '''
+        main entry point to update a ticker.
+
+        Args:
+            ticker: symbol of a company in the database 
+        '''
+        with self.db.connection() as conn:
+            # make sure we are working with the most current bulk files
+            self.update_bulk_files()
+            # make sure we are working with the newest filings
+            self.update_filings(conn, ticker)
+            # parsing of filings goes here
+            # -- parsing --
+            # update all the information tables
+            self.update_outstanding_shares(conn, ticker)
+            self.update_net_cash_and_equivalents(conn, ticker)
+            self.force_cashBurn_update(ticker)
+            
+
     
-    def _update_check(self):
-        '''check filings and bulk files and update if needed'''
-        self.update_bulk_files()
-        self.update_filings()
-    
-    def _needs_filing_update(self, ticker: str):
-        '''checks if the ticker has newer filings available with submissions.zip'''
+    def _filings_needs_update(self, ticker: str, max_age=24):
+        '''checks if the ticker has newer filings available with submissions.zip
+        
+        Args:
+            ticker: symbol of a company
+            max_age: max age since last update in hours
+        
+        Returns: 
+            True or False depending if company needs an update of filings
+        '''
         id = self.db.read_company_id_by_symbol(ticker)
         if id is not None:
             luds = self.db.read_company_last_update(id)
@@ -528,11 +564,35 @@ class DilutionDBUpdater:
                 print(filings_lud)
             else:
                 raise ValueError("company wasnt added to company_last_update table, make sure it was when creating the company!")
+            now = datetime.utcnow()
+            if (filings_lud - now) > timedelta(hours=max_age):
+                return True, filings_lud
+            else:
+                return False, None
+        else:
+            return None, None
 
     
-    def update_filings(self, ticker: str):
+    def update_filings(self, connection: Connection, ticker: str):
         '''download new filings if available'''
-        pass
+        needs_update, filings_lud = self._filings_needs_update(ticker)
+        if needs_update is None:
+            raise AttributeError("ticker not found")
+        if needs_update is True:
+            company = self.db.read_company_by_symbol(ticker)
+            if company != []:
+                company = company[0]
+                cik = company["cik"]
+                id = company["id"]
+                newer_filings = self.db.updater.dl.index_handler.get_newer_filings_meta(
+                    cik,
+                    str(filings_lud),
+                    set(cnf.APP_CONFIG.TRACKED_FORMS))
+                # add Returns: to get_newer_filings_meta
+                print(newer_filings)
+            # get filings newer than x from submissions
+            # download said filings with downloader by accn
+            pass
     
     def _file_needs_update(self, col_name: str, max_age: int):
         '''check if files need an update
@@ -576,6 +636,116 @@ class DilutionDBUpdater:
                 logger.info("No Bulk Files were updated as they are still current enough.")
             else:
                 logger.info("Bulk Files were successfully updated")
+    
+    def update_net_cash_and_equivalents(self, connection: Connection, ticker: str):
+        '''update the net_cash_and_equivalents information table and the cash_finacing, cash_investing and cash_operationg.
+        
+        Args:
+            c: connection from the database connection pool
+            ticker: symbol of company
+        '''
+        company = self.db.read_company_by_symbol(ticker)
+        if company != []:
+            company = company[0]
+            cik = company["cik"]
+            id = company["id"]
+            self._update_net_cash_and_equivalents_based_on_companyfacts(
+                connection, 
+                id,
+                self.db.util._get_companyfacts_file(cik))
+
+            # update based on other things than companyfacts here
+
+            # if all successfull write new lud
+            self.db._update_company_lud(connection, "net_cash_and_equivalents_lud", datetime.utcnow().date())
+
+    
+    def update_outstanding_shares(self, connection: Connection, ticker: str):
+        '''update the outstanding shares information table.
+        
+        Args:
+            c: connection from the database connection pool
+            ticker: symbol of company
+        '''
+        company = self.db.read_company_by_symbol(ticker)
+        if company != []:
+            company = company[0]
+            cik = company["cik"]
+            id = company["id"]
+            self._update_outstanding_shares_based_on_companyfacts(
+                connection,
+                id,
+                self.db.util._get_companyfacts_file(cik))
+
+            # update outstanding shares by other means
+                # no other ways yet
+            # if all successfull write new lud
+            self.db._update_company_lud(connection, "outstanding_shares_lud", datetime.utcnow().date())
+        
+    
+    def _update_net_cash_and_equivalents_based_on_companyfacts(self, connection: Connection, id: int, companyfacts):
+        try:
+            net_cash = get_cash_and_equivalents(companyfacts)
+            if net_cash is None:
+                logger.critical(("couldnt get netcash extracted", id))
+                return None
+        except ValueError as e:
+            logger.critical((e, id))
+            raise e
+        except KeyError as e:
+            logger.critical((e, id))
+            raise e
+        logger.debug(f"net_cash: {net_cash}")
+        for fact in net_cash:
+            self.db.create_net_cash_and_equivalents(
+                connection,
+                id, fact["end"], fact["val"])
+        # get the cash flow, partially tested
+        try:
+            cash_financing = get_cash_financing(companyfacts)
+            for fact in cash_financing:
+                self.db.create_cash_financing(
+                    connection,
+                    id, fact["start"], fact["end"], fact["val"]
+                )
+            cash_operating = get_cash_operating(companyfacts)
+            for fact in cash_operating:
+                self.db.create_cash_operating(
+                    connection,
+                    id, fact["start"], fact["end"], fact["val"]
+                )
+            cash_investing = get_cash_investing(companyfacts)
+            for fact in cash_investing:
+                self.db.create_cash_investing(
+                    connection,
+                    id, fact["start"], fact["end"], fact["val"]
+                )
+        except ValueError as e:
+            logger.critical((e, id))
+            logger.debug((e, id))
+            raise e 
+
+    
+    def _update_outstanding_shares_based_on_companyfacts(self, c: Connection, id: int, companyfacts):
+        try:
+            outstanding_shares = get_outstanding_shares(companyfacts)
+            if outstanding_shares is None:
+                logger.critical(("couldnt get outstanding_shares extracted", id))
+                return None
+        except ValueError as e:
+            logger.critical((e, id))
+            return None
+        except KeyError as e:
+            logger.critical((e, id))
+            return None
+        logger.debug(f"outstanding_shares: {outstanding_shares}")
+        for fact in outstanding_shares:
+            self.db.create_outstanding_shares(
+                c,
+                id,
+                fact["end"],
+                fact["val"])
+        
 
     
     def force_cashBurn_update(self, ticker: str):
@@ -588,8 +758,8 @@ class DilutionDBUpdater:
                 try:
                     connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
                     connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
-                    self.db.init_cash_burn_rate(connection, id)
-                    self.db.init_cash_burn_summary(connection, id)
+                    self.db._init_cash_burn_rate(connection, id)
+                    self.db._init_cash_burn_summary(connection, id)
                 except Exception as e:
                     connection.rollback()
                     logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
@@ -611,8 +781,8 @@ class DilutionDBUpdater:
                     try:
                         connection.execute("DELETE FROM cash_burn_rate * WHERE company_id = %s", [id])
                         connection.execute("DELETE FROM cash_burn_summary * WHERE company_id = %s", [id])
-                        self.db.init_cash_burn_rate(connection, id)
-                        self.db.init_cash_burn_summary(connection, id)
+                        self.db._init_cash_burn_rate(connection, id)
+                        self.db._init_cash_burn_summary(connection, id)
                     except Exception as e:
                         connection.rollback()
                         logger.critical((f"couldnt force cashBurn update for ticker: {company}", e))
@@ -745,137 +915,91 @@ class DilutionDBUtil:
             ov["sic_description"] = "Nonclassifiable"
         
         # load the xbrl facts 
-        companyfacts_file_path = dl.root_path / "companyfacts" / ("CIK"+ov["cik"]+".json")
         recent_submissions_file_path = dl.root_path / "submissions" / ("CIK"+ov["cik"]+".json")
         try:
-            with open(companyfacts_file_path, "r") as f:
-                companyfacts = json.load(f)
+            companyfacts = self._get_companyfacts_file(ov["cik"])
+            
+            # query for wanted xbrl facts and write to db
+            # start db transaction to ensure only complete companies get added
+            id = None
+            with db.conn() as connection:
+                try:
+                    id = db.create_company(
+                        connection,
+                        ov["cik"],
+                        ov["sic_code"],
+                        ticker, ov["name"],
+                        ov["description"],
+                        ov["sic_description"])
+                    if not id:
+                        raise ValueError("couldnt get the company id from create_company")
+                except Exception as e:
+                    logger.critical(("Phase1.0", e, ticker), exc_info=True)
+                    connection.rollback()
+                    return None
+                else:
+                    connection.commit()
+            with db.conn() as connection:   
+                try:
+                    db._init_outstanding_shares(connection, id, companyfacts)
+                    db._init_net_cash_and_equivalents(connection , id, companyfacts)
+                except Exception as e:
+                    logger.critical(("Phase1.1", e, ticker), exc_info=True)
+                    connection.rollback()
+                    with db.conn() as del_connection:
+                        del_connection.execute("DELETE FROM companies * WHERE id = %s", [id])
+                    return None
+                else:
+                    connection.commit()
                 
-                # query for wanted xbrl facts and write to db
-                # start db transaction to ensure only complete companies get added
-                id = None
-                with db.conn() as connection:
-                    try:
-                        id = db.create_company(
-                            connection,
-                            ov["cik"],
-                            ov["sic_code"],
-                            ticker, ov["name"],
-                            ov["description"],
-                            ov["sic_description"])
-                        if not id:
-                            raise ValueError("couldnt get the company id from create_company")
-                        try:
-                            outstanding_shares = get_outstanding_shares(companyfacts)
-                            if outstanding_shares is None:
-                                logger.critical(("couldnt get outstanding_shares extracted", ticker))
-                                return None
-                        except ValueError as e:
-                            logger.critical((e, ticker))
-                            return None
-                        except KeyError as e:
-                            logger.critical((e, ticker))
-                            return None
-                        logger.debug(f"outstanding_shares: {outstanding_shares}")
-                        for fact in outstanding_shares:
-                            db.create_outstanding_shares(
-                                connection,
-                                id, fact["end"], fact["val"])
-                        try:
-                            net_cash = get_cash_and_equivalents(companyfacts)
-                            if net_cash is None:
-                                logger.critical(("couldnt get netcash extracted", ticker))
-                                return None
-                        except ValueError as e:
-                            logger.critical((e, ticker))
-                            raise e
-                        except KeyError as e:
-                            logger.critical((e, ticker))
-                            raise e
-                        logger.debug(f"net_cash: {net_cash}")
-                        for fact in net_cash:
-                            db.create_net_cash_and_equivalents(
-                                connection,
-                                id, fact["end"], fact["val"])
-                        # get the cash flow, partially tested
-                        try:
-                            cash_financing = get_cash_financing(companyfacts)
-                            for fact in cash_financing:
-                                db.create_cash_financing(
-                                    connection,
-                                    id, fact["start"], fact["end"], fact["val"]
-                                )
-                            cash_operating = get_cash_operating(companyfacts)
-                            for fact in cash_operating:
-                                db.create_cash_operating(
-                                    connection,
-                                    id, fact["start"], fact["end"], fact["val"]
-                                )
-                            cash_investing = get_cash_investing(companyfacts)
-                            for fact in cash_investing:
-                                db.create_cash_investing(
-                                    connection,
-                                    id, fact["start"], fact["end"], fact["val"]
-                                )
-                        except ValueError as e:
-                            logger.critical((e, ticker))
-                            logger.debug((e, ticker))
-                            raise e 
-                    except Exception as e:
-                        logger.critical(("Phase1", e, ticker), exc_info=True)
-                        connection.rollback()
-                        return None
-                    else:
-                        connection.commit()
-                    
-                    
-                with db.conn() as connection:
-                    try:
-                        db.init_cash_burn_rate(connection, id)
-                    except KeyError as e:
-                        logger.critical(("Phase2.1", e, ticker), exc_info=True)
-                        connection.rollback()
-                        raise e
-                    else:
-                        connection.commit()
-                    try:
-                        db.init_cash_burn_summary(connection, id)
-                    except KeyError as e:
-                        logger.critical(("Phase2.2", e, ticker), exc_info=True)
-                        connection.rollback()
-                        raise e
-                    else:
-                        connection.commit()
-                    
-                with db.conn() as connection1:      
-                    # populate filing_links table from submissions.zip
-                    try:
-                        with open(recent_submissions_file_path, "r") as f:
-                            submissions = db.util.format_submissions_json_for_db(
-                                ov["cik"],
-                                json.load(f))
-                            for s in submissions:
-                                with db.conn() as connection2:
-                                    try:
-                                        db.create_filing_link(
-                                            connection2,
-                                            id,
-                                            s["filing_html"],
-                                            s["form"],
-                                            s["filingDate"],
-                                            s["primaryDocDescription"],
-                                            s["fileNumber"])
-                                    except Exception as e:
-                                        logger.debug((e, s))
-                                        connection2.rollback()
-                                    else:
-                                        connection2.commit()
-                    except Exception as e:
-                        logger.critical(("Phase3", e, ticker), exc_info=True)
-                        connection1.rollback()
-                        raise e
-                    else:
-                        connection1.commit()
+                
+            with db.conn() as connection:
+                try:
+                    db._init_cash_burn_rate(connection, id)
+                except KeyError as e:
+                    logger.critical(("Phase2.1", e, ticker), exc_info=True)
+                    connection.rollback()
+                    raise e
+                else:
+                    connection.commit()
+                try:
+                    db._init_cash_burn_summary(connection, id)
+                except KeyError as e:
+                    logger.critical(("Phase2.2", e, ticker), exc_info=True)
+                    connection.rollback()
+                    raise e
+                else:
+                    connection.commit()
+                
+            with db.conn() as connection1:      
+                # populate filing_links table from submissions.zip
+                try:
+                    submissions_file = self._get_submissions_file(ov["cik"])
+                    submissions = db.util.format_submissions_json_for_db(
+                        ov["cik"],
+                        submissions_file)
+                    for s in submissions:
+                        with db.conn() as connection2:
+                            try:
+                                db.create_filing_link(
+                                    connection2,
+                                    id,
+                                    s["filing_html"],
+                                    s["form"],
+                                    s["filingDate"],
+                                    s["primaryDocDescription"],
+                                    s["fileNumber"])
+                            except Exception as e:
+                                logger.debug((e, s))
+                                connection2.rollback()
+                            else:
+                                connection2.commit()
+                except Exception as e:
+                    logger.critical(("Phase3", e, ticker), exc_info=True)
+                    connection1.rollback()
+                    raise e
+                else:
+                    connection1.commit()
         except FileNotFoundError as e:
             logger.critical((e,"This is mostlikely a fund or trust and not a company.", ticker))
             return None
