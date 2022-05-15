@@ -9,7 +9,7 @@ from dilution_db import DilutionDBUpdater
 # from main.data_aggregation.bulk_files import update_bulk_files
 
 
-from main.parser.text_parser import HtmlFilingParser, Parser8K, HTMFiling
+from main.parser.text_parser import HTMFilingParser, Parser8K, HTMFiling
 from pathlib import Path
 
 from psycopg import Connection
@@ -279,7 +279,7 @@ if __name__ == "__main__":
     def try_htmlparser():
         root_lap = Path(r"C:\Users\Public\Desktop\sec_scraping_testsets\example_filing_set_100_companies\filings")
         root_des = Path(r"F:\example_filing_set_100_companies\filings")
-        parser = HtmlFilingParser()
+        parser = HTMFilingParser()
         root_filing = root_des
         file_paths = get_all_filings_path(Path(root_filing), "DEF 14A")
         # file_paths2 = get_all_filings_path(Path(root_filing), "S-3")
@@ -375,8 +375,8 @@ if __name__ == "__main__":
         cnf.POLYGON_API_KEY,
         ["8-K"],
         ["CEI"])
-    # with db.conn() as conn:
-    #     db._update_company_lud(conn, 1, "filings_download_lud", datetime(year=2020, month=1, day=5))
+    with db.conn() as conn:
+        db._update_company_lud(conn, 1, "filings_download_lud", datetime(year=2021, month=1, day=1))
     with db.conn() as conn:    
         db.updater.update_filings(conn, "CEI")
 

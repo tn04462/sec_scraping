@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from numpy import number
 from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
 from psycopg_pool import ConnectionPool
@@ -16,9 +17,11 @@ from tqdm import tqdm
 import json
 from datetime import datetime
 
+
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
+from main.parser.text_parser import Filing, HTMFiling, HTMFilingParser
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
 
@@ -28,13 +31,46 @@ logging.basicConfig(level=logging.INFO)
 
 
 
+
 if cnf.ENV_STATE != "prod":
     logger.setLevel(logging.DEBUG)
 else:
     logger.setLevel(logging.INFO)
+  
+
+class ParsingHandler:
+    '''handles the parsing of filings'''
+    parsers = {}
+    # implement factory method instead
+
+    def init_parsers(self, form_types=None):
+        '''initalize the parsers dict'''
+        pass
+    
+    def get_parser(self, form_type: str, extension: str):
+        '''get the correct parser for the form type and extension provided'''
+    
+    def parse_filing():
+        '''what args? should return a Filing object'''
+
+    def extract_filing_values(self, filing: Filing)
+    
+    # functions that extract and return filing_values should operate on a Filing instance
+    # have each parser inherit from AbstractFilingParser so I can require a function "extract_filing_values"
+    # which extracts all wanted filing values and can be called with the same args accross the board
 
 
-
+class FilingValueHandler:
+    '''handles the writting of filing values to the db'''
+    # needs:
+    # -add/update_filing_value function
+    # -different functions for each query on the data (
+    #       like free float, outstanding shares, company fcf ...)
+    #  implement them as factory methods that return a common representation that can be fed to a single function to add to db.
+    def __init__(self, db):
+        self.db = db
+    
+    
 
 
 class DilutionDB:
@@ -497,12 +533,20 @@ class DilutionDB:
         return cash_burn
     
     def _assert_files_last_update_row(self):
+        '''makes  sure the files_last_update table has a row otherwise create it and inserts NUlls'''
         luds = self.read("SELECT * FROM files_last_update", [])
         if luds == []:
             with self.conn() as conn:
                 conn.execute("INSERT INTO files_last_update(submissions_zip_lud, companyfacts_zip_lud) VALUES(NULL, NULL)", [])
     
-    def _update_files_lud(self, c: Connection, col_name: str, lud: datetime):
+    def _update_files_lud(self, connection: Connection, col_name: str, lud: datetime):
+        '''updates the table files_last_update with a new last_update_date
+        
+        Args:
+            connection: connection from the database connection pool
+            col_name: column name to be updated (submissions_zip_lud, companyfacts_zip_lud..) 
+            lud: last update date
+        '''
         self._assert_files_last_update_row()
         old_lud = self.read("SELECT * FROM files_last_update", [])
         # print(old_lud)
@@ -513,11 +557,18 @@ class DilutionDB:
             old_lud = None
         if old_lud is None:
         # cannot adapt type dict using placeholder %s, why?
-            c.execute(sql.SQL("UPDATE files_last_update SET {} = %s").format(sql.Identifier(col_name)), [lud])
+            connection.execute(sql.SQL("UPDATE files_last_update SET {} = %s").format(sql.Identifier(col_name)), [lud])
         else:
-            c.execute(sql.SQL("UPDATE files_last_update SET {} = %s WHERE {} = %s").format(sql.Identifier(col_name), sql.Identifier(col_name)), [lud,  old_lud])
+            connection.execute(sql.SQL("UPDATE files_last_update SET {} = %s WHERE {} = %s").format(sql.Identifier(col_name), sql.Identifier(col_name)), [lud,  old_lud])
 
     def _update_company_lud(self, c: Connection, id: int, col_name: str, lud: datetime):
+        '''updates the table company_last_update with a new last_update_date
+        
+        Args:
+            connection: connection from the database connection pool
+            col_name: column name to be updated (filings_download_lud, outstanding_shares_lud, ...) 
+            lud: last update date
+        '''
         res = c.execute(sql.SQL("UPDATE company_last_update SET {} = %s WHERE company_id = %s RETURNING *").format(sql.Identifier(col_name)), [lud, id])
         try:
             res.fetchall()
@@ -525,6 +576,28 @@ class DilutionDB:
             logger.debug(f"except ProgrammingError e: {e} and raise ValueError instead", exc_info=True)
             raise ValueError(f"No entry found for col_name and id. Make sure the entry for the id({id}) was created, and the col_name({col_name}) is spelled correctly.")
 
+    def _update_filing_parse_history(self, c: Connection, id: int, accession_number: str, date_parsed: datetime):
+        '''updates the table filing_parse_history with a new date_parsed or creates a new entry
+        
+        Args:
+            connection: connection from the database connection pool
+            id: company_id
+            accession_number: no dash  accession number of the filing ("000147793221001077")
+            date_parsed: when the parse of filing and therefor addition of new filing_values happend
+        '''
+        res = c.execute((
+            "INSERT INTO filing_parse_history "
+            "(company_id, accession_number, date_parsed) "
+            "VALUES (%(c_id)s, %(accn)s, %(d_parsed)s) "
+            "ON CONFLICT ON CONSTRAINT unique_co_accn "
+            "DO UPDATE SET "
+            "date_parsed = %(d_parsed)s"
+            "WHERE company_id = %(c_id)s"
+            "AND accession_number = %(accn)s"),
+            {"c_id": id,
+            "accn": accession_number,
+            "d_parsed": date_parsed}
+            )
 
 class DilutionDBUpdater:
     def __init__(self, db: DilutionDB):
@@ -608,6 +681,7 @@ class DilutionDBUpdater:
                             accn = filing[1]
                             file_name = filing[2]
                             self.db.updater.dl.get_filing_by_accession_number(cik, *filing)
+                        self.db._update_company_lud(connection, id, "filings_download_lud", datetime.utcnow())
                     else:
                         return None
             # get filings newer than x from submissions
@@ -872,7 +946,8 @@ class DilutionDBUtil:
             polygon_api_key: str,
             forms: list[str],
             tickers: list[str],
-            after: str=None):
+            after: str=None,
+            before: str=None):
         '''inital download of filings and data for population and inital population of the DilutionDB.
         
         Args:
@@ -893,7 +968,7 @@ class DilutionDBUtil:
             logger.debug(
                 f"created overview_files_path and parent folders: {polygon_overview_files_path}")
         for ticker in tqdm(tickers, mininterval=0.5):
-            self.get_filing_set(dl, ticker, forms, after=after, number_of_filings=9999)
+            self.get_filing_set(dl, ticker, forms, after=after, before=before, number_of_filings=9999)
             id = self._inital_population(self.db, dl, polygon_client, polygon_overview_files_path, ticker)
     
     def _get_companyfacts_file(self, cik10: str):
@@ -1026,14 +1101,17 @@ class DilutionDBUtil:
         else:
             return id
     
-    def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
+    def get_filing_set(self, downloader: Downloader, ticker: str, forms: list, after: str, before: str=None, number_of_filings: int = 250):
         # download the last 2 years of relevant filings
         if after is None:
             after = str((datetime.now() - timedelta(weeks=104)).date())
         for form in forms:
         #     # add check for existing file in pysec_donwloader so i dont download file twice
             try:
-                downloader.get_filings(ticker, form, after, number_of_filings=number_of_filings)
+                if before is None:
+                    downloader.get_filings(ticker, form, after_date=after, number_of_filings=number_of_filings)
+                else:
+                    downloader.get_filings(ticker, form, after_date=after, before_date=before, number_of_filings=number_of_filings)
             except Exception as e:
                 self.logger.info((ticker, form, e), exc_info=True)
                 pass

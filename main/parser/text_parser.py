@@ -87,7 +87,7 @@ class FilingSection:
 class HTMFilingSection(FilingSection):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.parser = HtmlFilingParser()
+        self.parser = HTMFilingParser()
         self.soup: BeautifulSoup =  self.parser.make_soup(self.content)
         self.tables: dict = self.extract_tables()
         self.text_only = self.parser.get_text_content(self.soup, exclude=["table", "script", "title", "head"])
@@ -163,7 +163,7 @@ class HTMFiling(Filing):
                 cik=cik,
                 file_number=file_number,
                 form_type=form_type)
-        self.parser: HtmlFilingParser = HtmlFilingParser()
+        self.parser: HTMFilingParser = HTMFilingParser()
         self.doc: str = doc
         self.soup: BeautifulSoup = self.parser.make_soup(doc)
         self.sections: list[HTMFilingSection] = self.parser.split_into_sections(self.soup)
@@ -417,7 +417,7 @@ class Parser8K:
 
 
     
-class HtmlFilingParser():
+class HTMFilingParser():
     '''
     Baseclass for parsing HtmlFilings.
 
@@ -1412,7 +1412,7 @@ class HtmlFilingParser():
 
 
 
-class ParserS1(HtmlFilingParser):
+class ParserS1(HTMFilingParser):
 
     def get_calculation_of_registration_fee_table(self, doc: BeautifulSoup):
         wanted_field = [
@@ -1437,7 +1437,7 @@ class ParserS1(HtmlFilingParser):
         return None
 
                 
-class Parser424B5(HtmlFilingParser):
+class Parser424B5(HTMFilingParser):
     def convert_htmltable(self, htmltable):
         # only does tables without headers
         table = {}
