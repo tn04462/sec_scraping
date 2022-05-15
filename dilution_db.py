@@ -90,13 +90,19 @@ class DilutionDB:
     
     def read_company_id_by_symbol(self, symbol: str):
         id = self.read("SELECT id FROM companies WHERE symbol = %s", [symbol.upper()])
+        print(id)
         if id:
-            return id
+            try:
+                id = id[0]["id"]
+            except KeyError:
+                return None
+            else:
+                return id
         else:
             return None
     
     def read_company_last_update(self, id: int):
-        return self.read("SELECT * FROM companies_last_update WHERE company_id = %s", [id])
+        return self.read("SELECT * FROM company_last_update WHERE company_id = %s", [id])
 
     def create_form_types(self):
         with self.conn() as c:
@@ -361,12 +367,12 @@ class DilutionDB:
     def _init_outstanding_shares(self, connection: Connection, id: int, companyfacts):
         '''inital population of outstanding shares based on companyfacts'''
         self.updater._update_outstanding_shares_based_on_companyfacts(connection, id, companyfacts)
-        self._update_company_lud(connection, id, "outstanding_shares_lud", datetime.utcnow().date())
+        self._update_company_lud(connection, id, "outstanding_shares_lud", datetime.utcnow())
     
     def _init_net_cash_and_equivalents(self, connection: Connection, id: int, companyfacts):
         '''inital population of net cash and equivalents based on companyfacts'''
         self.updater._update_net_cash_and_equivalents_based_on_companyfacts(connection, id, companyfacts)
-        self._update_company_lud(connection, id, "net_cash_and_equivalents_lud", datetime.utcnow().date())
+        self._update_company_lud(connection, id, "net_cash_and_equivalents_lud", datetime.utcnow())
     
     def _init_cash_burn_summary(self, c: Connection, company_id):
         '''take the newest cash burn rate and net cash, calc days of cash left and UPSERT into summary'''
@@ -561,11 +567,12 @@ class DilutionDBUpdater:
             luds = self.db.read_company_last_update(id)
             if luds != []:
                 filings_lud = luds[0]["filings_download_lud"]
-                print(filings_lud)
             else:
                 raise ValueError("company wasnt added to company_last_update table, make sure it was when creating the company!")
+            if filings_lud is None:
+                return True, None
             now = datetime.utcnow()
-            if (filings_lud - now) > timedelta(hours=max_age):
+            if (now - filings_lud) > timedelta(hours=max_age):
                 return True, filings_lud
             else:
                 return False, None
@@ -584,12 +591,25 @@ class DilutionDBUpdater:
                 company = company[0]
                 cik = company["cik"]
                 id = company["id"]
-                newer_filings = self.db.updater.dl.index_handler.get_newer_filings_meta(
+                possible_newer_filings = self.db.updater.dl.index_handler.get_newer_filings_meta(
                     cik,
                     str(filings_lud),
                     set(cnf.APP_CONFIG.TRACKED_FORMS))
-                # add Returns: to get_newer_filings_meta
-                print(newer_filings)
+                try:
+                    print(cik)
+                    newer_filings = possible_newer_filings[cik]
+                    
+                except KeyError:
+                    return None
+                else:
+                    if len(newer_filings) > 0:
+                        for filing in newer_filings:
+                            form_type = filing[0]
+                            accn = filing[1]
+                            file_name = filing[2]
+                            self.db.updater.dl.get_filing_by_accession_number(cik, *filing)
+                    else:
+                        return None
             # get filings newer than x from submissions
             # download said filings with downloader by accn
             pass
@@ -657,7 +677,7 @@ class DilutionDBUpdater:
             # update based on other things than companyfacts here
 
             # if all successfull write new lud
-            self.db._update_company_lud(connection, "net_cash_and_equivalents_lud", datetime.utcnow().date())
+            self.db._update_company_lud(connection, "net_cash_and_equivalents_lud", datetime.utcnow())
 
     
     def update_outstanding_shares(self, connection: Connection, ticker: str):
@@ -680,7 +700,7 @@ class DilutionDBUpdater:
             # update outstanding shares by other means
                 # no other ways yet
             # if all successfull write new lud
-            self.db._update_company_lud(connection, "outstanding_shares_lud", datetime.utcnow().date())
+            self.db._update_company_lud(connection, "outstanding_shares_lud", datetime.utcnow())
         
     
     def _update_net_cash_and_equivalents_based_on_companyfacts(self, connection: Connection, id: int, companyfacts):

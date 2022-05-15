@@ -1,8 +1,8 @@
 
 
 CREATE TABLE IF NOT EXISTS files_last_update(
-    submissions_zip_lud DATE,
-    companyfacts_zip_lud DATE
+    submissions_zip_lud TIMESTAMP,
+    companyfacts_zip_lud TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS sics (
@@ -40,11 +40,11 @@ CREATE TABLE IF NOT EXISTS securities(
 
 CREATE TABLE IF NOT EXISTS company_last_update(
     company_id SERIAL UNIQUE,
-    filings_download_lud DATE,
-    filing_links_lud DATE,
-    outstanding_shares_lud DATE,
-    net_cash_and_equivalents_lud DATE,
-    cash_burn_rate_lud DATE,
+    filings_download_lud TIMESTAMP,
+    filing_links_lud TIMESTAMP,
+    outstanding_shares_lud TIMESTAMP,
+    net_cash_and_equivalents_lud TIMESTAMP,
+    cash_burn_rate_lud TIMESTAMP,
     
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
