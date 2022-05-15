@@ -84,7 +84,6 @@ class FilingSection:
     title: str
     content: str
 
-'I need: extracted tables: dict[lists], full_text: str, raw_html: str'
 class HTMFilingSection(FilingSection):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

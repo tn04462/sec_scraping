@@ -4,9 +4,6 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import json
 import logging
-
-
-
 from dilution_db import DilutionDB
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import _get_fact_data, get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
@@ -14,6 +11,10 @@ from pysec_downloader.downloader import Downloader
 from main.configs import cnf
 from _constants import EDGAR_BASE_ARCHIVE_URL
 from requests.exceptions import HTTPError
+import pandas as pd
+import re
+from functools import reduce
+import numpy as np
 
 
 
@@ -34,52 +35,7 @@ tickers = cnf.APP_CONFIG.TRACKED_TICKERS
 tracked_forms = cnf.APP_CONFIG.TRACKED_FORMS
 
 
-'''
-1) download the bulk files if they havnt been downloaded yet (check db lud)
-2) get the tracked tickers and iterate through:
-    2.1) get the company_overview
-    2.2) get the outstanding shares -> write to db
-    2.3) get the net_cash_and_equivilants -> write to db
-    2.4) get proceeds from common share issuance -> write to db
-    2.5) download ["S-3", "424B1", 424B2", 424B3", 424B4", 424B5", "S-1",
-                   "EFFECT", "S-3MEF", "S-1MEF", "F-1", "F-3", "F-1MEF",
-                   "F-3MEF", "S-3ASR", "F-3ASR", "8-K", "6-K"]
-    2.6) build filing_links from submissions file -> write to db
-
-    ! could do 2.1-2.4/2.6 in main and 2.5 in separat process
-    ! and notify the other process on completion of download
-    ! but for now, KISS but slow
-
-3) think how i can update daily    
-'''
-
-class DilutionDBUpdater:
-    def __init__(self, db: DilutionDB):
-        self.db = db
-        # what to update: cusips, filings, from new filings -> data in database
-        # filings: update submissions.zip -> get date of last update for ticker -> get list of filings after that date -> download filings -> write new update date for filings download
-            # add a table to keep track which filings have been processed 
-
-
-        
-
-
-def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
-    # # download the last 2 years of relevant filings
-    if after is None:
-        after = str((datetime.now() - timedelta(weeks=104)).date())
-    for form in forms:
-    #     # add check for existing file in pysec_donwloader so i dont download file twice
-        downloader.get_filings(ticker, form, after, number_of_filings=100)
-
-
-
 # __________experimenting___________
-import pandas as pd
-import re
-from functools import reduce
-import numpy as np
-from main.data_aggregation.fact_extractor import  _get_fact_data
 class ReviewUtility:
     def test_outstanding_shares_from_facts(self, dl_root_path, cik):
         companyfacts_file_path = Path(dl_root_path) / "companyfacts" / ("CIK"+cik+".json")
