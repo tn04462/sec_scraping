@@ -1411,9 +1411,7 @@ class HTMFilingParser():
     
 
 
-
-class ParserS1(HTMFilingParser):
-
+class HTMParserS1(HTMFilingParser):
     def get_calculation_of_registration_fee_table(self, doc: BeautifulSoup):
         wanted_field = [
             # "Title of Each Class of Securities to be Registered",

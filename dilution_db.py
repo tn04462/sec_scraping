@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from email.parser import Parser
 from numpy import number
 from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
@@ -21,7 +22,7 @@ from datetime import datetime
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
-from main.parser.text_parser import Filing, HTMFiling, HTMFilingParser
+from main.parser.filing_parser import Filing, HTMFiling, HTMFilingParser, HTMParserS1
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
 
@@ -37,39 +38,42 @@ if cnf.ENV_STATE != "prod":
 else:
     logger.setLevel(logging.INFO)
   
+class ParserFactory:
+    def __init__(self):
+         self.builders = {}
+        
+    def register_parser(self, form_type, extension, builder):
+        self.builder[(form_type, extension)] = builder
+    
+    def create(self, form_type, extension, **kwargs):
+        builder = self.builders.get((form_type, extension))
+        if builder:
+            return builder(**kwargs)
+        else:
+            raise ValueError(f"no parser for that form_type and extension combination({form_type}, {extension}) registered")
+    
 
 class ParsingHandler:
     '''handles the parsing of filings'''
-    parsers = {}
-    # implement factory method instead
+    def __init__(self):
+        self.parsers = {}
+        self.parser_factory = ParserFactory()
+        self.init_parsers()
 
-    def init_parsers(self, form_types=None):
+    def init_parsers(self):
         '''initalize the parsers dict'''
+        self.parser_factory.register_parser("S-1", ".htm", HTMParserS1)
         pass
     
     def get_parser(self, form_type: str, extension: str):
         '''get the correct parser for the form type and extension provided'''
+        return self.parser_factory.create(form_type, extension)
     
-    def parse_filing():
+    def parse_filing(self, form_type: str, extension: str, **kwargs):
         '''what args? should return a Filing object'''
-
-    def extract_filing_values(self, filing: Filing)
-    
-    # functions that extract and return filing_values should operate on a Filing instance
-    # have each parser inherit from AbstractFilingParser so I can require a function "extract_filing_values"
-    # which extracts all wanted filing values and can be called with the same args accross the board
-
-
-class FilingValueHandler:
-    '''handles the writting of filing values to the db'''
-    # needs:
-    # -add/update_filing_value function
-    # -different functions for each query on the data (
-    #       like free float, outstanding shares, company fcf ...)
-    #  implement them as factory methods that return a common representation that can be fed to a single function to add to db.
-    def __init__(self, db):
-        self.db = db
-    
+        parser = self.get_parser(form_type=form_type, extension=extension)
+        # extract filing values should create a Filing and then call extract functions on that
+        return parser.extract_filing_values(**kwargs)
     
 
 
