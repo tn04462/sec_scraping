@@ -22,7 +22,7 @@ from datetime import datetime
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
-from main.parser.filing_parser import Filing, HTMFiling, HTMFilingParser, HTMParserS1
+from main.parser.filing_parser import Filing, HTMFiling, HTMFilingParser, ExtractorFactory, FilingFactory
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
 
@@ -37,45 +37,17 @@ if cnf.ENV_STATE != "prod":
     logger.setLevel(logging.DEBUG)
 else:
     logger.setLevel(logging.INFO)
-  
-class ParserFactory:
+
+class FilingHandler:
     def __init__(self):
-         self.builders = {}
-        
-    def register_parser(self, form_type, extension, builder):
-        self.builder[(form_type, extension)] = builder
+        self.filing_factory = FilingFactory()
+        self.extractor_factory = ExtractorFactory()
     
-    def create(self, form_type, extension, **kwargs):
-        builder = self.builders.get((form_type, extension))
-        if builder:
-            return builder(**kwargs)
-        else:
-            raise ValueError(f"no parser for that form_type and extension combination({form_type}, {extension}) registered")
-    
-
-class ParsingHandler:
-    '''handles the parsing of filings'''
-    def __init__(self):
-        self.parsers = {}
-        self.parser_factory = ParserFactory()
-        self.init_parsers()
-
-    def init_parsers(self):
-        '''initalize the parsers dict'''
-        self.parser_factory.register_parser("S-1", ".htm", HTMParserS1)
-        pass
-    
-    def get_parser(self, form_type: str, extension: str):
-        '''get the correct parser for the form type and extension provided'''
-        return self.parser_factory.create(form_type, extension)
-    
-    def parse_filing(self, form_type: str, extension: str, **kwargs):
-        '''what args? should return a Filing object'''
-        parser = self.get_parser(form_type=form_type, extension=extension)
-        # extract filing values should create a Filing and then call extract functions on that
-        return parser.extract_filing_values(**kwargs)
-    
-
+    def process_filing(self):
+        # get the filing from the factory
+        # get the extractor from the factory
+        # call extract_filing_values from the extractor
+        '''needs to take all the args necessary to create the filing and the extractor'''
 
 class DilutionDB:
     def __init__(self, connectionString):

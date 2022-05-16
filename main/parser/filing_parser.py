@@ -266,7 +266,7 @@ class HTMFiling(Filing):
             self.soup
         )
 
-    def get_preprocessed_text_content(self) -> str:
+    def get_preprocessed_tä$¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨$ext_content(self) -> str:
         """get all the text content of the Filing"""
         return self.parser.preprocess_text(self.doc)
     
@@ -1771,7 +1771,7 @@ class SpacyFilingTextSearch:
     def what_we_work_from(self, doc):
         stage_1 = self.nlp(doc)
         from spacy import displacy
-        
+
 
 
     def test_matching(self):

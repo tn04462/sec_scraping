@@ -59,7 +59,9 @@ CREATE TABLE IF NOT EXISTS filing_parse_history(
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
-            REFERENCES companies(id)
+            REFERENCES companies(id),
+    CONSTRAINT unique_co_accn
+        UNIQUE(company_id, accession_number)
 );
 
 -- not sure if it makes sense to store the values like this after parsing
