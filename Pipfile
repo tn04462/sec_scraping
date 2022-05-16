@@ -11,7 +11,7 @@ polygon-api-client = "*"
 pydantic = "*"
 python-dotenv = "*"
 pysec-downloader = "*"
-spacy = "*"
+spacy = {extras = ["lookups"], version = "*"}
 dkpro-cassis = "*"
 html5lib = "*"
 "pdfminer.six" = "*"
