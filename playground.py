@@ -1,6 +1,5 @@
 
 from bs4 import BeautifulSoup
-from regex import R
 from urllib3 import connection_from_url
 from dilution_db import DilutionDBUpdater
 # from dilution_db import DilutionDB
@@ -183,6 +182,8 @@ if __name__ == "__main__":
     import spacy
     import datetime
     from spacy import displacy
+    import main.parser.filing_parser as filing_parser
+
     # nlp = spacy.load("en_core_web_sm")
 
     # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
@@ -383,60 +384,35 @@ if __name__ == "__main__":
             db.updater.update_filings(conn, "CEI")
     
     def test_spacy():
-        import spacy
-        from spacy.matcher import Matcher
+        # import spacy
+        # from spacy.matcher import Matcher
 
-        nlp = spacy.load("en_core_web_sm")
-        nlp.remove_pipe("lemmatizer")
-        nlp.add_pipe("lemmatizer").initialize()
+        # nlp = spacy.load("en_core_web_sm")
+        # nlp.remove_pipe("lemmatizer")
+        # nlp.add_pipe("lemmatizer").initialize()
 
-        matcher = Matcher(nlp.vocab)
-        pattern1 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
-        pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
-        matcher.add("Test", [pattern1])
+        # matcher = Matcher(nlp.vocab)
+        # pattern1 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
+        # pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
+        # matcher.add("Test", [pattern1])
         text = ("based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. "
                 "are based on 30,823,573 shares outstanding on April 11, 2022. "
                 "are based on 16,142,275 shares outstanding on April 15, 2020. "
-                "based on 70,067,147 shares of our Common Stockoutstanding as of October 18, 2021. "
+                "based on 70,067,147 shares of our Common Stocpykoutstanding as of October 18, 2021. "
                 "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. ")
-        doc = nlp(text)
+        filing_parser.spacy_text_search.match_outstanding_shares(text)
+        # doc = nlp(text)
         # for ent in doc.ents:
         #     print(ent.label_, ent.text)
         # for token in doc:
         #     print(token.ent_type_)
-        matches = matcher(doc, as_spans=False)
-        def take_longest_matches(matches):
-            entries = []
-            prev_m = None
-            current_longest = None
-            for m in matches:
-                if prev_m is None:
-                    prev_m = m
-                    current_longest = m
-                    continue
-                if prev_m[1] == m[1]:
-                    if prev_m[2] < m[2]:
-                        current_longest = m
-                else:
-                    entries.append(current_longest)
-                    current_longest = m
-                    prev_m = m
-                    continue
-            if current_longest not in entries:
-                entries.append(current_longest)
-            return entries
-
-        def convert_matches_to_spans(doc, matches):
-            m = []
-            for match in matches:
-                m.append(doc[match[1]:match[2]])
-            return m
+        
 
                     
 
 
-        print(convert_matches_to_spans(doc, take_longest_matches(matches)))
     test_spacy()
+
     # db._update_files_lud("submissions_zip_lud", (datetime.utcnow()-timedelta(days=2)).date())
     # print(db.read("SELECT * FROM files_last_update", []))
     # dbu.update_bulk_files()            

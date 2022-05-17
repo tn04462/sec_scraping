@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS filing_values(
     accession_number VARCHAR, -- what filing the values come from
     date_parsed DATE, -- on which date the parse was done
     field_name VARCHAR NOT NULL, -- the field name
-    field_values JSON,
+    field_value JSON,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)

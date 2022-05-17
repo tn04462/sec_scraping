@@ -275,7 +275,7 @@ class HTMFiling(Filing):
         accession_number: str = None,
         cik: str = None,
         file_number: str = None,
-        form_type: str = None,
+        form_type: str = None
     ):
         super().__init__(
             path=path,
@@ -1753,6 +1753,13 @@ class HTMFilingParser:
 # create a class for text extraction with spacy that can be instantiated in the Extractors
 # create a dict with default values for ExtractorFactory and FilingFactory
 
+class HTMExtractor(AbstractFilingExtractor):
+    def __init__(self):
+        self.spacy_text_search = SpacyFilingTextSearch()
+    def extract_outstanding_shares(self, filing:HTMFiling):
+        text = filing.get_text_only()
+        self.spacy_text_search.match_outstanding_shares(text)
+
 class HTMS1Extractor(AbstractFilingExtractor):
     def extract_filing_values(self, filing: HTMFiling):
         return super().extract_filing_values(filing)
@@ -1765,11 +1772,18 @@ class HTMDEF14AExtractor(AbstractFilingExtractor):
 import spacy
 from spacy.matcher import Matcher
 class SpacyFilingTextSearch:
+    _instance = None
     # make this a singleton/get it from factory through cls._instance so we can avoid
     # the slow process of adding patterns (if we end up with a few 100)
     def __init__(self):
-        self.nlp = spacy.load("en_core_web_sm")
         self.matcher = Matcher(self.nlp.vocab)
+
+    def __new__(cls):
+        if cls._instance is None:
+            print('Creating the object')
+            cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
+            cls._instance.nlp = spacy.load("en_core_web_sm")
+        return cls._instance
 
     def match_outstanding_shares(self, text):
         pattern1 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
@@ -1779,7 +1793,7 @@ class SpacyFilingTextSearch:
         matches = self._convert_matches_to_spans(doc, self._take_longest_matches(self.matcher(doc, as_spans=False)))
         print(matches)
     
-    def _take_longest_matches(matches):
+    def _take_longest_matches(self, matches):
             entries = []
             prev_m = None
             current_longest = None
@@ -1800,7 +1814,7 @@ class SpacyFilingTextSearch:
                 entries.append(current_longest)
             return entries
 
-    def _convert_matches_to_spans(doc, matches):
+    def _convert_matches_to_spans(self, doc, matches):
         m = []
         for match in matches:
             m.append(doc[match[1]:match[2]])
@@ -1808,10 +1822,11 @@ class SpacyFilingTextSearch:
     
 
 filing_factory_default = [("S-1", ".htm", HTMFiling), ("S-3", ".htm", HTMFiling)]
-extractor_factory_default = [("S-1", ".htm", HTMS1Extractor)]
+extractor_factory_default = [("S-1", ".htm", HTMS1Extractor), (None, ".htm", HTMExtractor)]
 
 filing_factory = FilingFactory(defaults=filing_factory_default)
 extractor_factory = ExtractorFactory(defaults=extractor_factory_default)
+spacy_text_search = SpacyFilingTextSearch()
 
 
 

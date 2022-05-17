@@ -22,6 +22,7 @@ from datetime import datetime
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
+import main.parser.filing_parser as filing_parser
 from main.parser.filing_parser import Filing, HTMFiling, HTMFilingParser, ExtractorFactory, FilingFactory
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
@@ -574,6 +575,15 @@ class DilutionDB:
             "accn": accession_number,
             "d_parsed": date_parsed}
             )
+    
+    def _create_filing_values(self, connection: Connection, id: int, accession_number: str, date_parsed: datetime, field_name: str, field_values: dict):
+        res = c.execute((
+            "INSERT INTO filing_values"
+            "(company_id, accession_number, date_parsed, field_date, field_name, field_values)"
+            "VALUES (%(c_id)s, %(accn)s, %(d_parsed)s, %(f_date)s, %(f_name)s, %(f_values)s)"
+            "ON CONFLICT ON CONSTRAINT"
+        ))
+        
 
 class DilutionDBUpdater:
     def __init__(self, db: DilutionDB):
@@ -598,6 +608,38 @@ class DilutionDBUpdater:
             self.update_outstanding_shares(conn, ticker)
             self.update_net_cash_and_equivalents(conn, ticker)
             self.force_cashBurn_update(ticker)
+    
+    def parse_filings(self, connection: Connection, ticker: str):
+        # get unparsed_filings
+        # call _parse_filing on them
+        pass
+    
+    def _parse_filing(self, 
+        doc: str,
+        form_type: str,
+        accession_number: str,
+        path: str,
+        filing_date: str = None,
+        cik: str = None,
+        file_number: str = None,
+        ):
+        extension = Path(path).suffix
+        filing = filing_parser.filing_factory.create_filing(form_type, extension)
+        extractor = filing_parser.extractor_factory.get_extractor(form_type, extension)
+        filing_values = extractor.extractor.extract_filing_values(filing)
+        
+        # get the Filing from filing through the filingFactory
+        # get the Extractor from filing through the extractorFactory
+        # invoke Extractor's extract_filing_values
+        # write new filing_values to db
+        pass
+   
+    
+    def get_unparsed_filings():
+        # get all the filings and their accession number that are present locally
+        # compare to filing_parse_history -> unparsed = filings not present
+        # yield results
+        pass
             
 
     
