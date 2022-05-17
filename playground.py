@@ -1,5 +1,6 @@
 
 from bs4 import BeautifulSoup
+from regex import R
 from urllib3 import connection_from_url
 from dilution_db import DilutionDBUpdater
 # from dilution_db import DilutionDB
@@ -9,7 +10,7 @@ from dilution_db import DilutionDBUpdater
 # from main.data_aggregation.bulk_files import update_bulk_files
 
 
-from main.parser.text_parser import HTMFilingParser, Parser8K, HTMFiling
+from main.parser.filing_parser import HTMFilingParser, Parser8K, HTMFiling
 from pathlib import Path
 
 from psycopg import Connection
@@ -363,23 +364,79 @@ if __name__ == "__main__":
         db.util.inital_setup(db, cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, cnf.APP_CONFIG.TRACKED_FORMS, ["CEI", "HYMC", "GOEV", "SKLZ", "ACTG", "INO", "GNUS"])
 
     # init_DilutionDB()
-    db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    db.util.reset_database()
-    from datetime import datetime
+    def test_database():
+        db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+        db.util.reset_database()
+        from datetime import datetime
+        
+        # print(db.read("SELECT * FROM company_last_update", []))
+        
+        db.util.inital_setup(
+            cnf.DOWNLOADER_ROOT_PATH,
+            cnf.POLYGON_OVERVIEW_FILES_PATH,
+            cnf.POLYGON_API_KEY,
+            ["8-K"],
+            ["CEI"])
+        with db.conn() as conn:
+            db._update_company_lud(conn, 1, "filings_download_lud", datetime(year=2021, month=1, day=1))
+        with db.conn() as conn:    
+            db.updater.update_filings(conn, "CEI")
     
-    # print(db.read("SELECT * FROM company_last_update", []))
-    
-    db.util.inital_setup(
-        cnf.DOWNLOADER_ROOT_PATH,
-        cnf.POLYGON_OVERVIEW_FILES_PATH,
-        cnf.POLYGON_API_KEY,
-        ["8-K"],
-        ["CEI"])
-    with db.conn() as conn:
-        db._update_company_lud(conn, 1, "filings_download_lud", datetime(year=2021, month=1, day=1))
-    with db.conn() as conn:    
-        db.updater.update_filings(conn, "CEI")
+    def test_spacy():
+        import spacy
+        from spacy.matcher import Matcher
 
+        nlp = spacy.load("en_core_web_sm")
+        nlp.remove_pipe("lemmatizer")
+        nlp.add_pipe("lemmatizer").initialize()
+
+        matcher = Matcher(nlp.vocab)
+        pattern1 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
+        pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
+        matcher.add("Test", [pattern1])
+        text = ("based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. "
+                "are based on 30,823,573 shares outstanding on April 11, 2022. "
+                "are based on 16,142,275 shares outstanding on April 15, 2020. "
+                "based on 70,067,147 shares of our Common Stockoutstanding as of October 18, 2021. "
+                "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. ")
+        doc = nlp(text)
+        # for ent in doc.ents:
+        #     print(ent.label_, ent.text)
+        # for token in doc:
+        #     print(token.ent_type_)
+        matches = matcher(doc, as_spans=False)
+        def take_longest_matches(matches):
+            entries = []
+            prev_m = None
+            current_longest = None
+            for m in matches:
+                if prev_m is None:
+                    prev_m = m
+                    current_longest = m
+                    continue
+                if prev_m[1] == m[1]:
+                    if prev_m[2] < m[2]:
+                        current_longest = m
+                else:
+                    entries.append(current_longest)
+                    current_longest = m
+                    prev_m = m
+                    continue
+            if current_longest not in entries:
+                entries.append(current_longest)
+            return entries
+
+        def convert_matches_to_spans(doc, matches):
+            m = []
+            for match in matches:
+                m.append(doc[match[1]:match[2]])
+            return m
+
+                    
+
+
+        print(convert_matches_to_spans(doc, take_longest_matches(matches)))
+    test_spacy()
     # db._update_files_lud("submissions_zip_lud", (datetime.utcnow()-timedelta(days=2)).date())
     # print(db.read("SELECT * FROM files_last_update", []))
     # dbu.update_bulk_files()            

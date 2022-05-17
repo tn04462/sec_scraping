@@ -123,7 +123,7 @@ class FilingFactory:
 
     def register_builder(self, form_type: str, extension: str, builder: Filing):
         """register a new builder for a combination of (form_type, extension)"""
-        self.builder[(form_type, extension)] = builder
+        self.builders[(form_type, extension)] = builder
 
     def create_filing(self, form_type: str, extension: str, **kwargs):
         """try and get a builder for given args and create the Filing"""
@@ -142,6 +142,32 @@ class FilingFactory:
                     f"no parser for that form_type and extension combination({form_type}, {extension}) registered"
                 )
 
+class AbstractFilingParser(ABC):
+    def split_into_sections(self, doc: BeautifulSoup):
+        """
+        Must be implemented by the subclass.
+        Should split the filing into logical sections.
+
+        Returns:
+            list[FilingSection]"""
+        pass
+
+    def preprocess_section(self, section: FilingSection):
+        """
+        Must be implemented by the subclass.
+        Should preprocess the content of the section for
+        further processing.
+
+        Returns:
+            str
+        """
+
+
+class AbstractFilingExtractor(ABC):
+    def extract_filing_values(self, filing: Filing):
+        """extracts values and returns them as a list[dict] where dict has
+        keys: cik, date_parsed, accession_number, field_name, field_values"""
+        pass
 
 class ExtractorFactory:
     def __init__(self, defaults: list[tuple]=[]):
@@ -266,7 +292,7 @@ class HTMFiling(Filing):
             self.soup
         )
 
-    def get_preprocessed_tä$¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨$ext_content(self) -> str:
+    def get_preprocessed_text_content(self) -> str:
         """get all the text content of the Filing"""
         return self.parser.preprocess_text(self.doc)
     
@@ -319,32 +345,7 @@ class HTMFiling(Filing):
         return self.parser.preprocess_section_content(text_content)
 
 
-class AbstractFilingParser(ABC):
-    def split_into_sections(self, doc: BeautifulSoup):
-        """
-        Must be implemented by the subclass.
-        Should split the filing into logical sections.
 
-        Returns:
-            list[FilingSection]"""
-        pass
-
-    def preprocess_section(self, section: FilingSection):
-        """
-        Must be implemented by the subclass.
-        Should preprocess the content of the section for
-        further processing.
-
-        Returns:
-            str
-        """
-
-
-class AbstractFilingExtractor(ABC):
-    def extract_filing_values(self, filing: Filing):
-        """extracts values and returns them as a list[dict] where dict has
-        keys: cik, date_parsed, accession_number, field_name, field_values"""
-        pass
 
 
 # change this class so it returns a Filing instance where Sections are 8kitems
@@ -1764,18 +1765,46 @@ class HTMDEF14AExtractor(AbstractFilingExtractor):
 import spacy
 from spacy.matcher import Matcher
 class SpacyFilingTextSearch:
+    # make this a singleton/get it from factory through cls._instance so we can avoid
+    # the slow process of adding patterns (if we end up with a few 100)
     def __init__(self):
         self.nlp = spacy.load("en_core_web_sm")
         self.matcher = Matcher(self.nlp.vocab)
+
+    def match_outstanding_shares(self, text):
+        pattern1 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
+        pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
+        self.matcher.add("outstanding", [pattern1, pattern2])
+        doc = self.nlp(text)
+        matches = self._convert_matches_to_spans(doc, self._take_longest_matches(self.matcher(doc, as_spans=False)))
+        print(matches)
     
-    def what_we_work_from(self, doc):
-        stage_1 = self.nlp(doc)
-        from spacy import displacy
+    def _take_longest_matches(matches):
+            entries = []
+            prev_m = None
+            current_longest = None
+            for m in matches:
+                if prev_m is None:
+                    prev_m = m
+                    current_longest = m
+                    continue
+                if prev_m[1] == m[1]:
+                    if prev_m[2] < m[2]:
+                        current_longest = m
+                else:
+                    entries.append(current_longest)
+                    current_longest = m
+                    prev_m = m
+                    continue
+            if current_longest not in entries:
+                entries.append(current_longest)
+            return entries
 
-
-
-    def test_matching(self):
-        self.matcher.add("outstanding", [])
+    def _convert_matches_to_spans(doc, matches):
+        m = []
+        for match in matches:
+            m.append(doc[match[1]:match[2]])
+        return m
     
 
 filing_factory_default = [("S-1", ".htm", HTMFiling), ("S-3", ".htm", HTMFiling)]
