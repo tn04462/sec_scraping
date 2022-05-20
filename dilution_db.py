@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from email.parser import Parser
+from typing import Callable
 from numpy import number
 from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
@@ -7,7 +8,7 @@ from psycopg_pool import ConnectionPool
 from psycopg import Connection, sql
 from json import load, dump
 from functools import reduce
-from os import PathLike, path
+from os import PathLike, access, path
 import pandas as pd
 import logging
 from posixpath import join as urljoin
@@ -23,7 +24,7 @@ from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
 import main.parser.filing_parser as filing_parser
-from main.parser.filing_parser import Filing, HTMFiling, HTMFilingParser, ExtractorFactory, FilingFactory
+from main.parser.filing_parser import Filing, FilingValue, HTMFiling, HTMFilingParser, ExtractorFactory, FilingFactory
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
 
@@ -32,23 +33,60 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
+'''
+To add a new .htm Form to the parsing pipeline:
+    in filing_parser.py:
+    1) Add a new entry to the filing_factory_default
+       of form: (form_type: str, ".htm", HTMFiling)
+    2) write a new Extractor for the form, subclassing AbstractFilingExtractor
+       and BaseExtractor (for creation of FilingValue) or write your
+       own implementation.
+    3) add the newly written extractor to the pipeline by adding an entry to the
+       extractor_factory_default of form: (form_type: str, ".htm", newly written extractor)
+    
+    if any new field_names were added:
+       in dilution_db.py:
+       1) write a new function that takes as args:
+          filing_value: FilingValue
+          connection: Connection
+          and contains the logic what to do with that FilingValue
+       2) register the function into the DBUploaderFactory: either add it in
+          init_uploaders to the defaults list or call db.uploader.register_uploader
+          after instantiation of the DilutionDB
 
+To add a new file type to the parsing pipeline:
+    in filing_parser.py:
+    1) create a new filing type by subclassing Filing
+    then follow .htm example above, replacing ".htm" with the new extension and
+    "HTMFiling" with the newly created Filing class
+
+
+quick overview of the main classes involved in the parsing pipeline:
+    Filing:
+        Classes that represents a filing. The idea: we transform one file type
+        regardless of form type into a common starting point.
+    FilingSection:
+        Used to break a filing into smaller logical parts
+    Parsers:
+        Used to transform a raw filing into a Filing
+    Extractors:
+        extract values from a Filing and create FilingValues 
+    Uploader: 
+        Callable that takes a single FilingValue as an argument
+        and handles the update in the database
+    Factories:
+        used so we can more easily organise and avoid if/else jungle.
+        There might be a better solution.
+
+
+'''
 
 if cnf.ENV_STATE != "prod":
     logger.setLevel(logging.DEBUG)
 else:
     logger.setLevel(logging.INFO)
 
-class FilingHandler:
-    def __init__(self):
-        self.filing_factory = FilingFactory()
-        self.extractor_factory = ExtractorFactory()
-    
-    def process_filing(self):
-        # get the filing from the factory
-        # get the extractor from the factory
-        # call extract_filing_values from the extractor
-        '''needs to take all the args necessary to create the filing and the extractor'''
+
 
 class DilutionDB:
     def __init__(self, connectionString):
@@ -61,7 +99,19 @@ class DilutionDB:
         self.tracked_forms = self._get_tracked_forms_from_config()
         self.util = DilutionDBUtil(self)
         self.updater = DilutionDBUpdater(self)
-        
+        self.uploaders = DBUploaderFactory()
+        self.filing_value_uploaders = DilutionDBFilingValueUploaders(self)
+        self.init_uploaders()
+    
+    def init_uploaders(self):
+        # entries of:
+        # {"uploader": , "field_name": , "context": , "form_type": }
+        # form_type and context keys can be omitted
+        default_uploaders = [
+            {"uploader": self.filing_value_uploaders.outstanding_shares, "field_name": "outstanding_shares", "form_type": None, "context": None}
+        ]
+        for default_uploader in default_uploaders:
+            self.uploaders.register_uploader(**default_uploader)
 
     def _get_tracked_tickers_from_config(self):
         return cnf.APP_CONFIG.TRACKED_TICKERS
@@ -69,7 +119,7 @@ class DilutionDB:
     def _get_tracked_forms_from_config(self):
         return cnf.APP_CONFIG.TRACKED_FORMS
 
-    def execute_sql_file(self, path):
+    def execute_sql_file(self, path: str | PathLike):
         with self.conn() as c:
             with open(path, "r") as sql:
                 res = c.execute(sql.read())
@@ -116,6 +166,9 @@ class DilutionDB:
     
     def read_company_last_update(self, id: int):
         return self.read("SELECT * FROM company_last_update WHERE company_id = %s", [id])
+    
+    def read_parsed_filings(self, id: int):
+        return self.read("SELECT * FROM filing_parse_history WHERE company_id = %s", [id])
 
     def create_form_types(self):
         with self.conn() as c:
@@ -196,9 +249,9 @@ class DilutionDB:
     def create_empty_company_last_update(self, c: Connection, id: int):
         c.execute("INSERT INTO company_last_update(company_id) VALUES(%s)", [id])
 
-    def create_outstanding_shares(self, c: Connection, company_id, instant, amount):
+    def create_outstanding_shares(self, connection: Connection, company_id, instant, amount):
         try:
-            c.execute(
+            connection.execute(
                 "INSERT INTO outstanding_shares(company_id, instant, amount) VALUES(%s, %s, %s) ON CONFLICT ON CONSTRAINT outstanding_shares_company_id_instant_key DO NOTHING",
                 [company_id, instant, amount],
             )
@@ -517,7 +570,8 @@ class DilutionDB:
                 conn.execute("INSERT INTO files_last_update(submissions_zip_lud, companyfacts_zip_lud) VALUES(NULL, NULL)", [])
     
     def _update_files_lud(self, connection: Connection, col_name: str, lud: datetime):
-        '''updates the table files_last_update with a new last_update_date
+        '''
+        updates the table files_last_update with a new last_update_date
         
         Args:
             connection: connection from the database connection pool
@@ -539,7 +593,8 @@ class DilutionDB:
             connection.execute(sql.SQL("UPDATE files_last_update SET {} = %s WHERE {} = %s").format(sql.Identifier(col_name), sql.Identifier(col_name)), [lud,  old_lud])
 
     def _update_company_lud(self, c: Connection, id: int, col_name: str, lud: datetime):
-        '''updates the table company_last_update with a new last_update_date
+        '''
+        updates the table company_last_update with a new last_update_date
         
         Args:
             connection: connection from the database connection pool
@@ -553,8 +608,9 @@ class DilutionDB:
             logger.debug(f"except ProgrammingError e: {e} and raise ValueError instead", exc_info=True)
             raise ValueError(f"No entry found for col_name and id. Make sure the entry for the id({id}) was created, and the col_name({col_name}) is spelled correctly.")
 
-    def _update_filing_parse_history(self, c: Connection, id: int, accession_number: str, date_parsed: datetime):
-        '''updates the table filing_parse_history with a new date_parsed or creates a new entry
+    def _update_filing_parse_history(self, connection: Connection, id: int, accession_number: str, date_parsed: datetime):
+        '''
+        upsert the table filing_parse_history with a new date_parsed or creates a new entry
         
         Args:
             connection: connection from the database connection pool
@@ -562,7 +618,7 @@ class DilutionDB:
             accession_number: no dash  accession number of the filing ("000147793221001077")
             date_parsed: when the parse of filing and therefor addition of new filing_values happend
         '''
-        res = c.execute((
+        res = connection.execute((
             "INSERT INTO filing_parse_history "
             "(company_id, accession_number, date_parsed) "
             "VALUES (%(c_id)s, %(accn)s, %(d_parsed)s) "
@@ -570,19 +626,44 @@ class DilutionDB:
             "DO UPDATE SET "
             "date_parsed = %(d_parsed)s"
             "WHERE company_id = %(c_id)s"
-            "AND accession_number = %(accn)s"),
+            "AND accession_number = %(accn)s "
+            "RETURNING *"),
             {"c_id": id,
             "accn": accession_number,
             "d_parsed": date_parsed}
             )
     
     def _create_filing_values(self, connection: Connection, id: int, accession_number: str, date_parsed: datetime, field_name: str, field_values: dict):
-        res = c.execute((
-            "INSERT INTO filing_values"
-            "(company_id, accession_number, date_parsed, field_date, field_name, field_values)"
-            "VALUES (%(c_id)s, %(accn)s, %(d_parsed)s, %(f_date)s, %(f_name)s, %(f_values)s)"
-            "ON CONFLICT ON CONSTRAINT"
-        ))
+        '''
+        upsert the table filing_values.
+        
+        Args:
+            connection: connection from the database connection pool
+            id: company_id
+            accesssion_number: no dash accesssion number of the filing from which
+                               which the values were extracted ("000147793221001077")
+            date_parsed: on which date values where extracted
+            field_name: what field/group was extracted ("outstanding_shares")
+            field_values: json of the values 
+        '''
+        res = connection.execute((
+            "INSERT INTO filing_values "
+            "(company_id, accession_number, date_parsed, field_name, field_values) "
+            "VALUES (%(c_id)s, %(accn)s, %(d_parsed)s, %(f_name)s, %(f_values)s) "
+            "ON CONFLICT ON CONSTRAINT unique_co_accn_field_name "
+            "DO UPDATE SET "
+            "date_parsed = %(d_parsed)s "
+            "field_values = %(f_values)s "
+            "WHERE company_id = %(c_id)s "
+            "AND accession_number = %(accn)s " 
+            "RETURNING *"),
+            {"c_id": id,
+            "accn": accession_number,
+            "d_parsed": date_parsed,
+            "f_name": field_name,
+            "f_values": field_values}
+            )
+    
         
 
 class DilutionDBUpdater:
@@ -597,51 +678,29 @@ class DilutionDBUpdater:
         Args:
             ticker: symbol of a company in the database 
         '''
-        with self.db.connection() as conn:
+        with self.db.conn() as conn:
             # make sure we are working with the most current bulk files
             self.update_bulk_files()
             # make sure we are working with the newest filings
-            self.update_filings(conn, ticker)
+            self.update_local_filings(conn, ticker)
             # parsing of filings goes here
             # -- parsing --
+            self.update_filing_values(conn, ticker)
             # update all the information tables
             self.update_outstanding_shares(conn, ticker)
             self.update_net_cash_and_equivalents(conn, ticker)
             self.force_cashBurn_update(ticker)
     
-    def parse_filings(self, connection: Connection, ticker: str):
-        # get unparsed_filings
-        # call _parse_filing on them
-        pass
-    
-    def _parse_filing(self, 
-        doc: str,
-        form_type: str,
-        accession_number: str,
-        path: str,
-        filing_date: str = None,
-        cik: str = None,
-        file_number: str = None,
-        ):
-        extension = Path(path).suffix
-        filing = filing_parser.filing_factory.create_filing(form_type, extension)
-        extractor = filing_parser.extractor_factory.get_extractor(form_type, extension)
-        filing_values = extractor.extractor.extract_filing_values(filing)
-        
-        # get the Filing from filing through the filingFactory
-        # get the Extractor from filing through the extractorFactory
-        # invoke Extractor's extract_filing_values
-        # write new filing_values to db
-        pass
-   
-    
-    def get_unparsed_filings():
-        # get all the filings and their accession number that are present locally
-        # compare to filing_parse_history -> unparsed = filings not present
-        # yield results
-        pass
-            
 
+    def update_filing_values(self, connection: Connection, ticker: str):
+        for filing_values in self.db.util.parse_filings(connection, ticker):
+            if filing_values != []:
+                logger.debug(f"filing_values in update_filing_values: {filing_values}")
+                for value in filing_values:
+                    if isinstance(value, FilingValue):
+                        self.db.uploaders.upload_filing_value(value.field_name, value.form_type, value.context, filing_value=value, connection=connection)
+                    else:
+                        raise ValueError(f"value was of wrong type, expected: FilingValue, got: {type(value), value}")
     
     def _filings_needs_update(self, ticker: str, max_age=24):
         '''checks if the ticker has newer filings available with submissions.zip
@@ -671,7 +730,7 @@ class DilutionDBUpdater:
             return None, None
 
     
-    def update_filings(self, connection: Connection, ticker: str):
+    def update_local_filings(self, connection: Connection, ticker: str):
         '''download new filings if available'''
         needs_update, filings_lud = self._filings_needs_update(ticker)
         if needs_update is None:
@@ -687,7 +746,6 @@ class DilutionDBUpdater:
                     str(filings_lud),
                     set(cnf.APP_CONFIG.TRACKED_FORMS))
                 try:
-                    print(cik)
                     newer_filings = possible_newer_filings[cik]
                     
                 except KeyError:
@@ -696,9 +754,12 @@ class DilutionDBUpdater:
                     if len(newer_filings) > 0:
                         for filing in newer_filings:
                             form_type = filing[0]
-                            accn = filing[1]
+                            accession_number = filing[1]
                             file_name = filing[2]
-                            self.db.updater.dl.get_filing_by_accession_number(cik, *filing)
+                            filing_date = filing[3]
+                            file_nums = filing[4]
+                            
+                            self.db.updater.dl.get_filing_by_accession_number(cik=cik, form_type=form_type, accession_number=accession_number, save_name=file_name, filing_date=filing_date, file_nums=file_nums)
                         self.db._update_company_lud(connection, id, "filings_download_lud", datetime.utcnow())
                     else:
                         return None
@@ -721,10 +782,10 @@ class DilutionDBUpdater:
         lud = self.db.read(sql.SQL("SELECT {} as _lud FROM files_last_update").format(sql.Identifier(col_name)), [])
         if lud == []:
             return True
-        _lud = lud["_lud"]
+        _lud = lud[0]["_lud"]
         if _lud is None:
             return True
-        print(_lud)
+        logger.debug(f"last update of: {col_name} was on {_lud}")
         now = datetime.utcnow()
         if (now - pd.to_datetime(_lud)) >= timedelta(hours=max_age):
             return True
@@ -745,7 +806,7 @@ class DilutionDBUpdater:
                 self.db._update_files_lud(conn, "companyfacts_zip_lud", datetime.utcnow())
                 update = True
             if update is False:
-                logger.info("No Bulk Files were updated as they are still current enough.")
+                logger.info("Bulk Files were NOT updated as they are still current enough.")
             else:
                 logger.info("Bulk Files were successfully updated")
     
@@ -769,7 +830,7 @@ class DilutionDBUpdater:
             # update based on other things than companyfacts here
 
             # if all successfull write new lud
-            self.db._update_company_lud(connection, "net_cash_and_equivalents_lud", datetime.utcnow())
+            self.db._update_company_lud(connection, id, "net_cash_and_equivalents_lud", datetime.utcnow())
 
     
     def update_outstanding_shares(self, connection: Connection, ticker: str):
@@ -792,7 +853,7 @@ class DilutionDBUpdater:
             # update outstanding shares by other means
                 # no other ways yet
             # if all successfull write new lud
-            self.db._update_company_lud(connection, "outstanding_shares_lud", datetime.utcnow())
+            self.db._update_company_lud(connection, id, "outstanding_shares_lud", datetime.utcnow())
         
     
     def _update_net_cash_and_equivalents_based_on_companyfacts(self, connection: Connection, id: int, companyfacts):
@@ -863,7 +924,7 @@ class DilutionDBUpdater:
     def force_cashBurn_update(self, ticker: str):
         '''clear cash burn rate and summary data and recalculate for one company
         based on the available data from the database. Doesnt pull new data.'''
-        company = db.read_company_by_symbol(ticker)[0]
+        company = self.db.read_company_by_symbol(ticker)[0]
         id = company["id"]
         try:
             with self.db.conn() as connection:
@@ -903,10 +964,55 @@ class DilutionDBUpdater:
                         connection.commit()
             except KeyError as e:
                 logger.info((e, company))
+
+class DBUploaderFactory:
+    def __init__(self, defaults: list[tuple]=[]):
+        self.uploaders = {}
+        if len(defaults) > 0:
+            for case in defaults:
+                self.register_uploader(*case)
+
+    def register_uploader(
+        self, uploader: Callable, field_name: str, form_type: str=None, context: str=None
+    ):
+        self.uploaders[(field_name, form_type, context)] = uploader
+
+    def upload_filing_value(self, field_name: str, form_type: str=None, context: str=None, **kwargs):
+        uploader = self.uploaders.get((field_name, form_type, context))
+        if uploader:
+            return uploader(**kwargs)
+        else:
+            uploader = self.uploaders.get((field_name, form_type, None))
+            if uploader:
+                return uploader(**kwargs)
+            else:
+                uploader = self.uploaders.get((field_name, None, None))
+                if uploader:
+                    return uploader(**kwargs)
+                else:
+                    raise ValueError(
+                        f"no uploader for that form_type and extension combination({field_name}, {form_type}, {context}) registered, passed **kwargs: {kwargs}"
+                    )
+
+class DilutionDBFilingValueUploaders:
+    def __init__(self, db: DilutionDB):
+        self.db = db
     
+    def outstanding_shares(self, filing_value: FilingValue, **kwargs):
+        id_ = self.db.read("SELECT id FROM companies WHERE cik = %s", [filing_value.cik])
+        if id_:
+            try:
+                id = id_[0]["id"]
+                
+            except KeyError:
+                logger.debug(f"updating outstanding shares failed! Didnt find id: {id_}  based on this cik: {filing_value.cik}.")
+        else:
+            logger.debug(f"updating outstanding shares failed! Didnt find id: {id_} based on this cik: {filing_value.cik}.")
+        with self.db.conn() as conn:
+            self.db.create_outstanding_shares(conn, id, filing_value.field_values["date"], filing_value.field_values["amount"])
 
 class DilutionDBUtil:
-    def __init__(self, db):
+    def __init__(self, db: DilutionDB):
         self.db = db
         self.logging_file = cnf.DEFAULT_LOGGING_FILE
         self.logger = logging.getLogger("DilutionDBUtil")
@@ -921,6 +1027,90 @@ class DilutionDBUtil:
         self.db._create_tables()
         self.db.create_sics()
         self.db.create_form_types()
+
+    def parse_filings(self, connection: Connection, ticker: str):
+        '''
+        parses the unparsed local filings of a ticker.
+        
+        Args:
+            connection: connection from the database connection pool
+            ticker: symbol associated with a company
+        '''
+        company = self.db.read_company_by_symbol(ticker)
+        if company != []:
+            company = company[0]
+            cik = company["cik"]
+            id = company["id"]
+        else:
+            raise ValueError(f"no company with that symbol was found. ticker: {ticker}")
+        # get unparsed_filings
+        filing_values = []
+        for unparsed in self.get_unparsed_filings(id, cik):
+            form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
+            print(file_path)
+            with open(Path(file_path), "r", encoding="utf-8") as f:
+                doc = f.read()
+            filing_values.append(self._parse_filing(doc, form_type, accession_number, file_path, filing_date, cik, file_number))
+        return filing_values
+
+    
+    def _parse_filing(self, 
+        doc: str,
+        form_type: str,
+        accession_number: str,
+        path: str,
+        filing_date: str = None,
+        cik: str = None,
+        file_number: str = None,
+        ) -> list[list[FilingValue]]:
+        extension = Path(path).suffix
+        filing = filing_parser.filing_factory.create_filing(
+            extension=extension,
+            doc=doc,
+            path=path,
+            filing_date=filing_date,
+            accession_number=accession_number,
+            cik=cik,
+            file_number=file_number,
+            form_type=form_type)
+        try:
+            extractor = filing_parser.extractor_factory.get_extractor(form_type, extension)
+        except ValueError:
+            return []
+        return extractor.extract_filing_values(filing)
+        
+        
+        # because the logic to create and update a shelf for example needs to be there,
+        # either it will be defered and I need to pull all the data from the filing_values
+        # which could be inefficent and more complex
+        # OR I write a per filing uploader and create individual tables for the objects I
+        # want to represent (like a shelf filing, the associated securities ect)
+        # OR I could write a table that holds:
+        #   date_updated, last_data_date, file_number, accession_numbers, values (as a JSON)
+
+        # it could be in addition to the filing_values general store so I have a fallback
+        # in case the per filing uploader turns out to be the wrong choice
+        
+        # get the Filing from filing through the filingFactory
+        # get the Extractor from filing through the extractorFactory
+        # invoke Extractor's extract_filing_values
+        # write new filing_values to db
+   
+    
+    def get_unparsed_filings(self, id: int, cik: str):
+        # get all the filings and their accession number that are present locally
+        all_filings = self.db.updater.dl.index_handler.get_local_filings_by_cik(cik)
+        parsed_filings = self.db.read_parsed_filings(id)
+        unparsed = []
+        if parsed_filings != []:
+            parsed_accn = set([p["accesssion_number"] for p in parsed_filings])
+            for filing in all_filings:
+                if filing["accn"] in parsed_accn:
+                    pass
+                else:
+                    unparsed.append(filing)
+            return unparsed
+        return all_filings
 
     def format_submissions_json_for_db(self, cik: str, sub: json, base_url: str=EDGAR_BASE_ARCHIVE_URL):
         '''
@@ -1181,9 +1371,9 @@ class DilutionDBUtil:
 if __name__ == "__main__":
 
     db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-    with open("./resources/company_tickers.json", "r") as f:
-        tickers = list(load(f).keys())
-        db.util._get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
+    # with open("./resources/company_tickers.json", "r") as f:
+    #     tickers = list(load(f).keys())
+    #     db.util._get_overview_files(cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, tickers)
     
     # fake_args1 = [1, 0, 0, 0, 0, "2010-04-01", "2011-02-27"]
     # fake_args2 = [1, 0, 0, 0, 0, "2010-04-01", "2011-04-27"]

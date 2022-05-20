@@ -11,6 +11,9 @@ import re
 from pyparsing import Each
 from dataclasses import dataclass
 from abc import ABC
+import spacy
+from spacy.matcher import Matcher
+from datetime import datetime
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -76,14 +79,8 @@ RE_COMPILED = {
 Parsers: helpers to convert filings into Filing instances they
          want to reimplement how sections are extracted
 
-FilingFactory: takes raw info and calls correct Filing based on form_type and extension
-
 Extractors: work on Filing instances to extract the wanted information.
-            should have functions that return filing_values lists and tables
-
-Filing(s): 
-           1) need to define a common interface for each extension
-           2) work of the common interface and make specialised classes for each form_type and extension
+            should have functions that return list[FilingValue]
 
 """
 
@@ -103,9 +100,20 @@ class FilingSection:
     title: str
     content: str
 
+@dataclass
+class FilingValue:
+    cik: str
+    date_parsed: datetime
+    accession_number: str
+    form_type: str
+    field_name: str
+    field_values: dict
+    context: str = None
+
+
 
 class FilingFactory:
-    def __init__(self, default_fallbacks=True, defaults: list[tuple]=[]):
+    def __init__(self, default_fallbacks=False, defaults: list[tuple]=[]):
         self.builders = {}
         if default_fallbacks is True:
             self.init_fallbacks()
@@ -165,9 +173,48 @@ class AbstractFilingParser(ABC):
 
 class AbstractFilingExtractor(ABC):
     def extract_filing_values(self, filing: Filing):
-        """extracts values and returns them as a list[dict] where dict has
+        """extracts values and returns them as a list[FilingValue] where dict has
         keys: cik, date_parsed, accession_number, field_name, field_values"""
         pass
+
+class BaseExtractor():
+    def create_filing_value(self, filing: Filing, date_parsed: datetime, field_name: str, field_values: dict, context:str=None):
+        '''create a FilingValue'''
+        return FilingValue(
+            cik=filing.cik,
+            date_parsed=date_parsed,
+            accession_number=filing.accession_number,
+            form_type=filing.form_type,
+            field_name=field_name,
+            field_values=field_values,
+            context=context
+        )
+    
+    def create_filing_values(self, values_list: list[dict], filing: Filing, date_parsed: datetime=datetime.utcnow()):
+        '''
+        create a list of FilingValues from a values_list
+        
+        Args:
+            values_list: list[dict] with dict of form: 
+                        {field_name: {field_values}, "context": additional 
+                        context for uploader or None}
+            filing: instance of Filing or a sublcass thereof
+            date_parsed: when the parsing happend, defaults to datetime.utcnow()
+        
+        Returns:
+            list[FilingValue] or None
+        '''
+        if values_list == []:
+            return None
+        filing_values = []
+        for value in values_list:
+            for k, v in value.items():
+                if k != "context":
+                    filing_values.append(self.create_filing_value(filing, date_parsed, field_name=k, field_values=v, context=values_list["context"]  if "context" in value.keys() else None))
+        return filing_values
+
+
+
 
 class ExtractorFactory:
     def __init__(self, defaults: list[tuple]=[]):
@@ -182,7 +229,7 @@ class ExtractorFactory:
         self.extractors[(form_type, extension)] = extractor
 
     def get_extractor(self, form_type: str, extension: str, **kwargs):
-        extractor = self.builders.get((form_type, extension))
+        extractor = self.extractors.get((form_type, extension))
         if extractor:
             return extractor(**kwargs)
         else:
@@ -298,6 +345,7 @@ class HTMFiling(Filing):
     
     def get_text_only(self):
         text = " ".join([sec.text_only for sec in self.sections])
+        return text
 
     def get_preprocessed_section(self, identifier: str | int):
         section = self.get_section(identifier=identifier)
@@ -1753,24 +1801,28 @@ class HTMFilingParser:
 # create a class for text extraction with spacy that can be instantiated in the Extractors
 # create a dict with default values for ExtractorFactory and FilingFactory
 
-class HTMExtractor(AbstractFilingExtractor):
+class BaseHTMExtractor(BaseExtractor):
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
+
     def extract_outstanding_shares(self, filing:HTMFiling):
         text = filing.get_text_only()
-        self.spacy_text_search.match_outstanding_shares(text)
+        if text is None:
+            logger.debug(filing)
+            return None
+        values = self.spacy_text_search.match_outstanding_shares(text)
+        print(values)
+        return self.create_filing_values(values, filing)
 
-class HTMS1Extractor(AbstractFilingExtractor):
+class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_filing_values(self, filing: HTMFiling):
-        return super().extract_filing_values(filing)
+        return self.extract_outstanding_shares(filing)
 
-class HTMDEF14AExtractor(AbstractFilingExtractor):
+class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_filing_values(self, filing: HTMFiling):
-        text = filing.get_text_only()
-        # create spacy pipeline with matcher
+        return self.extract_outstanding_shares(filing)
 
-import spacy
-from spacy.matcher import Matcher
+
 class SpacyFilingTextSearch:
     _instance = None
     # make this a singleton/get it from factory through cls._instance so we can avoid
@@ -1780,7 +1832,6 @@ class SpacyFilingTextSearch:
 
     def __new__(cls):
         if cls._instance is None:
-            print('Creating the object')
             cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
             cls._instance.nlp = spacy.load("en_core_web_sm")
         return cls._instance
@@ -1791,7 +1842,22 @@ class SpacyFilingTextSearch:
         self.matcher.add("outstanding", [pattern1, pattern2])
         doc = self.nlp(text)
         matches = self._convert_matches_to_spans(doc, self._take_longest_matches(self.matcher(doc, as_spans=False)))
-        print(matches)
+        values = []
+        for match in matches:
+            value = {"outstanding_shares": {}}
+            for ent in match.ents:
+                print(ent, ent.label_)
+                if ent.label_ == "CARDINAL":
+                    value["outstanding_shares"]["amount"] = int(str(ent).replace(",", ""))
+                if ent.label_ == "DATE":
+                    value["outstanding_shares"]["date"] = pd.to_datetime(str(ent))
+            try:
+                validate_filing_values(value, "outstanding_shares", ["date", "amount"])
+            except AttributeError:
+                pass
+            else:
+                values.append(value)
+        return values
     
     def _take_longest_matches(self, matches):
             entries = []
@@ -1819,10 +1885,25 @@ class SpacyFilingTextSearch:
         for match in matches:
             m.append(doc[match[1]:match[2]])
         return m
-    
 
-filing_factory_default = [("S-1", ".htm", HTMFiling), ("S-3", ".htm", HTMFiling)]
-extractor_factory_default = [("S-1", ".htm", HTMS1Extractor), (None, ".htm", HTMExtractor)]
+def validate_filing_values(values, field_name, attributes):
+    '''validate a flat filing value'''
+    if field_name not in values.keys():
+        raise AttributeError
+    for attr in attributes:
+        if attr not in values[field_name].keys():
+            raise AttributeError
+
+filing_factory_default = [
+    ("S-1", ".htm", HTMFiling),
+    ("DEF 14A", ".htm", HTMFiling)
+    ]
+extractor_factory_default = [
+    ("S-1", ".htm", HTMS1Extractor),
+    ("DEF 14A", ".htm", HTMDEF14AExtractor)
+    # (None, ".htm", BaseHTMExtractor)
+    ]
+
 
 filing_factory = FilingFactory(defaults=filing_factory_default)
 extractor_factory = ExtractorFactory(defaults=extractor_factory_default)

@@ -71,14 +71,13 @@ CREATE TABLE IF NOT EXISTS filing_values(
     company_id SERIAL, -- which company filed it
     accession_number VARCHAR, -- what filing the values come from
     date_parsed DATE, -- on which date the parse was done
-    field_date DATE,
     field_name VARCHAR NOT NULL, -- the field name
     field_values JSON,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    CONSTRAINT unique_co_accn_field_date UNIQUE(company_id, accession_number, field_date, field_name)
+    CONSTRAINT unique_co_accn_field_name UNIQUE(company_id, accession_number, field_name)
 );
 
 -- maybe add taxonomy, name and accn to know source

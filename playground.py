@@ -367,7 +367,8 @@ if __name__ == "__main__":
     # init_DilutionDB()
     def test_database():
         db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
-        db.util.reset_database()
+        db.updater.dl.index_handler.check_index()
+        # db.util.reset_database()
         from datetime import datetime
         
         # print(db.read("SELECT * FROM company_last_update", []))
@@ -376,12 +377,12 @@ if __name__ == "__main__":
             cnf.DOWNLOADER_ROOT_PATH,
             cnf.POLYGON_OVERVIEW_FILES_PATH,
             cnf.POLYGON_API_KEY,
-            ["8-K"],
+            ["DEF 14A", "S-1"],
             ["CEI"])
         with db.conn() as conn:
             db._update_company_lud(conn, 1, "filings_download_lud", datetime(year=2021, month=1, day=1))
         with db.conn() as conn:    
-            db.updater.update_filings(conn, "CEI")
+            db.updater.update_ticker("CEI")
     
     def test_spacy():
         # import spacy
@@ -389,10 +390,10 @@ if __name__ == "__main__":
 
         # nlp = spacy.load("en_core_web_sm")
         # nlp.remove_pipe("lemmatizer")
-        # nlp.add_pipe("lemmatizer").initialize()
+        # nlp.add_pipe("lemmatizer").initiali312qzu6ze()
 
         # matcher = Matcher(nlp.vocab)
-        # pattern1 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
+        # pattern1 = [{"LEMMA": "base"},{"LEMMA": "onE:\\test\\sec_scraping\\resources\\datasets\\0001309082"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
         # pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
         # matcher.add("Test", [pattern1])
         text = ("based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. "
@@ -408,10 +409,17 @@ if __name__ == "__main__":
         #     print(token.ent_type_)
         
 
-                    
+    dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
+    dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
+    # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
+    dl.index_handler.check_index()        
+    # test_database()
 
-
-    test_spacy()
+    
+    # print(Path(url))
+    # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
+    # db.updater.update_ticker("CEI")
+    # test_spacy()
 
     # db._update_files_lud("submissions_zip_lud", (datetime.utcnow()-timedelta(days=2)).date())
     # print(db.read("SELECT * FROM files_last_update", []))
