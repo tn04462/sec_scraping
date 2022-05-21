@@ -409,11 +409,11 @@ if __name__ == "__main__":
         #     print(token.ent_type_)
         
 
-    dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
+    # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
     # dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
-    dl.index_handler.check_index()        
-    # test_database()
+    # dl.index_handler.check_index()        
+    test_database()
 
     
     # print(Path(url))

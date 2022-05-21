@@ -110,6 +110,14 @@ class FilingValue:
     field_values: dict
     context: str = None
 
+class ParserFactory:
+    def __init__(self, defaults: list[tuple]=[]):
+        self.parsers = {}
+    
+    def register_parser(self, form_type, parser):
+        pass
+    
+
 
 
 class FilingFactory:
