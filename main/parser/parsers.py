@@ -139,16 +139,17 @@ class FilingFactory:
 
     def create_filing(self, form_type: str, extension: str, **kwargs):
         """try and get a builder for given args and create the Filing"""
+        logger.debug(f"args passed to create_filing: {form_type, extension}, kwargs: {kwargs}")
         builder = self.builders.get((form_type, extension))
         if builder:
-            return builder(**kwargs)
+            return builder(form_type=form_type, extension=extension, **kwargs)
         else:
             builder = self.builders.get((None, extension))
             if builder:
                 logger.info(
                     f"Using a fallback value for the builder as the no builder was registered for the given combination ({form_type},{extension}). fallback builder used: {builder}"
                 )
-                return builder(**kwargs)
+                return builder(form_type=form_type, extension=extension, **kwargs)
             else:
                 raise ValueError(
                     f"no parser for that form_type and extension combination({form_type}, {extension}) registered"
@@ -1674,7 +1675,8 @@ class HTMFiling(BaseFiling):
         accession_number: str = None,
         cik: str = None,
         file_number: str = None,
-        form_type: str = None
+        form_type: str = None,
+        extension: str = None
     ):
         super().__init__(
             path=path,
@@ -1683,6 +1685,7 @@ class HTMFiling(BaseFiling):
             cik=cik,
             file_number=file_number,
             form_type=form_type,
+            extension=extension
         )
         self.soup: BeautifulSoup = self.parser.make_soup(self.doc)
 

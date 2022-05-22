@@ -383,7 +383,7 @@ if __name__ == "__main__":
             ["DEF 14A", "S-1"],
             ["CEI"])
         with db.conn() as conn:
-            db._update_company_lud(conn, 1, "filings_download_lud", datetime(year=2021, month=1, day=1))
+            db._update_company_lud(conn, 1, "filings_download_lud", datetime(year=2022, month=1, day=1))
         with db.conn() as conn:    
             db.updater.update_ticker("CEI")
     
@@ -411,12 +411,26 @@ if __name__ == "__main__":
         # for token in doc:
         #     print(token.ent_type_)
         
+    def create_htm_filing():
+        fake_filing_info = {
+            "path": r"C:\Users\Olivi\Desktop\test_set\filings\0001309082\DEF 14A\000147793221000113\cei-def14a.htm",
+            "filing_date": "2022-01-05",
+            "accession_number": "000147793221000113",
+            "cik": "0001477932",
+            "file_number": "001-3259",
+            "form_type": "DEF 14A",
+            "extension": ".htm"
+        }
+        from main.parser.parsers import filing_factory
+        filing = filing_factory.create_filing(**fake_filing_info)
+    # 
+    create_htm_filing()
 
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
     # dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
     # dl.index_handler.check_index()        
-    test_database()
+    # test_database()
 
     
     # print(Path(url))

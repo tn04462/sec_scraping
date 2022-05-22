@@ -1049,6 +1049,7 @@ class DilutionDBUtil:
         filing_values = []
         for unparsed in self.get_unparsed_filings(id, cik):
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
+            logger.debug(f"values passed to _parse_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
             filing_values.append(self._parse_filing(form_type, accession_number, file_path, filing_date, cik, file_number))
         return filing_values
 
@@ -1062,6 +1063,7 @@ class DilutionDBUtil:
         file_number: str = None,
         ) -> list[list[FilingValue]]:
         extension = Path(path).suffix
+        logger.debug(f"got extension: {extension}")
         filing = parsers.filing_factory.create_filing(
             extension=extension,
             path=path,
