@@ -9,7 +9,7 @@ from dilution_db import DilutionDBUpdater
 # from main.data_aggregation.bulk_files import update_bulk_files
 
 
-from main.parser.filing_parser import HTMFilingParser, Parser8K, HTMFiling
+from main.parser.parsers import HTMFilingParser, Parser8K, HTMFiling
 from pathlib import Path
 
 from psycopg import Connection
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     import spacy
     import datetime
     from spacy import displacy
-    import main.parser.filing_parser as filing_parser
+    import main.parser.extractors as extractors
 
     # nlp = spacy.load("en_core_web_sm")
 
@@ -365,14 +365,17 @@ if __name__ == "__main__":
         db.util.inital_setup(db, cnf.DOWNLOADER_ROOT_PATH, cnf.POLYGON_OVERVIEW_FILES_PATH, cnf.POLYGON_API_KEY, cnf.APP_CONFIG.TRACKED_FORMS, ["CEI", "HYMC", "GOEV", "SKLZ", "ACTG", "INO", "GNUS"])
 
     # init_DilutionDB()
-    def test_database():
+    def test_database(skip_bulk=True):
         db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
         db.updater.dl.index_handler.check_index()
-        # db.util.reset_database()
+        db.util.reset_database()
         from datetime import datetime
         
         # print(db.read("SELECT * FROM company_last_update", []))
-        
+        if skip_bulk is True:
+            with db.conn() as conn:
+                db._update_files_lud(conn, "submissions_zip_lud", datetime.utcnow())
+                db._update_files_lud(conn, "companyfacts_zip_lud", datetime.utcnow())
         db.util.inital_setup(
             cnf.DOWNLOADER_ROOT_PATH,
             cnf.POLYGON_OVERVIEW_FILES_PATH,
@@ -401,7 +404,7 @@ if __name__ == "__main__":
                 "are based on 16,142,275 shares outstanding on April 15, 2020. "
                 "based on 70,067,147 shares of our Common Stocpykoutstanding as of October 18, 2021. "
                 "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. ")
-        filing_parser.spacy_text_search.match_outstanding_shares(text)
+        extractors.spacy_text_search.match_outstanding_shares(text)
         # doc = nlp(text)
         # for ent in doc.ents:
         #     print(ent.label_, ent.text)

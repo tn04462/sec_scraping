@@ -7,9 +7,8 @@ from bs4 import BeautifulSoup, NavigableString, element
 import re
 from abc import ABC
 
-from filings_base import FilingSection, Filing, FilingSection
-from extractors import extractor_factory
-from filings_base import Filing, FilingSection
+from main.parser.filings_base import FilingSection, Filing, FilingSection
+from main.parser.extractors import extractor_factory
 from bs4 import BeautifulSoup
 import logging
 import re
@@ -72,7 +71,7 @@ RE_COMPILED = {
 }
 
 class AbstractFilingParser(ABC):
-    def split_into_sections(self, doc: BeautifulSoup):
+    def split_into_sections(self, doc):
         """
         Must be implemented by the subclass.
         Should split the filing into logical sections.
@@ -80,7 +79,13 @@ class AbstractFilingParser(ABC):
         Returns:
             list[FilingSection]"""
         pass
-
+    
+    def get_doc(self, path: str):
+        '''
+        opens the file the correct way and returns the type required 
+        by split_into_sections.
+        '''
+        pass
 
 
 class ParserFactory:
@@ -105,7 +110,11 @@ class ParserFactory:
         if parser:
             return parser(**kwargs)
         else:
-            raise ValueError(f"no parser for combination of extension, form_type ({extension, form_type}) registered.")
+            parser = self.parsers.get((extension, None))
+            if parser:
+                return parser()
+            else:
+                raise ValueError(f"no parser for combination of extension, form_type ({extension, form_type}) registered.")
 
 class FilingFactory:
     def __init__(self, default_fallbacks=False, defaults: list[tuple]=[]):
@@ -145,35 +154,28 @@ class FilingFactory:
                     f"no parser for that form_type and extension combination({form_type}, {extension}) registered"
                 )
 
-# change this class so it returns a Filing instance where Sections are 8kitems
 
 class HTMFilingParser(AbstractFilingParser):
     """
     Baseclass for parsing HtmlFilings.
 
-    Usage:
-        from text_parser import HtmlFilingParser
-        from bs4 import Beautifulsoup
-        parser = HtmlFilingParser()
-        with open(path_to/filing.htm, "r") as f:
-            soup = parser.make_soup(f.read())
+    Usage::
 
-            sections = parser.split_by_table_of_contents(soup)
-            # get all the text of the sections
-            for name, content in sections:
-                # let bs4 make malformed html whole again
-                html_content =  Beautifulsoup(content)
-                # maybe you want to parse tables from here or just extract all tables
-                # and use only the pure text content or not
-
-                # not extracting anything and only replacing common unicode characters
-                text = html_content.get_text()
-                cleaned_text = parser.preprocess_text(text)
-
+            from bs4 import Beautifulsoup
+            parser = HtmlFilingParser()
+            doc = parser.get_doc(path_to/filing.htm)
+            sections = parser.split_into_sections(doc)
+        
     """
 
     def __init__(self):
         pass
+    
+    def get_doc(self, path: str):
+        '''opens the file the correct way and returns the filing as string.'''
+        with open(Path(path), "r", encoding="utf-8") as f:
+            doc = f.read()
+            return doc
 
     def get_text_content(self, doc: BeautifulSoup = None, exclude=["table", "script"]):
         """extract the unstructured language"""
@@ -212,9 +214,13 @@ class HTMFilingParser(AbstractFilingParser):
                         return ele
         return None
 
-    def split_into_sections(self, doc: BeautifulSoup):
+    def split_into_sections(self, doc: BeautifulSoup | str):
+        if isinstance(doc, str):
+            doc_ = BeautifulSoup(doc, features="html5lib")
+        else:
+            doc_ = doc 
         try:
-            sections = self.split_by_table_of_contents(doc)
+            sections = self.split_by_table_of_contents(doc_)
             if sections is not None:
                 return sections
         except ValueError as e:
@@ -1376,22 +1382,41 @@ class Parser8K(HTMFilingParser):
         self.soup = None
         self.first_match_group = self._create_match_group()
     
-    def split_into_sections(self, doc: BeautifulSoup):
-        pass
+    def split_into_sections(self, doc: str):
+        '''
+        split the filing into FilingSections.
+        
+        Returns:
+            list[HTMFilingSection] or []
+        '''
+        clean_doc = self.preprocess_filing(doc)
+        items = self._parse_items(clean_doc)
+        if items == []:
+            return []
+        else:
+            sections = []
+            for item in items:
+                for k, v in item.items():
+                    sections.append(HTMFilingSection(title=k, content=v))
+            return sections
 
-    def _create_match_group(self):
-        reg_items = "("
-        for key, val in ITEMS_8K.items():
-            reg_items = reg_items + "(" + val + ")|"
-        reg_items = reg_items[:-2] + "))"
-        return re.compile(reg_items, re.I | re.DOTALL)
-
-    def make_soup(self, doc):
-        self.soup = BeautifulSoup(doc, "html.parser")
-    
-
-    def split_into_items(self, path, get_cik=True):
-        """split the 8k into the individual items"""
+    def split_into_items(self, path: str, get_cik=True):
+        """
+        split the 8k into the individual items.
+        
+        Args:
+            path: path to the 8-k filing
+            get_cik: if we want to get the CIK from the folder structure
+        
+        Returns:
+                {
+                "cik": cik or None,
+                "file_date": the date of report in filing,
+                "items": list[
+                              {section_title: str : section_content: str}
+                             ]
+                }
+        """
         _path = path
         with open(path, "r", encoding="utf-8") as f:
             if get_cik is True:
@@ -1403,7 +1428,7 @@ class Parser8K(HTMFilingParser):
             file = f.read()
             filing = self.preprocess_filing(file)
             try:
-                items = self.parse_items(filing)
+                items = self._parse_items(filing)
             except AttributeError as e:
                 logger.info((e, path, filing), exc_info=True)
                 return None
@@ -1430,20 +1455,13 @@ class Parser8K(HTMFilingParser):
                 )
             else:
                 try:
-                    valid_date = self.parse_date_of_report(valid_dates[0])
+                    valid_date = self._parse_date_of_report(valid_dates[0])
                 except Exception as e:
                     logging.info(
                         f"couldnt parse date of filing: {valid_dates}, filing: {filing}"
                     )
                     return None
             return {"cik": str(cik), "file_date": valid_date, "items": items}
-
-    def get_text_content(self, doc: BeautifulSoup = None, exclude=["table", "script"]):
-        """extract the unstructured language"""
-        doc_copy = doc.__copy__()
-        if exclude != [] or exclude is not None:
-            [s.extract() for s in doc_copy(exclude)]
-        return doc_copy.getText(separator=" ", strip=True)
 
     def get_item_matches(self, filing: str):
         """get matches for the 8-k items.
@@ -1470,15 +1488,25 @@ class Parser8K(HTMFilingParser):
             raise ValueError
         return date
 
-    def parse_date_of_report(self, fdate):
-        try:
-            date = pd.to_datetime(fdate.replace(",", ", "))
-        except Exception as e:
-            logging.info(f"couldnt parse date of filing; date found: {fdate}")
-            raise e
-        return date
+    def preprocess_filing(self, filing: str):
+        """cleanes filing and returns only text"""
+        if isinstance(filing, BeautifulSoup):
+            soup = filing
+        else:
+            soup = self.make_soup(filing)
+        filing = self.get_text_content(soup, exclude=[])
+        # replace unwanted unicode characters
+        filing.replace("\xa04", "")
+        filing.replace("\xa0", " ")
+        filing.replace("\u200b", " ")
+        # fold multiple empty newline rows into one
+        filing = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", filing)
+        filing = re.sub(re.compile("(\n)", re.MULTILINE), " ", filing)
+        # fold multiple spaces into one
+        filing = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", filing)
+        return filing
 
-    def parse_items(self, filing: str):
+    def _parse_items(self, filing: str):
         """extract the items from the filing and their associated paragraph"""
         # first get items and signatures
         extracted_items = []
@@ -1533,23 +1561,20 @@ class Parser8K(HTMFilingParser):
                 extracted_items.append({normalized_item: body})
         return extracted_items
 
-    def preprocess_filing(self, filing: str):
-        """cleanes filing and returns only text"""
-        if isinstance(filing, BeautifulSoup):
-            soup = filing
-        else:
-            soup = self.make_soup(filing)
-        filing = self.get_text_content(soup, exclude=[])
-        # replace unwanted unicode characters
-        filing.replace("\xa04", "")
-        filing.replace("\xa0", " ")
-        filing.replace("\u200b", " ")
-        # fold multiple empty newline rows into one
-        filing = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", filing)
-        filing = re.sub(re.compile("(\n)", re.MULTILINE), " ", filing)
-        # fold multiple spaces into one
-        filing = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", filing)
-        return filing
+    def _parse_date_of_report(self, fdate):
+        try:
+            date = pd.to_datetime(fdate.replace(",", ", "))
+        except Exception as e:
+            logging.info(f"couldnt parse date of filing; date found: {fdate}")
+            raise e
+        return date
+
+    def _create_match_group(self):
+        reg_items = "("
+        for key, val in ITEMS_8K.items():
+            reg_items = reg_items + "(" + val + ")|"
+        reg_items = reg_items[:-2] + "))"
+        return re.compile(reg_items, re.I | re.DOTALL)
 
 
 parser_factory_default = [
@@ -1561,8 +1586,9 @@ parser_factory = ParserFactory()
 class BaseFiling(Filing):
     def __init__(self, form_type: str, **kwargs):
         super().__init__(form_type=form_type, **kwargs)
-        self.parser = parser_factory.get_parser(self.extension, self.form_type)
-        self.sections: list[FilingSection] = None
+        self.parser: AbstractFilingParser = parser_factory.get_parser(self.extension, self.form_type)
+        self.doc = self.parser.get_doc(self.path)
+        self.sections: list[FilingSection] = self.parser.split_into_sections(self.doc)
 
 
 class HTMFilingSection(FilingSection):
@@ -1640,10 +1666,9 @@ class HTMFilingSection(FilingSection):
         return tables
 
 
-class HTMFiling(Filing):
+class HTMFiling(BaseFiling):
     def __init__(
         self,
-        doc: str,
         path: str = None,
         filing_date: str = None,
         accession_number: str = None,
@@ -1659,12 +1684,7 @@ class HTMFiling(Filing):
             file_number=file_number,
             form_type=form_type,
         )
-        self.parser: HTMFilingParser = HTMFilingParser()
-        self.doc: str = doc
-        self.soup: BeautifulSoup = self.parser.make_soup(doc)
-        self.sections: list[HTMFilingSection] = self.parser.split_into_sections(
-            self.soup
-        )
+        self.soup: BeautifulSoup = self.parser.make_soup(self.doc)
 
     def get_preprocessed_text_content(self) -> str:
         """get all the text content of the Filing"""

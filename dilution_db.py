@@ -23,7 +23,7 @@ from datetime import datetime
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
-from main.parser.filing_parser_base import FilingValue
+from main.parser.filings_base import FilingValue
 import main.parser.extractors as extractors
 import main.parser.parsers as parsers
 from main.configs import cnf
@@ -1049,15 +1049,11 @@ class DilutionDBUtil:
         filing_values = []
         for unparsed in self.get_unparsed_filings(id, cik):
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
-            print(file_path)
-            with open(Path(file_path), "r", encoding="utf-8") as f:
-                doc = f.read()
-            filing_values.append(self._parse_filing(doc, form_type, accession_number, file_path, filing_date, cik, file_number))
+            filing_values.append(self._parse_filing(form_type, accession_number, file_path, filing_date, cik, file_number))
         return filing_values
 
     
     def _parse_filing(self, 
-        doc: str,
         form_type: str,
         accession_number: str,
         path: str,
@@ -1068,7 +1064,6 @@ class DilutionDBUtil:
         extension = Path(path).suffix
         filing = parsers.filing_factory.create_filing(
             extension=extension,
-            doc=doc,
             path=path,
             filing_date=filing_date,
             accession_number=accession_number,

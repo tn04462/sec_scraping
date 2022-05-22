@@ -2,8 +2,7 @@ from abc import ABC
 import logging
 import spacy
 from spacy.matcher import Matcher
-from filings_base import Filing, FilingValue
-from parsers import HTMFiling
+from main.parser.filings_base import Filing, FilingValue
 from datetime import datetime
 import pandas as pd
 
@@ -57,7 +56,7 @@ class BaseHTMExtractor(BaseExtractor):
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
 
-    def extract_outstanding_shares(self, filing:HTMFiling):
+    def extract_outstanding_shares(self, filing: Filing):
         text = filing.get_text_only()
         if text is None:
             logger.debug(filing)
@@ -67,11 +66,11 @@ class BaseHTMExtractor(BaseExtractor):
         return self.create_filing_values(values, filing)
 
 class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def extract_filing_values(self, filing: HTMFiling):
+    def extract_filing_values(self, filing: Filing):
         return self.extract_outstanding_shares(filing)
 
 class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def extract_filing_values(self, filing: HTMFiling):
+    def extract_filing_values(self, filing: Filing):
         return self.extract_outstanding_shares(filing)
 
 
