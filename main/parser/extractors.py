@@ -62,16 +62,15 @@ class BaseHTMExtractor(BaseExtractor):
             logger.debug(filing)
             return None
         values = self.spacy_text_search.match_outstanding_shares(text)
-        print(values)
         return self.create_filing_values(values, filing)
 
 class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_filing_values(self, filing: Filing):
-        return self.extract_outstanding_shares(filing)
+        return [self.extract_outstanding_shares(filing)]
 
 class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_filing_values(self, filing: Filing):
-        return self.extract_outstanding_shares(filing)
+        return [self.extract_outstanding_shares(filing)]
 
 
 class SpacyFilingTextSearch:
@@ -88,11 +87,15 @@ class SpacyFilingTextSearch:
         return cls._instance
 
     def match_outstanding_shares(self, text):
-        pattern1 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
-        pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
+        pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
+        pattern2 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
         self.matcher.add("outstanding", [pattern1, pattern2])
         doc = self.nlp(text)
-        matches = self._convert_matches_to_spans(doc, self._take_longest_matches(self.matcher(doc, as_spans=False)))
+        possible_matches = self.matcher(doc, as_spans=False)
+        if possible_matches == []:
+            logger.debug("no matches for outstanding shares found")
+            return []
+        matches = self._convert_matches_to_spans(doc, self._take_longest_matches(possible_matches))
         values = []
         for match in matches:
             value = {"outstanding_shares": {}}

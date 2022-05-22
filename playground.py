@@ -399,12 +399,9 @@ if __name__ == "__main__":
         # pattern1 = [{"LEMMA": "base"},{"LEMMA": "onE:\\test\\sec_scraping\\resources\\datasets\\0001309082"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
         # pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
         # matcher.add("Test", [pattern1])
-        text = ("based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. "
-                "are based on 30,823,573 shares outstanding on April 11, 2022. "
-                "are based on 16,142,275 shares outstanding on April 15, 2020. "
-                "based on 70,067,147 shares of our Common Stocpykoutstanding as of October 18, 2021. "
-                "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. ")
-        extractors.spacy_text_search.match_outstanding_shares(text)
+        text = (" The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022")
+        matches = extractors.spacy_text_search.match_outstanding_shares(text)
+        print(matches)
         # doc = nlp(text)
         # for ent in doc.ents:
         #     print(ent.label_, ent.text)
@@ -424,19 +421,20 @@ if __name__ == "__main__":
         from main.parser.parsers import filing_factory
         filing = filing_factory.create_filing(**fake_filing_info)
     # 
-    create_htm_filing()
+    # create_htm_filing()
 
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
     # dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
     # dl.index_handler.check_index()        
+    
     # test_database()
 
     
     # print(Path(url))
     # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     # db.updater.update_ticker("CEI")
-    # test_spacy()
+    test_spacy()
 
     # db._update_files_lud("submissions_zip_lud", (datetime.utcnow()-timedelta(days=2)).date())
     # print(db.read("SELECT * FROM files_last_update", []))

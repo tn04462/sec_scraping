@@ -1581,7 +1581,7 @@ class Parser8K(HTMFilingParser):
 parser_factory_default = [
     (".htm", "8-K", Parser8K)
 ]
-parser_factory = ParserFactory()
+parser_factory = ParserFactory(defaults=parser_factory_default)
 
 
 class BaseFiling(Filing):
@@ -1745,8 +1745,8 @@ class HTMFiling(BaseFiling):
 
 filing_factory_default = [
     ("S-1", ".htm", HTMFiling),
-    ("DEF 14A", ".htm", HTMFiling)
+    ("DEF 14A", ".htm", HTMFiling),
+    ("8-K", ".htm", HTMFiling)
     ]
-    # where is this called and how could i use HTMFiling with differing parsers from there?
 
 filing_factory = FilingFactory(defaults=filing_factory_default)

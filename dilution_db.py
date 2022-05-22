@@ -695,14 +695,15 @@ class DilutionDBUpdater:
     
 
     def update_filing_values(self, connection: Connection, ticker: str):
-        for filing_values in self.db.util.parse_filings(connection, ticker):
-            if filing_values != []:
-                logger.debug(f"filing_values in update_filing_values: {filing_values}")
-                for value in filing_values:
-                    if isinstance(value, FilingValue):
-                        self.db.uploaders.upload_filing_value(value.field_name, value.form_type, value.context, filing_value=value, connection=connection)
-                    else:
-                        raise ValueError(f"value was of wrong type, expected: FilingValue, got: {type(value), value}")
+        for filings_list in self.db.util.parse_filings(connection, ticker):
+            for filing_values in filings_list:
+                if filing_values != []:
+                    logger.debug(f"filing_values in update_filing_values: {filing_values}")
+                    for value in filing_values:
+                        if isinstance(value, FilingValue):
+                            self.db.uploaders.upload_filing_value(value.field_name, value.form_type, value.context, filing_value=value, connection=connection)
+                        else:
+                            raise ValueError(f"value was of wrong type, expected: FilingValue, got: {type(value), value}")
     
     def _filings_needs_update(self, ticker: str, max_age=24):
         '''checks if the ticker has newer filings available with submissions.zip
