@@ -23,8 +23,9 @@ from datetime import datetime
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
-import main.parser.filing_parser as filing_parser
-from main.parser.filing_parser import Filing, FilingValue, HTMFiling, HTMFilingParser, ExtractorFactory, FilingFactory
+from main.parser.filing_parser_base import FilingValue
+import main.parser.extractors as extractors
+import main.parser.parsers as parsers
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
 
@@ -35,9 +36,10 @@ logging.basicConfig(level=logging.INFO)
 
 '''
 To add a new .htm Form to the parsing pipeline:
-    in filing_parser.py:
+    in parsers.py:
     1) Add a new entry to the filing_factory_default
        of form: (form_type: str, ".htm", HTMFiling)
+    in extractors.py:
     2) write a new Extractor for the form, subclassing AbstractFilingExtractor
        and BaseExtractor (for creation of FilingValue) or write your
        own implementation.
@@ -55,7 +57,7 @@ To add a new .htm Form to the parsing pipeline:
           after instantiation of the DilutionDB
 
 To add a new file type to the parsing pipeline:
-    in filing_parser.py:
+    in parsers.py:
     1) create a new filing type by subclassing Filing
     then follow .htm example above, replacing ".htm" with the new extension and
     "HTMFiling" with the newly created Filing class
@@ -1064,7 +1066,7 @@ class DilutionDBUtil:
         file_number: str = None,
         ) -> list[list[FilingValue]]:
         extension = Path(path).suffix
-        filing = filing_parser.filing_factory.create_filing(
+        filing = parsers.filing_factory.create_filing(
             extension=extension,
             doc=doc,
             path=path,
@@ -1074,7 +1076,7 @@ class DilutionDBUtil:
             file_number=file_number,
             form_type=form_type)
         try:
-            extractor = filing_parser.extractor_factory.get_extractor(form_type, extension)
+            extractor = extractors.extractor_factory.get_extractor(form_type, extension)
         except ValueError:
             return []
         return extractor.extract_filing_values(filing)
