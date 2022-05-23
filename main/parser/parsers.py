@@ -5,7 +5,7 @@ from types import NoneType
 import pandas as pd
 from bs4 import BeautifulSoup, NavigableString, element
 import re
-from abc import ABC
+from abc import ABC, abstractmethod
 
 from main.parser.filings_base import FilingSection, Filing, FilingSection
 from main.parser.extractors import extractor_factory
@@ -55,26 +55,26 @@ ITEMS_8K = {
 }
 
 ITEMS_SC13D = {
-    "Security and Issuer": "(Item(?:.){0,2}1\.)",	
-    "Identity and Background": "(Item(?:.){0,2}2\.)", 
-    "Source and Amount of Funds or Other Consideration": "(Item(?:.){0,2}3\.)",	
-    "Purpose of Transaction": "(Item(?:.){0,2}4\.)", 
-    "Interest in Securities of the Issuer": "(Item(?:.){0,2}5\.)", 
-    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.){0,2}6\.)", 
-    "Material to Be Filed as Exhibits": "(Item(?:.){0,2}7\.)"
+    "Security and Issuer": "(Item(?:.){0,2}1\.)(.*$)",
+    "Identity and Background": "(Item(?:.){0,2}2\.)(.*$)",
+    "Source and Amount of Funds or Other Consideration": "(Item(?:.){0,2}3\.)(.*$)",
+    "Purpose of Transaction": "(Item(?:.){0,2}4\.)(.*$)",
+    "Interest in Securities of the Issuer": "(Item(?:.){0,2}5\.)(.*$)",
+    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.){0,2}6\.)(.*$)",
+    "Material to Be Filed as Exhibits": "(Item(?:.){0,2}7\.)(.*$)"
 }
 
 ITEMS_SC13G = {
-    "": "(Item(?:.){0,2}2)\.(.*$\n?(?:^Issuer.*$)?)",
-    "": "(Item(?:.){0,2}1)\.(.*$\n?(?:^Filing(?:\s){0,2}Person.*$)?)",
-    "": "(Item(?:.){0,2}3)\.(.*$\n?(?:^If(?:\s){0,2}this(?:\s){0,2}statement(?:\s){0,2}is(?:\s){0,2}filed(?:\s){0,2}pursuant(?:\s){0,2}to(?:\s){0,2}Rules(?:\s){0,2}13d-1(b).*$)?)",
-    "": "(Item(?:.){0,2}4)\.(.*$\n?(?:^Ownership.*$)?)",
-    "": "(Item(?:.){0,2}5)\.(.*$\n?(?:Ownership(?:\s){0,2}of(?:\s){0,2}Five(?:\s){0,2}Percent(?:\s){0,2}or(?:\s){0,2}Less.*$)?)",
-    "": "(Item(?:.){0,2}6)\.(.*$\n?(?:^Ownership(?:\s){0,2}of(?:\s){0,2}More(?:\s){0,2}than(?:\s){0,2}Five(?:\s){0,2}Percent.*$)?)",
-    "": "(Item(?:.){0,2}7)\.(.*$\n?(?:^Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
-    "": "(Item(?:.){0,2}8)\.(.*$\n?(?:^	Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
-    "": "(Item(?:.){0,2}9)\.(.*$\n?(?:^Notice(?:\s){0,2}of(?:\s){0,2}Dissolution.*$)?)",
-    "": "(Item(?:.){0,2}10)\.(.*$\n?(?:^Certification.*$)?)"
+    "Issuer": "(Item(?:.){0,2}2)\.(.*$\n?(?:^Issuer.*$)?)",
+    "Filing Person": "(Item(?:.){0,2}1)\.(.*$\n?(?:^Filing(?:\s){0,2}Person.*$)?)",
+    "Checkboxes": "(Item(?:.){0,2}3)\.(.*$\n?(?:^If(?:\s){0,2}this(?:\s){0,2}statement(?:\s){0,2}is(?:\s){0,2}filed(?:\s){0,2}pursuant(?:\s){0,2}to(?:\s){0,2}.*$)?)",
+    "Ownership": "(Item(?:.){0,2}4)\.(.*$\n?(?:^Ownership.*$)?)",
+    "Five or less": "(Item(?:.){0,2}5)\.(.*$\n?(?:Ownership(?:\s){0,2}of(?:\s){0,2}Five(?:\s){0,2}Percent(?:\s){0,2}or(?:\s){0,2}Less.*$)?)",
+    "Five or more": "(Item(?:.){0,2}6)\.(.*$\n?(?:^Ownership(?:\s){0,2}of(?:\s){0,2}More(?:\s){0,2}than(?:\s){0,2}Five(?:\s){0,2}Percent.*$)?)",
+    "Subsidiary": "(Item(?:.){0,2}7)\.(.*$\n?(?:^Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
+    "Members of group": "(Item(?:.){0,2}8)\.(.*$\n?(?:^	Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
+    "Dissolution": "(Item(?:.){0,2}9)\.(.*$\n?(?:^Notice(?:\s){0,2}of(?:\s){0,2}Dissolution.*$)?)",
+    "Certifications": "(Item(?:.){0,2}10)\.(.*$\n?(?:^Certification.*$)?)"
 }
 
 TOC_ALTERNATIVES = {
@@ -94,6 +94,16 @@ RE_COMPILED = {
 }
 
 class AbstractFilingParser(ABC):
+    @property
+    @abstractmethod
+    def form_type(cls):
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def extension(cls):
+        raise NotImplementedError
+    
     def split_into_sections(self, doc):
         """
         Must be implemented by the subclass.
@@ -180,6 +190,8 @@ class FilingFactory:
 
 
 class HTMFilingParser(AbstractFilingParser):
+    form_type = None
+    extension = ".htm"
     """
     Baseclass for parsing HtmlFilings.
 
@@ -200,6 +212,72 @@ class HTMFilingParser(AbstractFilingParser):
         with open(Path(path), "r", encoding="utf-8") as f:
             doc = f.read()
             return doc
+    
+    def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
+        """
+        extract the tables, parse them and return them as a dict of nested lists.
+
+        side effect: modifies the soup attribute if reintegrate isnt an empty list
+
+        Args:
+            soup: BeautifulSoup of content
+            reintegrate: which tables to reintegrate as text. if this is an empty list
+                         all tables will be returned in the "extracted" section of the dict
+                         and the "reintegrated" section will be an empty list
+        Returns:
+            a dict of form: {
+                "reintegrated": [
+                        {
+                        "classification": classification,
+                        "reintegrated_as": new elements that were added to the original doc
+                        "table_element": the original <table> element,
+                        "parsed_table": parsed representation of the table before reintegration
+                        }
+                    ],
+                "extracted": [
+                        {
+                        "classification": classification,
+                        "table_element": the original <table> element,
+                        "parsed_table": parsed representation of table,
+                        }
+                    ]
+                }
+        """
+        unparsed_tables = self.get_unparsed_tables(soup)
+        tables = {"reintegrated": [], "extracted": []}
+        for t in unparsed_tables:
+            parsed_table = None
+            if self.table_has_header(t):
+                parsed_table = self.parse_htmltable_with_header(t)
+            else:
+                parsed_table = self.primitive_htmltable_parse(t)
+            cleaned_table = self._clean_parsed_table(
+                self._preprocess_table(parsed_table)
+            )
+            classification = self.classify_table(cleaned_table)
+            if classification in reintegrate:
+                reintegrate_html = self._make_reintegrate_html_of_table(
+                    classification, cleaned_table
+                )
+                t.replace_with(reintegrate_html)
+                tables["reintegrated"].append(
+                    {
+                        "classification": classification,
+                        "reintegrated_as": reintegrate_html,
+                        "table_element": t,
+                        "parsed_table": cleaned_table,
+                    }
+                )
+            else:
+                # further reformat the table
+                tables["extracted"].append(
+                    {
+                        "classification": classification,
+                        "table_element": t,
+                        "parsed_table": cleaned_table,
+                    }
+                )
+        return tables
 
     def get_text_content(self, doc: BeautifulSoup = None, exclude=["table", "script"]):
         """extract the unstructured language"""
@@ -357,6 +435,8 @@ class HTMFilingParser(AbstractFilingParser):
         table_shape = (len(table), len(table[0]))
         # logger.debug(f"table shape is: {table_shape}")
         # could be a bullet point table
+        if table_shape[0] == 1:
+            return "one_row_table"
         if table_shape[1] == 2:
             if self._is_bullet_point_table(table) is True:
                 return "ul_bullet_points"
@@ -426,7 +506,16 @@ class HTMFilingParser(AbstractFilingParser):
                 ele = empty_soup.new_tag("span")
                 ele.string = " ".join(row) + "\n"
                 base_element.insert(idx + 2, ele)
-        return base_element
+            return base_element
+        elif classification == "one_row_table":
+            ele = empty_soup.new_tag("span")
+            _string = ""
+            for field in table[0]:
+                _string += str(field) + "\t"
+            ele.string = _string
+            base_element.insert(0, ele)
+            return base_element
+        raise NotImplementedError(f"reintegration of this class of table hasnt been handled. classification: {classification}")
 
     def get_element_text_content(self, ele):
         """gets the cleaned text content of a single element.Tag"""
@@ -1110,7 +1199,10 @@ class HTMFilingParser(AbstractFilingParser):
                 if len(section_start_elements) - 1 == idx:
                     sections.append(
                         HTMFilingSection(
-                            title=sec["section_title"], content=text[start.span()[1] :]
+                            title=sec["section_title"],
+                            content=text[start.span()[1] :],
+                            extension=self.extension,
+                            form_type=self.form_type
                         )
                     )
                 else:
@@ -1118,6 +1210,8 @@ class HTMFilingParser(AbstractFilingParser):
                         HTMFilingSection(
                             title=sec["section_title"],
                             content=text[start.span()[1] : end.span()[0]],
+                            extension=self.extension,
+                            form_type=self.form_type
                         )
                     )
             except Exception as e:
@@ -1392,6 +1486,8 @@ class HTMFilingParser(AbstractFilingParser):
 
 
 class Parser8K(HTMFilingParser):
+    form_type = "8-K"
+    extension = ".htm"
     """
     process and parse 8-k filing.
 
@@ -1421,7 +1517,7 @@ class Parser8K(HTMFilingParser):
             sections = []
             for item in items:
                 for k, v in item.items():
-                    sections.append(HTMFilingSection(title=k, content=v))
+                    sections.append(HTMFilingSection(title=k, content=v, extension=self.extension, form_type=self.form_type))
             return sections
 
     def split_into_items(self, path: str, get_cik=True):
@@ -1601,36 +1697,48 @@ class Parser8K(HTMFilingParser):
         return re.compile(reg_items, re.I | re.DOTALL)
 
 
-parser_factory_default = [
-    (".htm", "8-K", Parser8K)
-]
-parser_factory = ParserFactory(defaults=parser_factory_default)
+class ParserSC13D(HTMFilingParser):
+    form_type = "SC 13D"
+    extension = ".htm"
+    def __init__(self):
+        self.match_groups = self._create_match_group()
+    
+    def _create_match_group(self):
+        reg_items = "("
+        for key, val in ITEMS_SC13D.items():
+            reg_items = reg_items +"("+ val + ")|"
+        reg_items = reg_items[:-2] + "))"
+        logger.debug(f"reg_items: {reg_items}")
+        return re.compile(reg_items, re.I | re.MULTILINE)
 
+    def classify_table(self, table: list[list]):
+        """'classify a table into subcategories so they can
+        be processed further.
 
-class BaseFiling(Filing):
-    def __init__(self, form_type: str, **kwargs):
-        super().__init__(form_type=form_type, **kwargs)
-        self.parser: AbstractFilingParser = parser_factory.get_parser(self.extension, self.form_type)
-        self.doc = self.parser.get_doc(self.path)
-        self.sections: list[FilingSection] = self.parser.split_into_sections(self.doc)
+        Args:
+            table: should be a list of lists cleaned with clean_parsed_table.
+        """
+        # assume header
+        table_shape = (len(table), len(table[0]))
+        # logger.debug(f"table shape is: {table_shape}")
+        # could be a bullet point table
+        if table_shape[0] == 1:
+            return "one_row_table"
+        else:
+            return None
+    
+    def _make_reintegrate_html_of_table(self, classification, table: list[list]):
 
+        return None
 
-class HTMFilingSection(FilingSection):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.parser: HTMFilingParser = HTMFilingParser()
-        self.soup: BeautifulSoup = self.parser.make_soup(self.content)
-        self.tables: dict = self.extract_tables()
-        self.text_only = self.parser.get_text_content(
-            self.soup, exclude=["table", "script", "title", "head"]
-        )
-
-    def extract_tables(self, reintegrate=["ul_bullet_points"]):
-        """extract the tables, parse them and return them as a dict of nested lists.
+    def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
+        """
+        extract the tables, parse them and return them as a dict of nested lists.
 
         side effect: modifies the soup attribute if reintegrate isnt an empty list
 
         Args:
+            soup: BeautifulSoup of content
             reintegrate: which tables to reintegrate as text. if this is an empty list
                          all tables will be returned in the "extracted" section of the dict
                          and the "reintegrated" section will be an empty list
@@ -1653,22 +1761,39 @@ class HTMFilingSection(FilingSection):
                     ]
                 }
         """
-        unparsed_tables = self.parser.get_unparsed_tables(self.soup)
+        unparsed_tables = self.get_unparsed_tables(soup)
         tables = {"reintegrated": [], "extracted": []}
         for t in unparsed_tables:
             parsed_table = None
-            if self.parser.table_has_header(t):
-                parsed_table = self.parser.parse_htmltable_with_header(t)
+            if self.table_has_header(t):
+                parsed_table = self.parse_htmltable_with_header(t)
             else:
-                parsed_table = self.parser.primitive_htmltable_parse(t)
-            cleaned_table = self.parser._clean_parsed_table(
-                self.parser._preprocess_table(parsed_table)
+                parsed_table = self.primitive_htmltable_parse(t)
+            cleaned_table = self._clean_parsed_table(
+                self._preprocess_table(parsed_table)
             )
-            classification = self.parser.classify_table(cleaned_table)
+            classification = self.classify_table(cleaned_table)
+            if classification == "unclassified":
+                classification = super().classify_table(cleaned_table)
             if classification in reintegrate:
-                reintegrate_html = self.parser._make_reintegrate_html_of_table(
+                reintegrate_html = self._make_reintegrate_html_of_table(
                     classification, cleaned_table
                 )
+                if reintegrate_html is None:
+                    try:
+                        reintegrate_html = super()._make_reintegrate_html_of_table(
+                            classification,
+                            cleaned_table)
+                    except NotImplementedError:
+                        tables["extracted"].append(
+                            {
+                                "classification": classification,
+                                "table_element": t,
+                                "parsed_table": cleaned_table,
+                            }
+                        )
+                        logger.info(f"couldnt reintegrate table, because this class of table isnt handled in the base class or this class with _make_reintegrate_html_of_table function. classification not handled: {classification}")
+                        continue                
                 t.replace_with(reintegrate_html)
                 tables["reintegrated"].append(
                     {
@@ -1688,6 +1813,34 @@ class HTMFilingSection(FilingSection):
                     }
                 )
         return tables
+
+parser_factory_default = [
+    (".htm", "8-K", Parser8K)
+]
+parser_factory = ParserFactory(defaults=parser_factory_default)
+
+
+class BaseFiling(Filing):
+    def __init__(self, form_type: str, **kwargs):
+        super().__init__(form_type=form_type, **kwargs)
+        self.parser: AbstractFilingParser = parser_factory.get_parser(
+            extension=self.extension,
+            form_type=self.form_type)
+        self.doc = self.parser.get_doc(self.path)
+        self.sections: list[FilingSection] = self.parser.split_into_sections(self.doc)
+
+
+class HTMFilingSection(FilingSection):
+    def __init__(self, title, content, extension: str=None, form_type: str=None):
+        super().__init__(title=title, content=content)
+        self.parser: HTMFilingParser = parser_factory.get_parser(
+            extension=extension,
+            form_type=form_type)
+        self.soup: BeautifulSoup = self.parser.make_soup(self.content)
+        self.tables: dict = self.parser.extract_tables(self.soup)
+        self.text_only = self.parser.get_text_content(
+            self.soup, exclude=["table", "script", "title", "head"]
+        )
 
 
 class HTMFiling(BaseFiling):

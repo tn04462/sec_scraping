@@ -9,7 +9,7 @@ from dilution_db import DilutionDBUpdater
 # from main.data_aggregation.bulk_files import update_bulk_files
 
 
-from main.parser.parsers import HTMFilingParser, Parser8K, HTMFiling
+from main.parser.parsers import HTMFilingParser, Parser8K, ParserSC13D, HTMFiling
 from pathlib import Path
 
 from psycopg import Connection
@@ -423,6 +423,9 @@ if __name__ == "__main__":
     # 
     # create_htm_filing()
 
+    def test_parser_sc13d():
+        parser = ParserSC13D()
+    test_parser_sc13d()
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
     # dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
@@ -434,7 +437,7 @@ if __name__ == "__main__":
     # print(Path(url))
     # db = DilutionDB(cnf.DILUTION_DB_CONNECTION_STRING)
     # db.updater.update_ticker("CEI")
-    test_spacy()
+    # test_spacy()
 
     # db._update_files_lud("submissions_zip_lud", (datetime.utcnow()-timedelta(days=2)).date())
     # print(db.read("SELECT * FROM files_last_update", []))
