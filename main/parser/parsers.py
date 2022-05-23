@@ -54,6 +54,29 @@ ITEMS_8K = {
     "Item9.01": "Item(?:.){0,2}9\.01(?:.){0,2}Financial(?:.){0,2}Statements(?:.){0,2}and(?:.){0,2}Exhibits",
 }
 
+ITEMS_SC13D = {
+    "Security and Issuer": "(Item(?:.){0,2}1\.)",	
+    "Identity and Background": "(Item(?:.){0,2}2\.)", 
+    "Source and Amount of Funds or Other Consideration": "(Item(?:.){0,2}3\.)",	
+    "Purpose of Transaction": "(Item(?:.){0,2}4\.)", 
+    "Interest in Securities of the Issuer": "(Item(?:.){0,2}5\.)", 
+    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.){0,2}6\.)", 
+    "Material to Be Filed as Exhibits": "(Item(?:.){0,2}7\.)"
+}
+
+ITEMS_SC13G = {
+    "": "(Item(?:.){0,2}2)\.(.*$\n?(?:^Issuer.*$)?)",
+    "": "(Item(?:.){0,2}1)\.(.*$\n?(?:^Filing(?:\s){0,2}Person.*$)?)",
+    "": "(Item(?:.){0,2}3)\.(.*$\n?(?:^If(?:\s){0,2}this(?:\s){0,2}statement(?:\s){0,2}is(?:\s){0,2}filed(?:\s){0,2}pursuant(?:\s){0,2}to(?:\s){0,2}Rules(?:\s){0,2}13d-1(b).*$)?)",
+    "": "(Item(?:.){0,2}4)\.(.*$\n?(?:^Ownership.*$)?)",
+    "": "(Item(?:.){0,2}5)\.(.*$\n?(?:Ownership(?:\s){0,2}of(?:\s){0,2}Five(?:\s){0,2}Percent(?:\s){0,2}or(?:\s){0,2}Less.*$)?)",
+    "": "(Item(?:.){0,2}6)\.(.*$\n?(?:^Ownership(?:\s){0,2}of(?:\s){0,2}More(?:\s){0,2}than(?:\s){0,2}Five(?:\s){0,2}Percent.*$)?)",
+    "": "(Item(?:.){0,2}7)\.(.*$\n?(?:^Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
+    "": "(Item(?:.){0,2}8)\.(.*$\n?(?:^	Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
+    "": "(Item(?:.){0,2}9)\.(.*$\n?(?:^Notice(?:\s){0,2}of(?:\s){0,2}Dissolution.*$)?)",
+    "": "(Item(?:.){0,2}10)\.(.*$\n?(?:^Certification.*$)?)"
+}
+
 TOC_ALTERNATIVES = {
     "principal stockholders": [
         "SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT"
