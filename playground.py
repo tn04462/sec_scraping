@@ -267,7 +267,7 @@ if __name__ == "__main__":
                     pass
         with open("./resources/company_tickers.json", "r") as f:
             tickers = list(json.load(f).keys())
-            for ticker in tqdm(tickers[5020:5120]):
+            for ticker in tqdm(tickers[5020:5030]):
                 get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
 
     def store(path: str, obj: list):
@@ -425,7 +425,25 @@ if __name__ == "__main__":
 
     def test_parser_sc13d():
         parser = ParserSC13D()
-    test_parser_sc13d()
+    
+    def create_sc13d_filing():
+        fake_filing_info = {
+            "path": r"F:\example_filing_set_sc13\filings\0001812148\SC 13D\000149315220008831\sc13d.htm",
+            "filing_date": "2022-01-05",
+            "accession_number": "000149315220008831",
+            "cik": "0001812148",
+            "file_number": "001-3259",
+            "form_type": "SC 13D",
+            "extension": ".htm"
+        }
+        
+        from main.parser.parsers import filing_factory
+        filing = filing_factory.create_filing(**fake_filing_info)
+        b = filing.get_section("before items")
+        print([t["parsed_table"] for t in b.tables])
+    # test_parser_sc13d()
+    create_sc13d_filing()
+    # download_samples(r"F:\example_filing_set_sc13", forms=["SC 13D", "SC 13G"])
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
     # dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)

@@ -6,6 +6,7 @@ import pandas as pd
 from bs4 import BeautifulSoup, NavigableString, element
 import re
 from abc import ABC, abstractmethod
+import copy
 
 from main.parser.filings_base import FilingSection, Filing, FilingSection
 from main.parser.extractors import extractor_factory
@@ -55,13 +56,13 @@ ITEMS_8K = {
 }
 
 ITEMS_SC13D = {
-    "Security and Issuer": "(Item(?:.){0,2}1\.)(.*$)",
-    "Identity and Background": "(Item(?:.){0,2}2\.)(.*$)",
-    "Source and Amount of Funds or Other Consideration": "(Item(?:.){0,2}3\.)(.*$)",
-    "Purpose of Transaction": "(Item(?:.){0,2}4\.)(.*$)",
-    "Interest in Securities of the Issuer": "(Item(?:.){0,2}5\.)(.*$)",
-    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.){0,2}6\.)(.*$)",
-    "Material to Be Filed as Exhibits": "(Item(?:.){0,2}7\.)(.*$)"
+    "Security and Issuer": "(Item(?:.){0,2}1\.)",
+    "Identity and Background": "(Item(?:.){0,2}2\.)",
+    "Source and Amount of Funds or Other Consideration": "(Item(?:.){0,2}3\.)",
+    "Purpose of Transaction": "(Item(?:.){0,2}4\.)",
+    "Interest in Securities of the Issuer": "(Item(?:.){0,2}5\.)",
+    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.){0,2}6\.)",
+    "Material to Be Filed as Exhibits": "(Item(?:.){0,2}7\.)"
 }
 
 ITEMS_SC13G = {
@@ -281,10 +282,10 @@ class HTMFilingParser(AbstractFilingParser):
 
     def get_text_content(self, doc: BeautifulSoup = None, exclude=["table", "script"]):
         """extract the unstructured language"""
-        doc_copy = doc.__copy__()
+        doc_copy = copy.copy(doc)
         if exclude != [] or exclude is not None:
             [s.extract() for s in doc_copy(exclude)]
-        return doc_copy.getText(separator=" ", strip=True)
+        return doc_copy.getText(separator=" ", strip=False)
 
     def get_span_of_element(self, doc: str, ele: element.Tag, pos: int = None):
         """gets the span (start, end) of the element ele in doc
@@ -413,7 +414,16 @@ class HTMFilingParser(AbstractFilingParser):
         # fold multiple spaces into one
         text = re.sub(RE_COMPILED["two_spaces_or_more"], " ", text)
         return text
-
+    
+    def preprocess_filing(self, filing: str):
+        """cleanes filing and returns only text"""
+        if isinstance(filing, BeautifulSoup):
+            soup = filing
+        else:
+            soup = self.make_soup(filing)
+        filing = self.get_text_content(soup, exclude=["title"])
+        return self.preprocess_text(filing)
+        
     def make_soup(self, doc: str):
         """creates a BeautifulSoup from string html"""
         soup = BeautifulSoup(doc, features="html5lib")
@@ -1500,7 +1510,7 @@ class Parser8K(HTMFilingParser):
 
     def __init__(self):
         self.soup = None
-        self.first_match_group = self._create_match_group()
+        self.match_groups = self._create_match_group()
     
     def split_into_sections(self, doc: str):
         '''
@@ -1589,7 +1599,7 @@ class Parser8K(HTMFilingParser):
         Args:
             filing: should be a cleaned 8-k filing (only text content, no html ect)"""
         matches = []
-        for match in re.finditer(self.first_match_group, filing):
+        for match in re.finditer(self.match_groups, filing):
             matches.append([match.start(), match.end(), match.group(0)])
         return matches
 
@@ -1607,24 +1617,6 @@ class Parser8K(HTMFilingParser):
         if date is None:
             raise ValueError
         return date
-
-    def preprocess_filing(self, filing: str):
-        """cleanes filing and returns only text"""
-        if isinstance(filing, BeautifulSoup):
-            soup = filing
-        else:
-            soup = self.make_soup(filing)
-        filing = self.get_text_content(soup, exclude=[])
-        # replace unwanted unicode characters
-        filing.replace("\xa04", "")
-        filing.replace("\xa0", " ")
-        filing.replace("\u200b", " ")
-        # fold multiple empty newline rows into one
-        filing = re.sub(re.compile("(\n){2,}", re.MULTILINE), "\n", filing)
-        filing = re.sub(re.compile("(\n)", re.MULTILINE), " ", filing)
-        # fold multiple spaces into one
-        filing = re.sub(re.compile("(\s){2,}", re.MULTILINE), " ", filing)
-        return filing
 
     def _parse_items(self, filing: str):
         """extract the items from the filing and their associated paragraph"""
@@ -1702,14 +1694,110 @@ class ParserSC13D(HTMFilingParser):
     extension = ".htm"
     def __init__(self):
         self.match_groups = self._create_match_group()
+
+    def split_into_sections(self, doc: str):
+        '''
+        split the filing into FilingSections.
+        
+        Returns:
+            list[HTMFilingSection] or []
+        '''
+        items = self._parse_items(doc)
+        logger.debug(f"SC 13D items found: {items}")
+        if items == []:
+            return []
+        else:
+            sections = []
+            for item in items:
+                for k, v in item.items():
+                    sections.append(HTMFilingSection(title=k, content=v, extension=self.extension, form_type=self.form_type))
+            return sections
     
     def _create_match_group(self):
-        reg_items = "("
+        reg_items = "(?:"
         for key, val in ITEMS_SC13D.items():
-            reg_items = reg_items +"("+ val + ")|"
+            reg_items = reg_items +"(?:"+ val + ")|"
         reg_items = reg_items[:-2] + "))"
-        logger.debug(f"reg_items: {reg_items}")
         return re.compile(reg_items, re.I | re.MULTILINE)
+    
+    def get_item_matches(self, filing: str):
+        """get matches for the sc 13d items.
+
+        Args:
+            filing: should be a cleaned sc 13d filing (only text content, no html ect)"""
+        matches = []
+        for match in re.finditer(self.match_groups, filing):
+            matches.append([match.start(), match.end(), match.group(0)])
+        return matches
+    
+    def get_signature_matches(self, filing: str):
+        """get matches for the signatures"""
+        signature_matches = []
+        for smatch in re.finditer(re.compile("(signatures|signature)", re.I), filing):
+            signature_matches.append(
+                [smatch.start(), smatch.end(), smatch.start() - smatch.end()]
+            )
+        return signature_matches
+
+    def _parse_items(self, filing: str):
+        """extract the items from the filing and their associated paragraph"""
+        # first get items and signatures
+        extracted_items = []
+        items = self.get_item_matches(filing)
+        signatures = self.get_signature_matches(filing)
+        # ensure that there is one signature which comes after all the items
+        # otherwise discard the signature
+        last_idx = len(items) - 1
+        for idx, sig in enumerate(signatures):
+            # logger.debug(sig)
+            for item in items:
+                if sig[1] < item[1]:
+                    try:
+                        signatures.pop(idx)
+                    except IndexError as e:
+                        raise e
+                    except TypeError as e:
+                        logger.debug(
+                            (f"unhandled case of TypeError: ", sig, signatures, e),
+                            exc_info=True,
+                        )
+            if len(signatures) == 0:
+                continue
+        for idx, item in enumerate(items):
+            # last item
+            if idx == last_idx:
+                try:
+                    body = filing[item[1] : signatures[0][0]]
+                except Exception as e:
+                    # logger.debug(f"filing{filing}, item: {item}, signatures: {signatures}")
+                    if len(signatures) == 0:
+                        # didnt find a signature so just assume content is until EOF
+                        body = filing[item[1] :]
+                # normalize item
+                normalized_item = (
+                    item[2]
+                    .lower()
+                    .replace(" ", "")
+                    .replace(".", "")
+                    .replace("\xa0", " ")
+                )
+                extracted_items.append({normalized_item: body})
+            else:
+                if idx == 0:
+                    body = filing[:item[0]]
+                    normalized_item = "before items"
+                    extracted_items.append({normalized_item: body})
+
+                body = filing[item[1] : items[idx + 1][0]]
+                normalized_item = (
+                    item[2]
+                    .lower()
+                    .replace(" ", "")
+                    .replace(".", "")
+                    .replace("\xa0", " ")
+                )
+                extracted_items.append({normalized_item: body})
+        return extracted_items
 
     def classify_table(self, table: list[list]):
         """'classify a table into subcategories so they can
@@ -1724,11 +1812,10 @@ class ParserSC13D(HTMFilingParser):
         # could be a bullet point table
         if table_shape[0] == 1:
             return "one_row_table"
-        else:
-            return None
+        logger.debug(table)
+        return None
     
     def _make_reintegrate_html_of_table(self, classification, table: list[list]):
-
         return None
 
     def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
@@ -1792,7 +1879,7 @@ class ParserSC13D(HTMFilingParser):
                                 "parsed_table": cleaned_table,
                             }
                         )
-                        logger.info(f"couldnt reintegrate table, because this class of table isnt handled in the base class or this class with _make_reintegrate_html_of_table function. classification not handled: {classification}")
+                        logger.info(f"couldnt reintegrate table, because this class of table isnt handled in the base class or this class with _make_reintegrate_html_of_table function. Extracted table instead. classification not handled: {classification}")
                         continue                
                 t.replace_with(reintegrate_html)
                 tables["reintegrated"].append(
@@ -1813,9 +1900,12 @@ class ParserSC13D(HTMFilingParser):
                     }
                 )
         return tables
+    
+    
 
 parser_factory_default = [
-    (".htm", "8-K", Parser8K)
+    (".htm", "8-K", Parser8K),
+    (".htm", "SC 13D", ParserSC13D)
 ]
 parser_factory = ParserFactory(defaults=parser_factory_default)
 
@@ -1922,7 +2012,8 @@ class HTMFiling(BaseFiling):
 filing_factory_default = [
     ("S-1", ".htm", HTMFiling),
     ("DEF 14A", ".htm", HTMFiling),
-    ("8-K", ".htm", HTMFiling)
+    ("8-K", ".htm", HTMFiling),
+    ("SC 13D", ".htm", HTMFiling)
     ]
 
 filing_factory = FilingFactory(defaults=filing_factory_default)
