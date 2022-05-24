@@ -78,6 +78,38 @@ ITEMS_SC13G = {
     "Certifications": "(Item(?:.){0,2}10)\.(.*$\n?(?:^Certification.*$)?)"
 }
 
+MAIN_TABLE_ITEMS_SC13G = {
+    "1": "Names(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Persons",
+    "2": "Check(?:\s){0,2}the(?:\s){0,2}appropriate(?:\s){0,2}box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see instructions\))?",
+    "3": "Sec(?:\s){0,2}Use(?:\s){0,2}Only",
+    "4": "Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization",
+    "5": "Sole(?:\s){0,2}Voting(?:\s){0,2}Power",
+    "6": "Shared(?:\s){0,2}Voting(?:\s){0,2}Power",
+    "7": "Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power",
+    "8": "Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power",
+    "9": "Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person",
+    "10": "Check(?:\s){0,2}box(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}aggregate(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9)(?:\s){0,2}excludes(?:\s){0,2}certain(?:\s){0,2}shares(?:\s){0,2}(?:\(see instructions\))?",
+    "11": "Percent(?:\s){0,2}of(?:\s){0,2}class(?:\s){0,2}represented(?:\s){0,2}by(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9)",
+    "12": "Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see instructions\))?",
+}
+
+MAIN_TABLE_ITEMS_SC13D = {
+    "1": "Names of Reporting Persons",
+    "2": "Check the Appropriate Box if a Member of a Group (?:\(see instructions\))?",
+    "3": "SEC Use Only",
+    "4": "Source of Funds (?:\(see instructions\))?",
+    "5": "Check if Disclosure of Legal Proceedings Is Required Pursuant to Items 2(d) or 2(e)",
+    "6": "Citizenship or Place of Organization",
+    "7": "Sole Voting Power",
+    "8": "Shared Voting Power",
+    "9": "Sole Dispositive Power",
+    "10": "Shared Dispositive Power",
+    "11": "Aggregate Amount Beneficially Owned by Each Reporting Person",
+    "12": "Check if the Aggregate Amount in Row (11) Excludes Certain Shares (?:\(see instructions\))?",
+    "13": "Percent of Class Represented by Amount in Row (11)",
+    "14": "Type of Reporting Person (?:\(see instructions\))?",
+}
+
 TOC_ALTERNATIVES = {
     "principal stockholders": [
         "SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT"
@@ -1812,7 +1844,6 @@ class ParserSC13D(HTMFilingParser):
         # could be a bullet point table
         if table_shape[0] == 1:
             return "one_row_table"
-        logger.debug(table)
         return None
     
     def _make_reintegrate_html_of_table(self, classification, table: list[list]):
@@ -1850,7 +1881,12 @@ class ParserSC13D(HTMFilingParser):
         """
         unparsed_tables = self.get_unparsed_tables(soup)
         tables = {"reintegrated": [], "extracted": []}
+        offset = 0
+        multi_element_table = []
         for t in unparsed_tables:
+            if offset > 0:
+                offset -= 1
+                continue
             parsed_table = None
             if self.table_has_header(t):
                 parsed_table = self.parse_htmltable_with_header(t)
@@ -1859,6 +1895,7 @@ class ParserSC13D(HTMFilingParser):
             cleaned_table = self._clean_parsed_table(
                 self._preprocess_table(parsed_table)
             )
+
             classification = self.classify_table(cleaned_table)
             if classification == "unclassified":
                 classification = super().classify_table(cleaned_table)
@@ -1891,6 +1928,8 @@ class ParserSC13D(HTMFilingParser):
                     }
                 )
             else:
+                if self._is_main_table_start(t):
+                    print(parsed_table)
                 # further reformat the table
                 tables["extracted"].append(
                     {
@@ -1900,6 +1939,54 @@ class ParserSC13D(HTMFilingParser):
                     }
                 )
         return tables
+    
+    def _is_main_table_start(self, table):
+        # check if this is the start of the main table
+        for row in table:
+            for field in row:
+                if table_field_contains_content(field, re.compile(MAIN_TABLE_ITEMS_SC13D["1"], re.I)):
+                    return True
+        return False
+    
+    def _is_cusip(self, field):
+        '''check if field contains cusip and extract if so.'''
+        match = re.search(field, re.compile(
+            "([a-z0-9]{6}(?:\s{0,3})(?:(?:[a-z0-9]{3})|(?:[a-z0-9]{2}(?:\s){0,3})[a-z0-9]{1}))"
+        ))
+        if match:
+            return match.group[0]
+        else:
+            return None
+
+    def _is_complete_main_table(self, table):
+        '''check if this table contains all the items in order without empty lines.'''
+        current_item = 1
+        found_items = [False for each in MAIN_TABLE_ITEMS_SC13D.keys()]
+        for row in table:
+            for field in row:
+                if table_field_contains_content(field, re.compile(MAIN_TABLE_ITEMS_SC13D[str(current_item)], re.I)):
+                    found_items[current_item-1] = True
+                    current_item += 1
+        return _list_is_true(found_items)
+    
+def _list_is_true(entries: list[bool]):
+    '''checks if list has only True for values'''
+    for entry in entries:
+        if entry is True:
+            pass
+        else:
+            return False
+    return True
+        
+def table_field_contains_content(field, re_term):
+    '''checks if re.search matches in field and returns boolean'''
+    if not isinstance(field, str):
+        return False
+    else:
+        if re.search(re_term, field):
+            return True
+
+
     
     
 
