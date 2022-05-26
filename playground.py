@@ -426,14 +426,14 @@ if __name__ == "__main__":
     def test_parser_sc13d():
         parser = ParserSC13D()
     
-    def create_sc13d_filing():
+    def create_sc13g_filing():
         fake_filing_info = {
-            "path": r"F:/example_filing_set_sc13/filings/0001694677/SC 13D/000114036117001983/formsc13d.htm",
+            "path": r"F:/example_filing_set_sc13/filings/0001578621/SC 13G/000101143821000186/form_sc13g-belong.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000149315220008831",
             "cik": "0001812148",
             "file_number": "001-3259",
-            "form_type": "SC 13D",
+            "form_type": "SC 13G",
             "extension": ".htm"
         }
         
@@ -442,7 +442,7 @@ if __name__ == "__main__":
         # b = filing.get_section("before items")
         # print([t["parsed_table"] for t in b.tables])
     # test_parser_sc13d()
-    create_sc13d_filing()
+    create_sc13g_filing()
 
     def test_sc13d_main_table():
         filings = get_all_filings_path(r"F:\example_filing_set_sc13\filings", "SC 13D")
@@ -455,13 +455,32 @@ if __name__ == "__main__":
             "accession_number": path1.parents[0].name,
             "cik": path1.parents[2].name,
             "file_number": None,
-            "form_type": "SC 13D",
+            "form_type": "SC 13d",
             "extension": ".htm"
             }
             print(path)
             filing: HTMFiling = filing_factory.create_filing(**info)
 
-    test_sc13d_main_table()
+    # test_sc13d_main_table()
+
+    def test_sc13g_main_table():
+        filings = get_all_filings_path(r"F:\example_filing_set_sc13\filings", "SC 13G")
+        from main.parser.parsers import filing_factory
+        for path in filings:
+            path1 = Path(path)
+            info = {
+            "path": path,
+            "filing_date": None,
+            "accession_number": path1.parents[0].name,
+            "cik": path1.parents[2].name,
+            "file_number": None,
+            "form_type": "SC 13G",
+            "extension": ".htm"
+            }
+            print(path)
+            filing: HTMFiling = filing_factory.create_filing(**info)
+
+    test_sc13g_main_table()
 
     # def test_sc13d_main_table_alt():
     #     t =  [['1 NAME OF REPORTING PERSON   Qatar Airways Investments (UK) Ltd    '], ['2 CHECK THE APPROPRIATE BOX IF A MEMBER OF A GROUP (SEE INSTRUCTIONS) (a) ☐  (b) ☒  '], ['3 SEC USE ONLY       '], ['4 SOURCE OF FUNDS (SEE INSTRUCTIONS)   WC    '], ['5 CHECK IF DISCLOSURE OF LEGAL PROCEEDINGS IS REQUIRED PURSUANT TO ITEM 2(D) OR ITEM 2(E)  ☐ N/A    '], ['6 CITIZENSHIP OR PLACE OF ORGANIZATION   United Kingdom    '], ['NUMBER OF SHARES BENEFICIALLY OWNED BY EACH REPORTING PERSON WITH 7 SOLE VOTING POWER   0    '], ['8 SHARED VOTING POWER   60,837,452    '], ['9 SOLE DISPOSITIVE POWER   0    '], ['10 SHARED DISPOSITIVE POWER   60,837,452    '], ['11 AGGREGATE AMOUNT BENEFICIALLY OWNED BY EACH REPORTING PERSON   60,837,452    '], ['12 CHECK IF THE AGGREGATE AMOUNT IN ROW (11) EXCLUDES CERTAIN SHARES (SEE INSTRUCTIONS)  ☐     '], ['13 PERCENT OF CLASS REPRESENTED BY AMOUNT IN ROW (11)   10% (1)    '], ['14 TYPE OF REPORTING PERSON (SEE INSTRUCTIONS)   CO    ']]

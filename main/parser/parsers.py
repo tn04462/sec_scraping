@@ -88,8 +88,8 @@ MAIN_TABLE_ITEMS_SC13G = {
     "7": "(Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
     "8": "(Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
     "9": "(Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person)(?::)?",
-    "10": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}aggregate(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9)(?:\s){0,2}excludes(?:\s){0,2}certain(?:\s){0,2}shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
-    "11": "(Percent(?:\s){0,2}of(?:\s){0,2}class(?:\s){0,2}represented(?:\s){0,2}by(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9))(?::)?",
+    "10": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}aggregate(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}\(?9\)?(?:\s){0,2}excludes(?:\s){0,2}certain(?:\s){0,2}shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "11": "(Percent(?:\s){0,2}of(?:\s){0,2}class(?:\s){0,2}represented(?:\s){0,2}by(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}\(?9\)?)(?::)?",
     "12": "(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
 }
 
@@ -1752,7 +1752,7 @@ class ParserSC13D(HTMFilingParser):
     form_type = "SC 13D"
     extension = ".htm"
     def __init__(self):
-        self.match_groups = self._create_match_group()
+        self.match_groups = self._create_match_group(ITEMS_SC13D)
 
     def split_into_sections(self, doc: str):
         '''
@@ -1772,9 +1772,9 @@ class ParserSC13D(HTMFilingParser):
                     sections.append(HTMFilingSection(title=k, content=v, extension=self.extension, form_type=self.form_type))
             return sections
     
-    def _create_match_group(self):
+    def _create_match_group(self, items_dict: dict):
         reg_items = "(?:"
-        for key, val in ITEMS_SC13D.items():
+        for key, val in items_dict.items():
             reg_items = reg_items +"(?:"+ val + ")|"
         reg_items = reg_items[:-2] + "))"
         return re.compile(reg_items, re.I | re.MULTILINE)
@@ -1874,6 +1874,9 @@ class ParserSC13D(HTMFilingParser):
         return None
 
     def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
+        return self._extract_tables(soup, MAIN_TABLE_ITEMS_SC13D, reintegrate=reintegrate)
+
+    def _extract_tables(self, soup: BeautifulSoup, items_dict: dict, reintegrate=["ul_bullet_points", "one_row_table"]):
         """
         extract the tables, parse them and return them as a dict of nested lists.
 
@@ -1909,11 +1912,10 @@ class ParserSC13D(HTMFilingParser):
         """
         unparsed_tables = self.get_unparsed_tables(soup)
         tables = {"reintegrated": [], "extracted": []}
-        offset = 0
         current_main_table_item = 0
         multi_element_table_items = []
         multi_element_table_meta = {"table_elements": [], "items": []}
-        for tidx, t in enumerate(unparsed_tables):
+        for t in unparsed_tables:
             parsed_table = None
             if self.table_has_header(t):
                 parsed_table = self.parse_htmltable_with_header(t)
@@ -1955,19 +1957,27 @@ class ParserSC13D(HTMFilingParser):
                     }
                 )
             else:
-                if (_re_is_main_table_start(parsed_table, MAIN_TABLE_ITEMS_SC13D) is True) or (current_main_table_item > 0):
+                if (_re_is_main_table_start(parsed_table, items_dict) is True) or (current_main_table_item > 0):
                     logger.debug(f"found part of a main table")
-                    new_current_item, extracted_items = _re_get_key_value_table(parsed_table, MAIN_TABLE_ITEMS_SC13D, current_main_table_item)
+                    # logger.debug(cleaned_table)
+                    new_current_item, extracted_items = _re_get_key_value_table(parsed_table, items_dict, current_main_table_item)
                     if extracted_items == [] or _list_is_true([True if list(e.values())[0] == "" else False for e in extracted_items]):
                         parsed_table = _parse_sc13_main_table_alternative(t)
-                        new_current_item, extracted_items =  _re_get_key_value_table(parsed_table, MAIN_TABLE_ITEMS_SC13D, current_main_table_item)
+                        for ridx, row in enumerate(parsed_table):
+                            for fidx, field in enumerate(row):
+                                if isinstance(field, str):
+                                    parsed_table[ridx][fidx] = self.preprocess_text(field)
+
+                        logger.debug(f"went alternative for table: {parsed_table}")
+                        new_current_item, extracted_items =  _re_get_key_value_table(parsed_table, items_dict, current_main_table_item)
+                        logger.debug(extracted_items)
                         if extracted_items == []:
                             raise ValueError("incomplete main table")
                     current_main_table_item = new_current_item
                     multi_element_table_meta["table_elements"].append(t)
                     multi_element_table_meta["items"].append(extracted_items)
                     [multi_element_table_items.append(e) for e in extracted_items]
-                    if current_main_table_item == len(MAIN_TABLE_ITEMS_SC13D.keys()):
+                    if current_main_table_item == len(items_dict.keys()):
                         logger.debug(f"completed the parse of a main table")
                         current_main_table_item = 0
                         tables["extracted"].append(
@@ -1977,8 +1987,8 @@ class ParserSC13D(HTMFilingParser):
                             "parsed_table": multi_element_table_items
                             }
                         )
-
-                # further reformat the table
+                        multi_element_table_items = []
+                        current_main_table_item = 0
                 tables["extracted"].append(
                     {
                         "classification": classification,
@@ -1990,6 +2000,35 @@ class ParserSC13D(HTMFilingParser):
             logger.debug((f"failed to parse the main table completely."
                             f"items found so far: {multi_element_table_items}"))
         return tables
+
+class ParserSC13G(ParserSC13D):
+    form_type = "SC 13G"
+    extension = ".htm"
+    def __init__(self):
+        self.match_groups = self._create_match_group(ITEMS_SC13G)
+    
+    def split_into_sections(self, doc: str):
+        '''
+        split the filing into FilingSections.
+        
+        Returns:
+            list[HTMFilingSection] or []
+        '''
+        items = self._parse_items(doc)
+        logger.debug(f"SC 13G items found: {len(items)}")
+        if items == []:
+            return []
+        else:
+            sections = []
+            for item in items:
+                for k, v in item.items():
+                    sections.append(HTMFilingSection(title=k, content=v, extension=self.extension, form_type=self.form_type))
+            return sections
+
+    def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
+        return self._extract_tables(soup, MAIN_TABLE_ITEMS_SC13G, reintegrate=reintegrate)
+
+
 
 
 def _re_is_main_table_start(table: list[list], items_dict: dict):
@@ -2033,9 +2072,9 @@ def _parse_sc13_main_table_alternative(htmltable: element.Tag):
             if (offset is None) or (offset == 0):
                 rowcount += 1
                 if re.search(re.compile("NUMBER(?:.){,3}OF(?:.){,3}SHARES", re.I|re.DOTALL),cells[0].get_text(strip=True)):
-                    offset = int(cells[1].get("rowspan", 0))
+                    offset = int(cells[1].get("rowspan", 1))
                 else:
-                    offset = int(cells[0].get("rowspan", 0))
+                    offset = int(cells[0].get("rowspan", 1))
                 table.append([])
             [table[rowcount].append(c.get_text(strip=True)) for c in cells]
             offset -= 1
@@ -2087,7 +2126,8 @@ def table_field_contains_content(field, re_term):
 
 parser_factory_default = [
     (".htm", "8-K", Parser8K),
-    (".htm", "SC 13D", ParserSC13D)
+    (".htm", "SC 13D", ParserSC13D),
+    (".htm", "SC 13G", ParserSC13G)
 ]
 parser_factory = ParserFactory(defaults=parser_factory_default)
 
@@ -2204,7 +2244,8 @@ filing_factory_default = [
     ("S-1", ".htm", HTMFiling),
     ("DEF 14A", ".htm", HTMFiling),
     ("8-K", ".htm", HTMFiling),
-    ("SC 13D", ".htm", HTMFiling)
+    ("SC 13D", ".htm", HTMFiling),
+    ("SC 13G", ".htm", HTMFiling)
     ]
 
 filing_factory = FilingFactory(defaults=filing_factory_default)
