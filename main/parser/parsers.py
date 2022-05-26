@@ -56,13 +56,13 @@ ITEMS_8K = {
 }
 
 ITEMS_SC13D = {
-    "Security and Issuer": "(Item(?:.){0,2}1\.)",
-    "Identity and Background": "(Item(?:.){0,2}2\.)",
-    "Source and Amount of Funds or Other Consideration": "(Item(?:.){0,2}3\.)",
-    "Purpose of Transaction": "(Item(?:.){0,2}4\.)",
-    "Interest in Securities of the Issuer": "(Item(?:.){0,2}5\.)",
-    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.){0,2}6\.)",
-    "Material to Be Filed as Exhibits": "(Item(?:.){0,2}7\.)"
+    "Security and Issuer": "(Item(?:.|\n){0,2}1\.)",
+    "Identity and Background": "(Item(?:.|\n){0,2}2\.)",
+    "Source and Amount of Funds or Other Consideration": "(Item(?:.|\n){0,2}3\.)",
+    "Purpose of Transaction": "(Item(?:.|\n){0,2}4\.)",
+    "Interest in Securities of the Issuer": "(Item(?:.|\n){0,2}5\.)",
+    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.|\n){0,2}6\.)",
+    "Material to Be Filed as Exhibits": "(Item(?:.|\n){0,2}7\.)"
 }
 
 ITEMS_SC13G = {
@@ -79,35 +79,35 @@ ITEMS_SC13G = {
 }
 
 MAIN_TABLE_ITEMS_SC13G = {
-    "1": "Names(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Persons",
-    "2": "Check(?:\s){0,2}the(?:\s){0,2}appropriate(?:\s){0,2}box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see instructions\))?",
-    "3": "Sec(?:\s){0,2}Use(?:\s){0,2}Only",
-    "4": "Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization",
-    "5": "Sole(?:\s){0,2}Voting(?:\s){0,2}Power",
-    "6": "Shared(?:\s){0,2}Voting(?:\s){0,2}Power",
-    "7": "Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power",
-    "8": "Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power",
-    "9": "Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person",
-    "10": "Check(?:\s){0,2}box(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}aggregate(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9)(?:\s){0,2}excludes(?:\s){0,2}certain(?:\s){0,2}shares(?:\s){0,2}(?:\(see instructions\))?",
-    "11": "Percent(?:\s){0,2}of(?:\s){0,2}class(?:\s){0,2}represented(?:\s){0,2}by(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9)",
-    "12": "Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see instructions\))?",
+    "1": "(Name(?:s)?(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:s)?)(?::)?",
+    "2": "(Check(?:\s){0,2}the(?:\s){0,2}appropriate(?:\s){0,2}box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "3": "(Sec(?:\s){0,2}Use(?:\s){0,2}Only)(?::)?",
+    "4": "(Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization)(?::)?",
+    "5": "(Sole(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "6": "(Shared(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "7": "(Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "8": "(Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "9": "(Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person)(?::)?",
+    "10": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}aggregate(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9)(?:\s){0,2}excludes(?:\s){0,2}certain(?:\s){0,2}shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "11": "(Percent(?:\s){0,2}of(?:\s){0,2}class(?:\s){0,2}represented(?:\s){0,2}by(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}(9))(?::)?",
+    "12": "(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
 }
 
 MAIN_TABLE_ITEMS_SC13D = {
-    "1": "Names of Reporting Persons",
-    "2": "Check the Appropriate Box if a Member of a Group (?:\(see instructions\))?",
-    "3": "SEC Use Only",
-    "4": "Source of Funds (?:\(see instructions\))?",
-    "5": "Check if Disclosure of Legal Proceedings Is Required Pursuant to Items 2(d) or 2(e)",
-    "6": "Citizenship or Place of Organization",
-    "7": "Sole Voting Power",
-    "8": "Shared Voting Power",
-    "9": "Sole Dispositive Power",
-    "10": "Shared Dispositive Power",
-    "11": "Aggregate Amount Beneficially Owned by Each Reporting Person",
-    "12": "Check if the Aggregate Amount in Row (11) Excludes Certain Shares (?:\(see instructions\))?",
-    "13": "Percent of Class Represented by Amount in Row (11)",
-    "14": "Type of Reporting Person (?:\(see instructions\))?",
+    "1": "(Name(?:s)?(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:s)?)(?::)?",
+    "2": "(Check(?:\s){0,2}the(?:\s){0,2}Appropriate(?:\s){0,2}Box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}Member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "3": "(SEC(?:\s){0,2}Use(?:\s){0,2}Only)(?::)?",
+    "4": "(Source(?:\s){0,2}of(?:\s){0,2}Funds(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "5": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}Disclosure(?:\s){0,2}of(?:\s){0,2}Legal(?:\s){0,2}Proceedings(?:\s){0,2}Is(?:\s){0,2}Required(?:\s){0,2}Pursuant(?:\s){0,2}to(?:\s){0,2}(?:.){,30}2\(e\))(?::)?",
+    "6": "(Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization)(?::)?",
+    "7": "(Sole(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "8": "(Shared(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "9": "(Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "10": "(Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "11": "(Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person)(?::)?",
+    "12": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}Aggregate(?:\s){0,2}Amount(?:\s){0,2}in(?:\s){0,2}Row(?:\s){0,2}\(11\)(?:\s){0,2}Excludes(?:\s){0,2}Certain(?:\s){0,2}Shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "13": "(Percent(?:\s){0,2}of(?:\s){0,2}Class(?:\s){0,2}Represented(?:\s){0,2}by(?:\s){0,2}Amount(?:\s){0,2}in(?:\s){0,2}Row(?:\s){0,2}\(11\))(?::)?",
+    "14": "(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
 }
 
 TOC_ALTERNATIVES = {
@@ -244,7 +244,7 @@ class HTMFilingParser(AbstractFilingParser):
         '''opens the file the correct way and returns the filing as string.'''
         with open(Path(path), "r", encoding="utf-8") as f:
             doc = f.read()
-            return doc
+            return self.preprocess_doc(doc)
     
     def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
         """
@@ -263,14 +263,18 @@ class HTMFilingParser(AbstractFilingParser):
                         {
                         "classification": classification,
                         "reintegrated_as": new elements that were added to the original doc
-                        "table_element": the original <table> element,
+                        "table_meta": meta data dict for the extracted tables. contains at least
+                                      a key of 'table_elements' which contains the original <table>
+                                      elements as a list.
                         "parsed_table": parsed representation of the table before reintegration
                         }
                     ],
                 "extracted": [
                         {
                         "classification": classification,
-                        "table_element": the original <table> element,
+                        "table_meta": meta data dict for the extracted tables. contains at least
+                                      a key of 'table_elements' which contains the original <table>
+                                      elements as a list.
                         "parsed_table": parsed representation of table,
                         }
                     ]
@@ -297,7 +301,7 @@ class HTMFilingParser(AbstractFilingParser):
                     {
                         "classification": classification,
                         "reintegrated_as": reintegrate_html,
-                        "table_element": t,
+                        "table_meta": {"table_elements": [t]},
                         "parsed_table": cleaned_table,
                     }
                 )
@@ -306,7 +310,7 @@ class HTMFilingParser(AbstractFilingParser):
                 tables["extracted"].append(
                     {
                         "classification": classification,
-                        "table_element": t,
+                        "table_meta": {"table_elements": [t]},
                         "parsed_table": cleaned_table,
                     }
                 )
@@ -447,8 +451,13 @@ class HTMFilingParser(AbstractFilingParser):
         text = re.sub(RE_COMPILED["two_spaces_or_more"], " ", text)
         return text
     
-    def preprocess_filing(self, filing: str):
-        """cleanes filing and returns only text"""
+    def preprocess_doc(self, doc: str):
+        '''preprocess the html string, by converting it to Beautifulsoup and back,
+        thereby converting common html entities.'''
+        return str(BeautifulSoup(doc, features="html5lib"))
+    
+    def clean_text_only_filing(self, filing: str):
+        """cleanes html filing and returns only text"""
         if isinstance(filing, BeautifulSoup):
             soup = filing
         else:
@@ -583,6 +592,7 @@ class HTMFilingParser(AbstractFilingParser):
                 # adjust row_idx for header
                 table[row_idx][field_idx] = content
         return table
+            
 
     def parse_htmltable_with_header(
         self, htmltable, colspan_mode="separate", merge_delimiter=" "
@@ -720,6 +730,22 @@ class HTMFilingParser(AbstractFilingParser):
                     has_header = True
                     break
         return has_header
+    
+    def _get_colspan_of_element(self, element):
+        if "attrs" not in element.__dict__:
+            return 1
+        if "colspan" in element.attrs:
+            return int(element["colspan"])
+        else:
+            return 1
+
+    def _get_rowspan_of_element(self, element):
+        if "attrs" not in element.__dict__:
+            return 1
+        if "rowspan" in element.attrs:
+            return int(element["rowspan"])
+        else:
+            return 1
 
     def _get_possible_headers_based_on_style(
         self,
@@ -1551,8 +1577,9 @@ class Parser8K(HTMFilingParser):
         Returns:
             list[HTMFilingSection] or []
         '''
-        clean_doc = self.preprocess_filing(doc)
+        clean_doc = self.clean_text_only_filing(doc)
         items = self._parse_items(clean_doc)
+        logger.debug(f"8-K items found: {len(items)}")
         if items == []:
             return []
         else:
@@ -1588,7 +1615,7 @@ class Parser8K(HTMFilingParser):
             else:
                 cik = None
             file = f.read()
-            filing = self.preprocess_filing(file)
+            filing = self.clean_text_only_filing(file)
             try:
                 items = self._parse_items(filing)
             except AttributeError as e:
@@ -1735,7 +1762,7 @@ class ParserSC13D(HTMFilingParser):
             list[HTMFilingSection] or []
         '''
         items = self._parse_items(doc)
-        logger.debug(f"SC 13D items found: {items}")
+        logger.debug(f"SC 13D items found: {len(items)}")
         if items == []:
             return []
         else:
@@ -1838,10 +1865,7 @@ class ParserSC13D(HTMFilingParser):
         Args:
             table: should be a list of lists cleaned with clean_parsed_table.
         """
-        # assume header
         table_shape = (len(table), len(table[0]))
-        # logger.debug(f"table shape is: {table_shape}")
-        # could be a bullet point table
         if table_shape[0] == 1:
             return "one_row_table"
         return None
@@ -1866,14 +1890,18 @@ class ParserSC13D(HTMFilingParser):
                         {
                         "classification": classification,
                         "reintegrated_as": new elements that were added to the original doc
-                        "table_element": the original <table> element,
+                        "table_meta": meta data dict for the extracted tables. contains at least
+                                      a key of 'table_elements' which contains the original <table>
+                                      elements as a list.
                         "parsed_table": parsed representation of the table before reintegration
                         }
                     ],
                 "extracted": [
                         {
                         "classification": classification,
-                        "table_element": the original <table> element,
+                        "table_meta": meta data dict for the extracted tables. contains at least
+                                      a key of 'table_elements' which contains the original <table>
+                                      elements as a list.
                         "parsed_table": parsed representation of table,
                         }
                     ]
@@ -1882,11 +1910,10 @@ class ParserSC13D(HTMFilingParser):
         unparsed_tables = self.get_unparsed_tables(soup)
         tables = {"reintegrated": [], "extracted": []}
         offset = 0
-        multi_element_table = []
-        for t in unparsed_tables:
-            if offset > 0:
-                offset -= 1
-                continue
+        current_main_table_item = 0
+        multi_element_table_items = []
+        multi_element_table_meta = {"table_elements": [], "items": []}
+        for tidx, t in enumerate(unparsed_tables):
             parsed_table = None
             if self.table_has_header(t):
                 parsed_table = self.parse_htmltable_with_header(t)
@@ -1912,8 +1939,8 @@ class ParserSC13D(HTMFilingParser):
                         tables["extracted"].append(
                             {
                                 "classification": classification,
-                                "table_element": t,
-                                "parsed_table": cleaned_table,
+                                "table_meta": {"table_elements":[t]},
+                                "parsed_table": cleaned_table
                             }
                         )
                         logger.info(f"couldnt reintegrate table, because this class of table isnt handled in the base class or this class with _make_reintegrate_html_of_table function. Extracted table instead. classification not handled: {classification}")
@@ -1923,51 +1950,117 @@ class ParserSC13D(HTMFilingParser):
                     {
                         "classification": classification,
                         "reintegrated_as": reintegrate_html,
-                        "table_element": t,
-                        "parsed_table": cleaned_table,
+                        "table_meta": {"table_elements": [t]},
+                        "parsed_table": cleaned_table
                     }
                 )
             else:
-                if self._is_main_table_start(t):
-                    print(parsed_table)
+                if (_re_is_main_table_start(parsed_table, MAIN_TABLE_ITEMS_SC13D) is True) or (current_main_table_item > 0):
+                    logger.debug(f"found part of a main table")
+                    new_current_item, extracted_items = _re_get_key_value_table(parsed_table, MAIN_TABLE_ITEMS_SC13D, current_main_table_item)
+                    if extracted_items == [] or _list_is_true([True if list(e.values())[0] == "" else False for e in extracted_items]):
+                        parsed_table = _parse_sc13_main_table_alternative(t)
+                        new_current_item, extracted_items =  _re_get_key_value_table(parsed_table, MAIN_TABLE_ITEMS_SC13D, current_main_table_item)
+                        if extracted_items == []:
+                            raise ValueError("incomplete main table")
+                    current_main_table_item = new_current_item
+                    multi_element_table_meta["table_elements"].append(t)
+                    multi_element_table_meta["items"].append(extracted_items)
+                    [multi_element_table_items.append(e) for e in extracted_items]
+                    if current_main_table_item == len(MAIN_TABLE_ITEMS_SC13D.keys()):
+                        logger.debug(f"completed the parse of a main table")
+                        current_main_table_item = 0
+                        tables["extracted"].append(
+                            {
+                            "classification": "main_table",
+                            "table_meta": multi_element_table_meta,
+                            "parsed_table": multi_element_table_items
+                            }
+                        )
+
                 # further reformat the table
                 tables["extracted"].append(
                     {
                         "classification": classification,
-                        "table_element": t,
-                        "parsed_table": cleaned_table,
+                        "table_meta": {"table_elements": [t]},
+                        "parsed_table": cleaned_table
                     }
                 )
+        if current_main_table_item > 0:
+            logger.debug((f"failed to parse the main table completely."
+                            f"items found so far: {multi_element_table_items}"))
         return tables
-    
-    def _is_main_table_start(self, table):
-        # check if this is the start of the main table
-        for row in table:
-            for field in row:
-                if table_field_contains_content(field, re.compile(MAIN_TABLE_ITEMS_SC13D["1"], re.I)):
-                    return True
-        return False
-    
-    def _is_cusip(self, field):
-        '''check if field contains cusip and extract if so.'''
-        match = re.search(field, re.compile(
-            "([a-z0-9]{6}(?:\s{0,3})(?:(?:[a-z0-9]{3})|(?:[a-z0-9]{2}(?:\s){0,3})[a-z0-9]{1}))"
-        ))
-        if match:
-            return match.group[0]
-        else:
-            return None
 
-    def _is_complete_main_table(self, table):
-        '''check if this table contains all the items in order without empty lines.'''
-        current_item = 1
-        found_items = [False for each in MAIN_TABLE_ITEMS_SC13D.keys()]
-        for row in table:
-            for field in row:
-                if table_field_contains_content(field, re.compile(MAIN_TABLE_ITEMS_SC13D[str(current_item)], re.I)):
-                    found_items[current_item-1] = True
+
+def _re_is_main_table_start(table: list[list], items_dict: dict):
+    # check if this is the start of the main table
+    for row in table:
+        for field in row:
+            if table_field_contains_content(field, re.compile(items_dict[list(items_dict.keys())[0]], re.I)):
+                return True
+    return False
+
+def _re_get_key_value_table(table: list[list], items_dict: dict, current_item: int):
+    '''extract the key value from items dict from table.
+    Args:
+        current_item: index of item in items_dict to start from
+    Returns:
+        current_item: item idx of last item
+        items: list[dicts]    
+    '''
+    items = []
+    keys = list(items_dict.keys())
+    for row in table:
+        for field in row:
+            if current_item > (len(keys)-1):
+                return current_item, items
+            if field is not None:
+                match = _extract_field_value(field, re.compile(items_dict[keys[current_item]]+"(.*)", re.I | re.DOTALL))
+                if match is not None:
+                    items.append({keys[current_item]:match})
                     current_item += 1
-        return _list_is_true(found_items)
+    return current_item, items
+                
+
+def _parse_sc13_main_table_alternative(htmltable: element.Tag):
+        '''alternative way to parse a sc13 main table'''
+        rows = htmltable.find_all("tr")
+        offset = None
+        table = []
+        rowcount = -1
+        for row in rows:
+            cells = row.find_all(["td", "th"], recursive=False)
+            if (offset is None) or (offset == 0):
+                rowcount += 1
+                if re.search(re.compile("NUMBER(?:.){,3}OF(?:.){,3}SHARES", re.I|re.DOTALL),cells[0].get_text(strip=True)):
+                    offset = int(cells[1].get("rowspan", 0))
+                else:
+                    offset = int(cells[0].get("rowspan", 0))
+                table.append([])
+            [table[rowcount].append(c.get_text(strip=True)) for c in cells]
+            offset -= 1
+        return [[" ".join(x)] for x in table]
+
+
+def _get_cusip(field: str):
+    '''check if field contains cusip and extract if so.'''
+    match = re.search(field, re.compile(
+        "([a-z0-9]{6}(?:\s{0,3})(?:(?:[a-z0-9]{3})|(?:[a-z0-9]{2}(?:\s){0,3})[a-z0-9]{1}))(?:\s)*\((?:\s){0,3}cusip"
+    ))
+    if match:
+        return match.group(1)
+    else:
+        return None
+    
+def _extract_field_value(field, re_term):
+    '''extract a key value pair from a re term where groups()[0] is key and groups()[1] is value.'''
+    match = re.search(re_term, field)
+    if match:
+        return match.group(2)
+    else:
+        # print(f"no match found in: {field} with re_term: {re_term}")
+        return None
+
     
 def _list_is_true(entries: list[bool]):
     '''checks if list has only True for values'''
@@ -1985,6 +2078,8 @@ def table_field_contains_content(field, re_term):
     else:
         if re.search(re_term, field):
             return True
+        else:
+            return False
 
 
     
@@ -2018,6 +2113,15 @@ class HTMFilingSection(FilingSection):
         self.text_only = self.parser.get_text_content(
             self.soup, exclude=["table", "script", "title", "head"]
         )
+    
+    def quick_summary(self) -> dict:
+        '''returns a short summary of the section.'''
+        return {
+            "title": self.title,
+            "text_only_length": len(self.text_only),
+            "tables_extracted": len(self.tables["extracted"]),
+            "tables_reintegrated": len(self.tables["reintegrated"])
+            }
 
 
 class HTMFiling(BaseFiling):
