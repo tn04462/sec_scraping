@@ -267,8 +267,15 @@ if __name__ == "__main__":
                     pass
         with open("./resources/company_tickers.json", "r") as f:
             tickers = list(json.load(f).keys())
-            for ticker in tqdm(tickers[5020:5030]):
+            for ticker in tqdm(tickers[5000:5200]):
                 get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
+    
+    def open_filings_in_browser(root: str, form: str):
+        import webbrowser
+        paths = get_all_filings_path(root, form_type=form)
+        for p in paths:
+            webbrowser.open(p, new=2)
+            
 
     def store(path: str, obj: list):
         with open(path, "wb") as f:
@@ -480,7 +487,7 @@ if __name__ == "__main__":
             print(path)
             filing: HTMFiling = filing_factory.create_filing(**info)
 
-    test_sc13g_main_table()
+    # test_sc13g_main_table()
 
     # def test_sc13d_main_table_alt():
     #     t =  [['1 NAME OF REPORTING PERSON   Qatar Airways Investments (UK) Ltd    '], ['2 CHECK THE APPROPRIATE BOX IF A MEMBER OF A GROUP (SEE INSTRUCTIONS) (a) ☐  (b) ☒  '], ['3 SEC USE ONLY       '], ['4 SOURCE OF FUNDS (SEE INSTRUCTIONS)   WC    '], ['5 CHECK IF DISCLOSURE OF LEGAL PROCEEDINGS IS REQUIRED PURSUANT TO ITEM 2(D) OR ITEM 2(E)  ☐ N/A    '], ['6 CITIZENSHIP OR PLACE OF ORGANIZATION   United Kingdom    '], ['NUMBER OF SHARES BENEFICIALLY OWNED BY EACH REPORTING PERSON WITH 7 SOLE VOTING POWER   0    '], ['8 SHARED VOTING POWER   60,837,452    '], ['9 SOLE DISPOSITIVE POWER   0    '], ['10 SHARED DISPOSITIVE POWER   60,837,452    '], ['11 AGGREGATE AMOUNT BENEFICIALLY OWNED BY EACH REPORTING PERSON   60,837,452    '], ['12 CHECK IF THE AGGREGATE AMOUNT IN ROW (11) EXCLUDES CERTAIN SHARES (SEE INSTRUCTIONS)  ☐     '], ['13 PERCENT OF CLASS REPRESENTED BY AMOUNT IN ROW (11)   10% (1)    '], ['14 TYPE OF REPORTING PERSON (SEE INSTRUCTIONS)   CO    ']]
@@ -507,7 +514,7 @@ if __name__ == "__main__":
 
    
 
-    # download_samples(r"F:\example_filing_set_sc13", forms=["SC 13D", "SC 13G"])
+    # download_samples(r"F:\example_filing_set_S3", forms=["S-3"])
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
     # dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
@@ -546,3 +553,4 @@ if __name__ == "__main__":
         #     print(len(parser.parse_items(filing)))
 
     # item count in all 8-k's of the filings-database
+    # open_filings_in_browser(r"F:\example_filing_set_S3\filings", "S-3")

@@ -110,11 +110,18 @@ MAIN_TABLE_ITEMS_SC13D = {
     "14": "(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
 }
 
+REGISTRATION_TABLE_HEADERS_S3 = [
+            re.compile("Amount(\s*)of(\s*)Registration(\s*)Fee", re.I),
+            re.compile("Title(\s*)of(\s*)Each(\s*)Class(\s*)(.*)Regi(.*)", re.I),
+            re.compile("Amount(\s*)(Being|to(\s*)be)(\s*)Registered", re.I)]
+
 TOC_ALTERNATIVES = {
     "principal stockholders": [
         "SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT"
     ],
-    "index to financial statements": ["INDEX TO CONSOLIDATED FINANCIAL STATEMENTS"],
+    "index to financial statements": [
+        "INDEX TO CONSOLIDATED FINANCIAL STATEMENTS"
+    ],
 }
 
 IGNORE_HEADERS_BASED_ON_STYLE = set("TABLE OF CONTENTS")
@@ -1553,6 +1560,65 @@ class HTMFilingParser(AbstractFilingParser):
         )
 
 
+class ParserS3(HTMFilingParser):
+    form_type = "S-3"
+    extension = ".htm"
+    '''process and parse s-3 filing.'''
+
+    def split_into_sections(self, doc: BeautifulSoup | str):
+        return super().split_into_sections(doc)
+    
+    def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
+        '''see HTMFilingParser'''
+        unparsed_tables = self.get_unparsed_tables(soup)
+        tables = {"reintegrated": [], "extracted": []}
+        for t in unparsed_tables:
+            parsed_table = None
+            if self.table_has_header(t):
+                parsed_table = self.parse_htmltable_with_header(t)
+            else:
+                parsed_table = self.primitive_htmltable_parse(t)
+            cleaned_table = self._clean_parsed_table(
+                self._preprocess_table(parsed_table)
+            )
+            classification = self.classify_table(cleaned_table)
+            if classification == "unclassified":
+                classification = super().classify_table(cleaned_table)
+            if classification in reintegrate:
+                reintegrate_html = self._make_reintegrate_html_of_table(
+                    classification, cleaned_table
+                )
+                t.replace_with(reintegrate_html)
+                tables["reintegrated"].append(
+                    {
+                        "classification": classification,
+                        "reintegrated_as": reintegrate_html,
+                        "table_meta": {"table_elements": [t]},
+                        "parsed_table": cleaned_table,
+                    }
+                )
+            else:
+                # further reformat the table
+                tables["extracted"].append(
+                    {
+                        "classification": classification,
+                        "table_meta": {"table_elements": [t]},
+                        "parsed_table": cleaned_table,
+                    }
+                )
+        return tables
+
+
+    def classify_table(self, table: list[list]):
+        table_shape = (len(table), len(table[0]))
+        if table_shape[0] > 1:
+            if table_header_has_fields(table[0], REGISTRATION_TABLE_HEADERS_S3):
+                return "registration_table"
+        return "unclassified"
+
+    
+
+
 class Parser8K(HTMFilingParser):
     form_type = "8-K"
     extension = ".htm"
@@ -1562,8 +1628,7 @@ class Parser8K(HTMFilingParser):
     Usage:
         1) open file
         2) read() file with utf-8 and in "r"
-        3) pass to preprocess_filing
-        4) extract something: for example with parse_items
+        3) call split_into_sections on the string from 2)
     """
 
     def __init__(self):
@@ -2001,6 +2066,7 @@ class ParserSC13D(HTMFilingParser):
                             f"items found so far: {multi_element_table_items}"))
         return tables
 
+
 class ParserSC13G(ParserSC13D):
     form_type = "SC 13G"
     extension = ".htm"
@@ -2120,6 +2186,15 @@ def table_field_contains_content(field, re_term):
         else:
             return False
 
+def table_header_has_fields(table_header: list, re_terms: list[re.Pattern]) -> bool:
+    '''checks if all fields are present in the header'''
+    header_matches = []
+    for field in table_header:
+        for re_term in re_terms:
+            if table_field_contains_content(field, re_term):
+                header_matches.append(True)
+    return (_list_is_true(header_matches) and (len(header_matches) == len(re_terms)))
+
 
     
     
@@ -2127,7 +2202,9 @@ def table_field_contains_content(field, re_term):
 parser_factory_default = [
     (".htm", "8-K", Parser8K),
     (".htm", "SC 13D", ParserSC13D),
-    (".htm", "SC 13G", ParserSC13G)
+    (".htm", "SC 13G", ParserSC13G),
+    (".htm", "S-3", ParserS3),
+
 ]
 parser_factory = ParserFactory(defaults=parser_factory_default)
 
@@ -2245,7 +2322,8 @@ filing_factory_default = [
     ("DEF 14A", ".htm", HTMFiling),
     ("8-K", ".htm", HTMFiling),
     ("SC 13D", ".htm", HTMFiling),
-    ("SC 13G", ".htm", HTMFiling)
+    ("SC 13G", ".htm", HTMFiling),
+    ("S-3", ".htm", HTMFiling)
     ]
 
 filing_factory = FilingFactory(defaults=filing_factory_default)
