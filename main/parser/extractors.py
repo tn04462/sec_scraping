@@ -2,6 +2,7 @@ from abc import ABC
 import logging
 import spacy
 from spacy.matcher import Matcher
+from spacy.tokens import Span
 from main.parser.filings_base import Filing, FilingValue
 from datetime import datetime
 import pandas as pd
@@ -72,6 +73,54 @@ class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_filing_values(self, filing: Filing):
         return [self.extract_outstanding_shares(filing)]
 
+class SpacySEC:
+    _instance = None
+    def __init__(self):
+        self.matcher = Matcher(self.nlp.vocab)
+        self.add_SECU_ent_to_matcher()
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(SpacySEC, cls).__new__(cls)
+            cls._instance.nlp = spacy.load("en_core_web_sm")
+        return cls._instance
+    
+    def add_SECU_ent_to_matcher(self):
+        exclude = [
+            "Agreement",
+            "Agent",
+            "indebenture"
+            ]
+        warrant_exclude = [
+            "Shares",
+
+        ]
+
+        preferred_modifiers = [
+            "Series",
+        ]
+        warrant_modifiers = [
+            "Series",
+            "Tranche"
+        ]
+        patterns = [
+            [{"LOWER": {"IN": preferred_modifiers}, "OP": "?"}, {"TEXT": {"REGEX": "[a-z0-9]{1,3}"}, "OP": "?"},{"LOWER": "preferred"}, {"LOWER": "stock"}],
+            [{"LOWER": "common"}, {"LOWER": "stock"}],
+            [{"LOWER": "senior"}, {"LOWER": "debt"}, {"LOWER": "securities"}],
+            [{"LOWER": "subordinated"}, {"LOWER": "debt"}, {"LOWER": "securities"}],
+            [{"LOWER": "debt"}, {"LOWER": "securities"}, {"LOWER": {"NOT_IN": exclude}}],
+            [{"LOWER": {"IN": ["warrant", "warrants"]}}, {"LOWER": {"NOT_IN": exclude}}]
+        ]
+        self.matcher.add("SECU_ENT", patterns, on_match=_add_SECU_ent)
+    
+def _add_SECU_ent(matcher, doc, i, matches):
+    # Get the current match and create tuple of entity label, start and end.
+    # Append entity to the doc's entity. (Don't overwrite doc.ents!)
+    match_id, start, end = matches[i]
+    entity = Span(doc, start, end, label="SECU")
+    doc.ents += (entity,)
+    print(entity.text)
+
 
 class SpacyFilingTextSearch:
     _instance = None
@@ -85,10 +134,13 @@ class SpacyFilingTextSearch:
             cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
             cls._instance.nlp = spacy.load("en_core_web_sm")
         return cls._instance
+    
+    
 
     def match_outstanding_shares(self, text):
         pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
         pattern2 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
+        pattern3 = [{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "CARDINAL"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["issued", "outstanding"]}}]
         self.matcher.add("outstanding", [pattern1, pattern2])
         doc = self.nlp(text)
         possible_matches = self.matcher(doc, as_spans=False)

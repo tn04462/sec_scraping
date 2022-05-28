@@ -267,13 +267,15 @@ if __name__ == "__main__":
                     pass
         with open("./resources/company_tickers.json", "r") as f:
             tickers = list(json.load(f).keys())
-            for ticker in tqdm(tickers[5000:5200]):
+            for ticker in tqdm(tickers[5000:5020]):
                 get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
     
-    def open_filings_in_browser(root: str, form: str):
+    def open_filings_in_browser(root: str, form: str, max=10):
         import webbrowser
         paths = get_all_filings_path(root, form_type=form)
-        for p in paths:
+        for idx, p in enumerate(paths):
+            if idx > max:
+                return
             webbrowser.open(p, new=2)
             
 
@@ -394,6 +396,15 @@ if __name__ == "__main__":
         with db.conn() as conn:    
             db.updater.update_ticker("CEI")
     
+    def test_spacy_secu_matches():
+        from main.parser.extractors import SpacySEC
+        spacy_sec = SpacySEC()
+        text = "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding."
+        doc = spacy_sec.nlp(text)
+        for ent in doc.ents:
+            print(ent.label_, ent.text)
+    test_spacy_secu_matches()
+    
     def test_spacy():
         # import spacy
         # from spacy.matcher import Matcher
@@ -449,7 +460,7 @@ if __name__ == "__main__":
         # b = filing.get_section("before items")
         # print([t["parsed_table"] for t in b.tables])
     # test_parser_sc13d()
-    create_sc13g_filing()
+    # create_sc13g_filing()
 
     def test_sc13d_main_table():
         filings = get_all_filings_path(r"F:\example_filing_set_sc13\filings", "SC 13D")
@@ -514,7 +525,8 @@ if __name__ == "__main__":
 
    
 
-    # download_samples(r"F:\example_filing_set_S3", forms=["S-3"])
+    # download_samples(r"C:\Users\Olivi\Desktop\test_set\set_s3", forms=["S-3"])
+    
     # dl = Downloader(cnf.DOWNLOADER_ROOT_PATH)
     # dl.get_filings("CEI", "8-K", after_date="2021-01-01", number_of_filings=10)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
@@ -553,4 +565,4 @@ if __name__ == "__main__":
         #     print(len(parser.parse_items(filing)))
 
     # item count in all 8-k's of the filings-database
-    # open_filings_in_browser(r"F:\example_filing_set_S3\filings", "S-3")
+    # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
