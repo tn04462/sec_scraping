@@ -87,7 +87,6 @@ class SECUMatcher:
         self.matcher(doc)
         return doc 
     
-    
     def add_SECU_ent_to_matcher(self):
         # base_securities is just to keep track of the different bases we work with
         base_securities = [
@@ -102,11 +101,7 @@ class SECUMatcher:
             [{"LOWER": "subsciption"}, {"LOWER": "rights"}], #
 
         ]
-        exclude = [
-            "agreement",
-            "agent",
-            "indebenture"
-            ]
+        
 
         debt_securities_l1_modifiers = [
             "subordinated",
@@ -138,45 +133,86 @@ class SECUMatcher:
             [{"TEXT": "Subsciption"}, {"TEXT": "Rights"}],
 
         ]
+        # exclude particles, conjunctions from regex match 
         patterns = [
-            [{"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-z0-9]{1,3}"}, "OP": "?"},
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}}, {"LOWER": {"IN": exclude}, "OP": "!"}],
+                {"LOWER": {"IN": ["stock", "shares"]}}]
+                ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}}, {"LOWER": {"IN": exclude}, "OP": "!"}],
-
-            [{"LOWER": {"IN": general_affixes}, "OP": "?"}, {"TEXT": {"REGEX": "[a-z0-9]{1,3}"}, "OP": "?"},
-                {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": "debt"}, {"LOWER": "securities"},
-                {"LOWER": {"IN": exclude}, "OP": "!"}],
-            [{"LOWER": {"IN": purchase_affixes}, "OP": "?"}, {"TEXT": "Purchase"}, {"LOWER": {"IN": purchase_suffixes}}],
-            *special_patterns
+                {"LOWER": {"IN": ["stock", "shares"]}}]
+                ,
 
             
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["warrant", "warrants"]}},
+                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}]
+                ,
+            [
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["warrant", "warrants"]}},
+                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}]
+                ,
+
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
+                {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": "debt"}, {"LOWER": "securities"}]
+                ,
+
+            [   {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": "debt"}, {"LOWER": "securities"}]
+                ,
+
+            [   {"LOWER": {"IN": purchase_affixes}, "OP": "?"}, {"TEXT": "Purchase"}, {"LOWER": {"IN": purchase_suffixes}}],
+            
         ]
-        self.matcher.add("SECU_ENT", patterns, on_match=_add_SECU_ent)
+        self.matcher.add("SECU_ENT", [*patterns, *special_patterns], on_match=_add_SECU_ent)
+
+def _is_match_followed_by(doc, start: int, end: int, exclude: list[str]):
+    if doc[end].lower not in exclude:
+        return False
+    return True
+
+def _is_match_preceeded_by(doc, start: int, end: int, exclude: list[str]):
+    if (start == 0) or (exclude == []):
+        return False
+    if doc[start-1] not in exclude:
+        return False
+    return True
     
 def _add_SECU_ent(matcher, doc, i, matches):
-    # Get the current match and create tuple of entity label, start and end.
-    # Append entity to the doc's entity. (Don't overwrite doc.ents!)
+    _add_ent(doc, i, matches, "SECU", exclude_after=[
+            "agreement"
+            "agent",
+            "indebenture"])
+
+def _add_ent(doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
+    '''add a custom entity through an on_match callback.'''
     match_id, start, end = matches[i]
-    entity = Span(doc, start, end, label="SECU")
-    try:
-        doc.ents += (entity,)
-    except ValueError as e:
-        if "[E1010]" in str(e):
-            for ent in doc.ents:
-                covered_tokens = range(ent.start, ent.end)
-                if (start in covered_tokens) or (end in covered_tokens):
-                    if (ent.end - ent.start) < (end - start):
-                        previous_ents = list(doc.ents)
-                        previous_ents.remove(ent)
-                        previous_ents.append(entity)
-                        doc.ents = previous_ents
+    # print(doc[start:end])
+    # print(f"followed_by: {_is_match_followed_by(doc, start, end, exclude_after)}")
+    # print(f"preceeded_by: {_is_match_preceeded_by(doc, start, end, exclude_before)}")
+    if (not _is_match_followed_by(doc, start, end, exclude_after)) and (
+        not _is_match_preceeded_by(doc, start, end, exclude_before)):
+        entity = Span(doc, start, end, label=ent_label)
+        try:
+            doc.ents += (entity,)
+        except ValueError as e:
+            if "[E1010]" in str(e):
+                for ent in doc.ents:
+                    covered_tokens = range(ent.start, ent.end)
+                    if (start in covered_tokens) or (end in covered_tokens):
+                        if (ent.end - ent.start) < (end - start):
+                            previous_ents = list(doc.ents)
+                            previous_ents.remove(ent)
+                            previous_ents.append(entity)
+                            doc.ents = previous_ents
 
 @Language.factory("secu_matcher")
 def create_secu_matcher(nlp, name):
@@ -193,7 +229,7 @@ class SpacyFilingTextSearch:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
-            cls._instance.nlp = spacy.load("en_core_web_sm")
+            cls._instance.nlp = spacy.load("en_core_web_lg")
             cls._instance.nlp.add_pipe("secu_matcher")
         return cls._instance
 

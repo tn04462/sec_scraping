@@ -396,18 +396,7 @@ if __name__ == "__main__":
         with db.conn() as conn:    
             db.updater.update_ticker("CEI")
     
-    def test_spacy_secu_matches():
-        from main.parser.extractors import spacy_text_search
-        # text = "common stock."
-        text = "Series C preferred stock test_case As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding."
-        doc = spacy_text_search.nlp(text)
-        # matches = spacy_sec.matcher(doc, as_spans=True)
-        for ent in doc.ents:
-            if ent.label_ == "SECU":
-                print(ent.label_, ": " ,ent.text)
-        # for t in doc:
-        #     print(t)
-    test_spacy_secu_matches()
+    
     
     def test_spacy():
         # import spacy
@@ -432,18 +421,34 @@ if __name__ == "__main__":
         
     def create_htm_filing():
         fake_filing_info = {
-            "path": r"C:\Users\Olivi\Desktop\test_set\filings\0001309082\DEF 14A\000147793221000113\cei-def14a.htm",
+            "path": r"C:/Users/Olivi/Desktop/test_set/set_s3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000147793221000113",
             "cik": "0001477932",
             "file_number": "001-3259",
-            "form_type": "DEF 14A",
+            "form_type": "S-3",
             "extension": ".htm"
         }
         from main.parser.parsers import filing_factory
         filing = filing_factory.create_filing(**fake_filing_info)
+        return filing
     # 
     # create_htm_filing()
+
+    def test_spacy_secu_matches():
+        from main.parser.extractors import spacy_text_search
+        # text = "$ 300,000,000 Common Stock Preferred Stock Debt Securities Warrants Units"
+        # doc = spacy_text_search.nlp(text)
+        filing = create_htm_filing()
+        doc = spacy_text_search.nlp(filing.get_text_only())
+        displacy.serve(doc, style="ent")
+        # for ent in doc.ents:
+        #     if ent.label_ == "SECU":
+        #         print(ent.label_, ": " ,ent.text)
+        
+        # for t in doc:
+        #     print(t)
+    test_spacy_secu_matches()
 
     def test_parser_sc13d():
         parser = ParserSC13D()

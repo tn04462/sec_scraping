@@ -252,6 +252,7 @@ class HTMFilingParser(AbstractFilingParser):
         with open(Path(path), "r", encoding="utf-8") as f:
             doc = f.read()
             return self.preprocess_doc(doc)
+            
     
     def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
         """
@@ -378,7 +379,7 @@ class HTMFilingParser(AbstractFilingParser):
         logger.debug(f"sections1: {len(sections) if sections is not None else []}")
         # print()
         possible_headers = self._get_possible_headers_based_on_style(
-            doc=doc, ignore_toc=False
+            doc=doc_, ignore_toc=False
         )
         headers_style = self._format_matches_based_on_style(possible_headers)
         logger.debug(
@@ -392,9 +393,8 @@ class HTMFilingParser(AbstractFilingParser):
             f"split_into_sections(): section_start_elements for splitting by style: {section_start_elements}"
         )
         sections = self._split_into_sections_by_tags(
-            doc, section_start_elements=section_start_elements
+            doc_, section_start_elements=section_start_elements
         )
-        # print()
         logger.debug(f"sections2: {len(sections) if sections is not None else []}")
         if (sections is None) or (sections == []):
             raise NotImplementedError(
