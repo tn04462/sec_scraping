@@ -3,7 +3,8 @@ import logging
 import spacy
 from spacy.matcher import Matcher
 from spacy.tokens import Span
-from spacy import language
+from spacy import Language
+from spacy.util import filter_spans
 from main.parser.filings_base import Filing, FilingValue
 from datetime import datetime
 import pandas as pd
@@ -84,33 +85,78 @@ class SECUMatcher:
     
     def __call__(self, doc):
         self.matcher(doc)
-        
+        return doc 
+    
     
     def add_SECU_ent_to_matcher(self):
+        # base_securities is just to keep track of the different bases we work with
+        base_securities = [
+            [{"LOWER": "common"}, {"LOWER": "stock"}], #
+            [{"TEXT": "Ordinary"}, {"LOWER": "shares"}], #
+            [{"LOWER": "warrants"}], #
+            [{"LOWER": "preferred"}], #
+            [{"LOWER": "debt"}, {"LOWER": "securities"}], #
+            [{"TEXT": "Purchase"}], #
+            [{"LOWER": "depository"}, {"LOWER": "shares"}], #
+            [{"LOWER": "depositary"}, {"LOWER": "shares"}], #
+            [{"LOWER": "subsciption"}, {"LOWER": "rights"}], #
+
+        ]
         exclude = [
-            "Agreement",
-            "Agent",
+            "agreement",
+            "agent",
             "indebenture"
             ]
-        warrant_exclude = [
-            "Shares",
 
+        debt_securities_l1_modifiers = [
+            "subordinated",
+            "senior"
         ]
 
-        preferred_modifiers = [
-            "Series",
+        general_pre_sec_modifiers = [
+            "convertible",
+            "non-convertible"
         ]
-        warrant_modifiers = [
-            "Series",
-            "Tranche"
+        general_affixes = [
+            "series",
+            "tranche",
+            "class"
+        ]
+        purchase_affixes = [
+            "stock",
+            "shares"
+        ]
+        purchase_suffixes = [
+            "rights",
+            "contracts",
+            "units"
+        ]
+
+
+        special_patterns = [
+            [{"LOWER": "common"}, {"LOWER": "units"}, {"LOWER": "of"}, {"LOWER": "beneficial"}, {"LOWER": "interest"}],
+            [{"TEXT": "Subsciption"}, {"TEXT": "Rights"}],
+
         ]
         patterns = [
-            # [{"LOWER": {"IN": preferred_modifiers}, "OP": "?"}, {"TEXT": {"REGEX": "[a-z0-9]{1,3}"}, "OP": "?"},{"LOWER": "preferred"}, {"LOWER": "stock"}],
-            [{"LOWER": "common"}, {"LOWER": "stock"}],
-            # [{"LOWER": "senior"}, {"LOWER": "debt"}, {"LOWER": "securities"}],
-            # [{"LOWER": "subordinated"}, {"LOWER": "debt"}, {"LOWER": "securities"}],
-            # [{"LOWER": "debt"}, {"LOWER": "securities"}, {"LOWER": {"NOT_IN": exclude}}],
-            # [{"LOWER": {"IN": ["warrant", "warrants"]}}, {"LOWER": {"NOT_IN": exclude}}]
+            [{"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-z0-9]{1,3}"}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["stock", "shares"]}}, {"LOWER": {"IN": exclude}, "OP": "!"}],
+            [
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["stock", "shares"]}}, {"LOWER": {"IN": exclude}, "OP": "!"}],
+
+            [{"LOWER": {"IN": general_affixes}, "OP": "?"}, {"TEXT": {"REGEX": "[a-z0-9]{1,3}"}, "OP": "?"},
+                {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": "debt"}, {"LOWER": "securities"},
+                {"LOWER": {"IN": exclude}, "OP": "!"}],
+            [{"LOWER": {"IN": purchase_affixes}, "OP": "?"}, {"TEXT": "Purchase"}, {"LOWER": {"IN": purchase_suffixes}}],
+            *special_patterns
+
+            
         ]
         self.matcher.add("SECU_ENT", patterns, on_match=_add_SECU_ent)
     
@@ -119,11 +165,21 @@ def _add_SECU_ent(matcher, doc, i, matches):
     # Append entity to the doc's entity. (Don't overwrite doc.ents!)
     match_id, start, end = matches[i]
     entity = Span(doc, start, end, label="SECU")
-    doc.ents += (entity,)
-    print(entity.text)
+    try:
+        doc.ents += (entity,)
+    except ValueError as e:
+        if "[E1010]" in str(e):
+            for ent in doc.ents:
+                covered_tokens = range(ent.start, ent.end)
+                if (start in covered_tokens) or (end in covered_tokens):
+                    if (ent.end - ent.start) < (end - start):
+                        previous_ents = list(doc.ents)
+                        previous_ents.remove(ent)
+                        previous_ents.append(entity)
+                        doc.ents = previous_ents
 
-@language.factory("secu_matcher")
-def create_secu_matcher(self, nlp, name):
+@Language.factory("secu_matcher")
+def create_secu_matcher(nlp, name):
     return SECUMatcher(nlp.vocab)
 
 class SpacyFilingTextSearch:

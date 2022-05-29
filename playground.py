@@ -397,16 +397,16 @@ if __name__ == "__main__":
             db.updater.update_ticker("CEI")
     
     def test_spacy_secu_matches():
-        from main.parser.extractors import SECUMatcher
-        spacy_sec = SECUMatcher()
-        text = "common stock."
-        # text = "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding."
-        doc = spacy_sec.nlp(text)
+        from main.parser.extractors import spacy_text_search
+        # text = "common stock."
+        text = "Series C preferred stock test_case As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding."
+        doc = spacy_text_search.nlp(text)
         # matches = spacy_sec.matcher(doc, as_spans=True)
-        # for ent in doc.ents:
-        #     print(ent.label_, ent.text)
-        for t in doc:
-            print(t)
+        for ent in doc.ents:
+            if ent.label_ == "SECU":
+                print(ent.label_, ": " ,ent.text)
+        # for t in doc:
+        #     print(t)
     test_spacy_secu_matches()
     
     def test_spacy():
