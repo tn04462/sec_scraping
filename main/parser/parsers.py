@@ -2278,12 +2278,12 @@ class HTMFiling(BaseFiling):
         else:
             return []
 
-    def get_section(self, identifier: str | int):
+    def get_section(self, identifier: str | int | re.Pattern):
         """gets a section either by index or by exact title match.
 
         Returns:
             FilingSection or [], if no section was found."""
-        if not isinstance(identifier, (str, int)):
+        if not isinstance(identifier, (str, int, re.Pattern)):
             raise ValueError
         if self.sections == []:
             return []
@@ -2293,12 +2293,15 @@ class HTMFiling(BaseFiling):
             except IndexError:
                 logger.info("no section with that identifier found")
                 return []
-        else:
-            sec_matches = []
+        elif isinstance(identifier, str):
             for sec in self.sections:
                 if sec.title == identifier:
                     return sec
-            return []
+        elif isinstance(identifier, re.Pattern):
+            for sec in self.sections:
+                if re.search(identifier, sec.title):
+                    return sec
+        return []
 
     def get_sections(self, identifier: str | re.Pattern):
         """gets sections based on a re.search of identifier.

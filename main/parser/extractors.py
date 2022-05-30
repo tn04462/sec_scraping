@@ -1,7 +1,7 @@
 from abc import ABC
 import logging
 import spacy
-from spacy.matcher import Matcher
+from spacy.matcher import Matcher, DependencyMatcher
 from spacy.tokens import Span
 from spacy import Language
 from spacy.util import filter_spans
@@ -223,7 +223,8 @@ class SpacyFilingTextSearch:
     # make this a singleton/get it from factory through cls._instance so we can avoid
     # the slow process of adding patterns (if we end up with a few 100)
     def __init__(self):
-        pass
+        self.dep_matcher = DependencyMatcher(self.nlp.vocab)
+        self._add_excercise_dependency()
 
 
     def __new__(cls):
@@ -261,6 +262,81 @@ class SpacyFilingTextSearch:
             else:
                 values.append(value)
         return values
+    
+    def _add_excercise_dependency(self):
+        pattern = [
+            {
+                "RIGHT_ID": "anchor_issuable",
+                "RIGHT_ATTRS": {"ORTH": "issuable"}
+            },
+            {
+                "LEFT_ID": "anchor_issuable",
+                "REL_OP": "<",
+                "RIGHT_ID": "noun_dep",
+                "RIGHT_ATTRS": {"POS": "NOUN"}
+            },
+            {
+                "LEFT_ID": "noun_dep",
+                "REL_OP": ">",
+                "RIGHT_ID": "quant_num",
+                "RIGHT_ATTRS": {"POS": "NUM"}
+            },
+            # {
+            #     "LEFT_ID": "noun_dep",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "adp_of",
+            #     "RIGHT_ATTRS": {"POS": "ADP"}
+            # },
+            # {
+            #     "LEFT_ID": "adp_of",
+            #     "REL_OP": ">>",
+            #     "RIGHT_ID": "secu_ent",
+            #     "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "OP": "?"}
+            # },
+            {
+                "LEFT_ID": "anchor_issuable",
+                "REL_OP": ">",
+                "RIGHT_ID": "adp",
+                "RIGHT_ATTRS": {"POS": "ADP"}
+            },
+            {
+                "LEFT_ID": "adp",
+                "REL_OP": ">",
+                "RIGHT_ID": "price",
+                "RIGHT_ATTRS": {"ORTH": "price"}
+            },
+            {
+                "LEFT_ID": "price",
+                "REL_OP": ">",
+                "RIGHT_ID": "excercise",
+                "RIGHT_ATTRS": {"ORTH": "exercise"}
+            },
+            {
+                "LEFT_ID": "price",
+                "REL_OP": ">",
+                "RIGHT_ID": "adp_of2",
+                "RIGHT_ATTRS": {"POS": "ADP", "ORTH": "of"}
+            },
+            {
+                "LEFT_ID": "adp_of2",
+                "REL_OP": ">",
+                "RIGHT_ID": "num",
+                "RIGHT_ATTRS": {"POS": "NUM"}
+            },
+            {
+                "LEFT_ID": "num",
+                "REL_OP": ">",
+                "RIGHT_ID": "per",
+                "RIGHT_ATTRS": {"ORTH": "per"}
+            },
+            {
+                "LEFT_ID": "per",
+                "REL_OP": ">",
+                "RIGHT_ID": "noun_dep2",
+                "RIGHT_ATTRS": {"POS": "NOUN"}
+            }
+        ]
+        self.dep_matcher.add("EXCERCISE_PRICE", [pattern])
     
     def _take_longest_matches(self, matches):
             entries = []

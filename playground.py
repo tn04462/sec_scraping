@@ -421,7 +421,7 @@ if __name__ == "__main__":
         
     def create_htm_filing():
         fake_filing_info = {
-            "path": r"C:/Users/Olivi/Desktop/test_set/set_s3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
+            "path": r"F:\example_filing_set_S3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000147793221000113",
             "cik": "0001477932",
@@ -437,11 +437,18 @@ if __name__ == "__main__":
 
     def test_spacy_secu_matches():
         from main.parser.extractors import spacy_text_search
-        # text = "$ 300,000,000 Common Stock Preferred Stock Debt Securities Warrants Units"
+        # text = "1,690,695 shares of common stock issuable upon exercise of stock options outstanding as of September 30, 2020 at a weighted-average exercise price of $12.86 per share."
         # doc = spacy_text_search.nlp(text)
         filing = create_htm_filing()
-        doc = spacy_text_search.nlp(filing.get_text_only())
-        displacy.serve(doc, style="ent")
+        print(filing.get_section(re.compile("DISTRIBUTION", re.I)))
+        
+        # doc = spacy_text_search.nlp(filing.get_section(re.compile("DISTRIBUTION", re.I)).text_only)
+        # matches = spacy_text_search.dep_matcher(doc)
+        # match_id, token_ids = matches[0]
+        # for i in sorted(token_ids):
+        #     print(doc[i].text)
+
+        # displacy.serve(doc, style="dep")
         # for ent in doc.ents:
         #     if ent.label_ == "SECU":
         #         print(ent.label_, ": " ,ent.text)
