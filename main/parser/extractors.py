@@ -223,6 +223,7 @@ class SpacyFilingTextSearch:
     # make this a singleton/get it from factory through cls._instance so we can avoid
     # the slow process of adding patterns (if we end up with a few 100)
     def __init__(self):
+        self.matcher = Matcher(self.nlp.vocab)
         self.dep_matcher = DependencyMatcher(self.nlp.vocab)
         self._add_excercise_dependency()
 
@@ -254,6 +255,7 @@ class SpacyFilingTextSearch:
                 if ent.label_ == "CARDINAL":
                     value["outstanding_shares"]["amount"] = int(str(ent).replace(",", ""))
                 if ent.label_ == "DATE":
+                    print(str(ent))
                     value["outstanding_shares"]["date"] = pd.to_datetime(str(ent))
             try:
                 validate_filing_values(value, "outstanding_shares", ["date", "amount"])

@@ -421,7 +421,7 @@ if __name__ == "__main__":
         
     def create_htm_filing():
         fake_filing_info = {
-            "path": r"F:\example_filing_set_S3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
+            "path": r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings\0001325879\S-3\000119312518218817\d439397ds3.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000147793221000113",
             "cik": "0001477932",
@@ -434,13 +434,21 @@ if __name__ == "__main__":
         return filing
     # 
     # create_htm_filing()
+    def test_s3_splitting_by_toc_hrefs():
+        s3_path = r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings\0001325879\S-3\000119312518218817\d439397ds3.htm"
+        parser = HTMFilingParser()
+        doc = parser.get_doc(s3_path)
+        sections = parser._split_by_table_of_contents_based_on_hrefs(parser.make_soup(doc))
+        print([s.title for s in sections])
+        
+    test_s3_splitting_by_toc_hrefs()
 
     def test_spacy_secu_matches():
         from main.parser.extractors import spacy_text_search
         # text = "1,690,695 shares of common stock issuable upon exercise of stock options outstanding as of September 30, 2020 at a weighted-average exercise price of $12.86 per share."
         # doc = spacy_text_search.nlp(text)
         filing = create_htm_filing()
-        print(filing.get_section(re.compile("DISTRIBUTION", re.I)))
+        # print(filing.get_section(re.compile("DISTRIBUTION", re.I)))
         
         # doc = spacy_text_search.nlp(filing.get_section(re.compile("DISTRIBUTION", re.I)).text_only)
         # matches = spacy_text_search.dep_matcher(doc)
@@ -455,7 +463,7 @@ if __name__ == "__main__":
         
         # for t in doc:
         #     print(t)
-    test_spacy_secu_matches()
+    # test_spacy_secu_matches()
 
     def test_parser_sc13d():
         parser = ParserSC13D()

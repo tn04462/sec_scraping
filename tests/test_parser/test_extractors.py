@@ -17,7 +17,7 @@ def test_match_outstanding_shares():
         print(sent)
         res = extractors.spacy_text_search.match_outstanding_shares(sent)
         print(res)
-    assert 1 == 2
+    assert 1 == 1
 
     
     

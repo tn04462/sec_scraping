@@ -1233,24 +1233,31 @@ class HTMFilingParser(AbstractFilingParser):
             ele = start_element["ele"]
             ele.insert_before("-START_SECTION_TITLE_" + start_element["section_title"])
             if len(section_start_elements) - 1 == section_nr:
-                continue
-            while ele != section_start_elements[section_nr + 1]["ele"]:
-                next_ele = ele.next_element
-                if not next_ele:
-                    logger.debug(
-                        f"element that should be reached before advancing with insertin end: {section_start_elements[section_nr + 1]['ele']}"
-                    )
-                    # logger.debug(f"sourceline stop ele: {section_start_elements[section_nr + 1]['ele'].sourceline}")
-                    logger.debug(
-                        f"_split_into_sections_by_tag: next_element was none. start_element['ele']: {start_element['ele']} \t section_nr: {section_nr}"
-                    )
-                    logger.debug(
-                        f"sourceline start ele: {start_element['ele'].sourceline}"
-                    )
-                    # --> sort by sourceline at start to avoid fuckupy
-                    break
-                ele = next_ele
-            ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"])
+                while True:
+                    prev_ele = ele
+                    ele = ele.next_element
+                    if ele is None:
+                        prev_ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"])
+                        break
+                # continue
+            else:
+                while ele != section_start_elements[section_nr + 1]["ele"]:
+                    next_ele = ele.next_element
+                    if not next_ele:
+                        logger.debug(
+                            f"element that should be reached before advancing with insertin end: {section_start_elements[section_nr + 1]['ele']}"
+                        )
+                        # logger.debug(f"sourceline stop ele: {section_start_elements[section_nr + 1]['ele'].sourceline}")
+                        logger.debug(
+                            f"_split_into_sections_by_tag: next_element was none. start_element['ele']: {start_element['ele']} \t section_nr: {section_nr}"
+                        )
+                        logger.debug(
+                            f"sourceline start ele: {start_element['ele'].sourceline}"
+                        )
+                        # --> sort by sourceline at start to avoid fuckupy
+                        break
+                    ele = next_ele
+                ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"])
         text = str(doc)
         for idx, sec in enumerate(section_start_elements):
             start = re.search(
@@ -1260,35 +1267,35 @@ class HTMFilingParser(AbstractFilingParser):
                 ),
                 text,
             )
-            if len(section_start_elements) - 1 == idx:
-                pass
-            else:
-                end = re.search(
-                    re.compile(
-                        "-STOP_SECTION_TITLE_" + re.escape(sec["section_title"]),
-                        re.MULTILINE,
-                    ),
-                    text,
-                )
+            # if len(section_start_elements) - 1 == idx:
+            #     pass
+            # else:
+            end = re.search(
+                re.compile(
+                    "-STOP_SECTION_TITLE_" + re.escape(sec["section_title"]),
+                    re.MULTILINE,
+                ),
+                text,
+            )
             try:
-                if len(section_start_elements) - 1 == idx:
-                    sections.append(
-                        HTMFilingSection(
-                            title=sec["section_title"],
-                            content=text[start.span()[1] :],
-                            extension=self.extension,
-                            form_type=self.form_type
-                        )
+                # if len(section_start_elements) - 1 == idx:
+                #     sections.append(
+                #         HTMFilingSection(
+                #             title=sec["section_title"],
+                #             content=text[start.span()[1] :],
+                #             extension=self.extension,
+                #             form_type=self.form_type
+                #         )
+                #     )
+                # else:
+                sections.append(
+                    HTMFilingSection(
+                        title=self._normalize_toc_title(sec["section_title"]),
+                        content=text[start.span()[1] : end.span()[0]],
+                        extension=self.extension,
+                        form_type=self.form_type
                     )
-                else:
-                    sections.append(
-                        HTMFilingSection(
-                            title=sec["section_title"],
-                            content=text[start.span()[1] : end.span()[0]],
-                            extension=self.extension,
-                            form_type=self.form_type
-                        )
-                    )
+                )
             except Exception as e:
                 print("FAILURE TO SPLIT SECTION BECAUSE:")
                 print(
@@ -1488,15 +1495,22 @@ class HTMFilingParser(AbstractFilingParser):
             close_to_toc = doc.find(
                 string=re.compile("(table..?.?of..?.?contents)", re.I | re.DOTALL)
             )
+            logger.debug(f"inital close_to_toc in split with hrefs: {close_to_toc}")
             if isinstance(close_to_toc, NavigableString):
                 close_to_toc = close_to_toc.parent
+                logger.debug("close_to_toc was navigable string")
             if "href" in close_to_toc.attrs:
-                name_or_id = close_to_toc["href"][-1]
-                close_to_toc = doc.find(name=name_or_id)
+                logger.debug(f"found href in close_to_toc")
+                name_or_id = close_to_toc["href"][1:]
+                logger.debug(f"close_to_toc href attr: {close_to_toc['href']}")
+                logger.debug(f"name_or_id: {name_or_id}")
+                close_to_toc = doc.find(True, {"name": name_or_id})
                 if close_to_toc is None:
-                    close_to_toc = doc.find(id=name_or_id)
+                    close_to_toc = doc.find(True, {"id": name_or_id})
+                logger.debug(f"close_to_toc after looking for the name and id: {close_to_toc}")
             toc_table = close_to_toc.find_next("table")
             hrefs = toc_table.findChildren("a", href=True)
+            logger.debug(f"hrefs from toc: {hrefs}")
             first_ids = [h["href"] for h in hrefs]
             n = 0
             if first_ids == []:
