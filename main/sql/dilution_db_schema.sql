@@ -239,15 +239,26 @@ CREATE TABLE IF NOT EXISTS underwriters(
     underwriter_name VARCHAR(255)
 );
 
-CREATE TABLE IF NOT EXISTS shelfs(
-    shelf_id SERIAL PRIMARY KEY,
-    company_id SERIAL,
-    acn_number VARCHAR(255) NOT NULL,
-    form_type VARCHAR(200) NOT NULL,
-    shelf_capacity BIGINT,
+CREATE TABLE IF NOT EXISTS underwriters_shelfs(
+    shelf_id SERIAL,
     underwriter_id SERIAL,
+
+    CONSTRAINT fk_shelf_id
+        FOREIGN KEY (shelf_id)
+            REFERENCES shelfs(id),
+    CONSTRAINT fk_underwriter_id
+        FOREIGN KEY (underwriter_id)
+            REFERENCES underwriters(underwriter_id),
+)
+
+CREATE TABLE IF NOT EXISTS shelfs(
+    id SERIAL PRIMARY KEY,
+    company_id SERIAL NOT NULL,
+    accn VARCHAR(30) NOT NULL,
+    form_type VARCHAR NOT NULL,
+    shelf_capacity BIGINT,
     total_amount_raised BIGINT,
-    total_amount_raised_unit VARCHAR(255),
+    total_amount_raised_unit VARCHAR,
     effect_date DATE,
     last_update DATE,
     expiry DATE,
@@ -256,9 +267,6 @@ CREATE TABLE IF NOT EXISTS shelfs(
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    CONSTRAINT fk_underwriter_id
-        FOREIGN KEY (underwriter_id)
-            REFERENCES underwriters(underwriter_id),
     CONSTRAINT fk_form_type
         FOREIGN KEY (form_type)
             REFERENCES form_types(form_type)
@@ -266,34 +274,28 @@ CREATE TABLE IF NOT EXISTS shelfs(
 
 
 
-CREATE TABLE IF NOT EXISTS filing_status(
+CREATE TABLE IF NOT EXISTS offering_status(
     id SERIAL PRIMARY KEY,
-    status_name VARCHAR(255)
+    status_name VARCHAR
 );
+-- tables: shelfs_offerings, offerings_underwriters, offerings_securities, securities, security as json?
 
 CREATE TABLE IF NOT EXISTS offerings(
-    offering_id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id SERIAL,
-    accession_number VARCHAR(255) NOT NULL,
-    inital_form_type VARCHAR(255) NOT NULL,
-    underwriter_id SERIAL,
+    shelf_id NOT NULL,
     final_offering_amount_usd BIGINT,
     anticipated_offering_amount_usd BIGINT,
-    filing_status SERIAL,
-    filing_date DATE,
+    offering_status_name SERIAL,
+    commencment_date TIMESTAMP,
+    end_date TIMESTAMP,
       
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
-    CONSTRAINT fk_underwriter_id
-        FOREIGN KEY (underwriter_id)
-            REFERENCES underwriters(underwriter_id),
-    CONSTRAINT fk_filing_status_id
-        FOREIGN KEY (filing_status)
-            REFERENCES filing_status(id),
-    CONSTRAINT fk_form_type
-        FOREIGN KEY (inital_form_type)
-            REFERENCES form_types(form_type)
+    CONSTRAINT fk_offering_status_id
+        FOREIGN KEY (offering_status_name)
+            REFERENCES offering_status(status_name)
 );
 
 

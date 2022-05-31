@@ -82,10 +82,22 @@ class SECUMatcher:
     def __init__(self, vocab):
         self.matcher = Matcher(vocab)
         self.add_SECU_ent_to_matcher()
+        self.add_SECUATTR_ent_to_matcher()
     
     def __call__(self, doc):
         self.matcher(doc)
         return doc 
+    
+    def add_SECUATTR_ent_to_matcher(self):
+        patterns = [
+            [
+                {"LOWER": "exercise"},
+                {"LOWER": "price"}
+            ]
+        ]
+        self.matcher.add("SECUATTR_ENT", [*patterns], on_match=_add_SECUATTR_ent)
+    
+
     
     def add_SECU_ent_to_matcher(self):
         # base_securities is just to keep track of the different bases we work with
@@ -138,38 +150,60 @@ class SECUMatcher:
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}}]
+                {"LOWER": {"IN": ["stock", "shares"]}}
+            ]
                 ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}}]
+                {"LOWER": {"IN": ["stock", "shares"]}}
+            ]
                 ,
+            
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "ordinary"]}, "OP": "?"},
+                {"LOWER": {"IN": ["stock"]}},
+                {"LOWER": {"IN": ["options", "option"]}}
+            ]
+                ,
+            [
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "ordinary"]}, "OP": "?"},
+                {"LOWER": {"IN": ["stock"]}},
+                {"LOWER": {"IN": ["options", "option"]}}
+            ]
 
+                ,
             
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["warrant", "warrants"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}]
+                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}
+            ]
                 ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["warrant", "warrants"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}]
+                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}
+            ]
                 ,
 
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": "debt"}, {"LOWER": "securities"}]
+                {"LOWER": "debt"}, {"LOWER": "securities"}
+            ]
                 ,
 
             [   {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": "debt"}, {"LOWER": "securities"}]
+                {"LOWER": "debt"}, {"LOWER": "securities"}
+            ]
                 ,
 
-            [   {"LOWER": {"IN": purchase_affixes}, "OP": "?"}, {"TEXT": "Purchase"}, {"LOWER": {"IN": purchase_suffixes}}],
+            [   {"LOWER": {"IN": purchase_affixes}, "OP": "?"}, {"TEXT": "Purchase"}, {"LOWER": {"IN": purchase_suffixes}}
+        ],
             
         ]
         self.matcher.add("SECU_ENT", [*patterns, *special_patterns], on_match=_add_SECU_ent)
@@ -191,6 +225,9 @@ def _add_SECU_ent(matcher, doc, i, matches):
             "agreement"
             "agent",
             "indebenture"])
+
+def _add_SECUATTR_ent(matcher, doc, i, matches):
+    _add_ent(doc, i, matches, "SECUATTR")
 
 def _add_ent(doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
     '''add a custom entity through an on_match callback.'''
@@ -223,9 +260,9 @@ class SpacyFilingTextSearch:
     # make this a singleton/get it from factory through cls._instance so we can avoid
     # the slow process of adding patterns (if we end up with a few 100)
     def __init__(self):
-        self.matcher = Matcher(self.nlp.vocab)
-        self.dep_matcher = DependencyMatcher(self.nlp.vocab)
-        self._add_excercise_dependency()
+        # self.dep_matcher = DependencyMatcher(self.nlp.vocab)
+        # self._add_excercise_dependency()
+        pass
 
 
     def __new__(cls):
@@ -240,9 +277,10 @@ class SpacyFilingTextSearch:
         pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
         pattern2 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
         pattern3 = [{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "CARDINAL"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["issued", "outstanding"]}}]
-        self.matcher.add("outstanding", [pattern1, pattern2])
+        matcher = Matcher(self.nlp.vocab)
+        matcher.add("outstanding", [pattern1, pattern2])
         doc = self.nlp(text)
-        possible_matches = self.matcher(doc, as_spans=False)
+        possible_matches = matcher(doc, as_spans=False)
         if possible_matches == []:
             logger.debug("no matches for outstanding shares found")
             return []
@@ -255,7 +293,6 @@ class SpacyFilingTextSearch:
                 if ent.label_ == "CARDINAL":
                     value["outstanding_shares"]["amount"] = int(str(ent).replace(",", ""))
                 if ent.label_ == "DATE":
-                    print(str(ent))
                     value["outstanding_shares"]["date"] = pd.to_datetime(str(ent))
             try:
                 validate_filing_values(value, "outstanding_shares", ["date", "amount"])
@@ -265,80 +302,134 @@ class SpacyFilingTextSearch:
                 values.append(value)
         return values
     
-    def _add_excercise_dependency(self):
-        pattern = [
-            {
-                "RIGHT_ID": "anchor_issuable",
-                "RIGHT_ATTRS": {"ORTH": "issuable"}
-            },
-            {
-                "LEFT_ID": "anchor_issuable",
-                "REL_OP": "<",
-                "RIGHT_ID": "noun_dep",
-                "RIGHT_ATTRS": {"POS": "NOUN"}
-            },
-            {
-                "LEFT_ID": "noun_dep",
-                "REL_OP": ">",
-                "RIGHT_ID": "quant_num",
-                "RIGHT_ATTRS": {"POS": "NUM"}
-            },
+    # def _add_excercise_dependency(self):
+    #     pattern1 = [
+    #         {
+    #             "RIGHT_ID": "anchor_issuable",
+    #             "RIGHT_ATTRS": {"ORTH": "issuable"}
+    #         },
+    #         {
+    #             "LEFT_ID": "anchor_issuable",
+    #             "REL_OP": "<",
+    #             "RIGHT_ID": "noun_dep",
+    #             "RIGHT_ATTRS": {"POS": "NOUN"}
+    #         },
             # {
             #     "LEFT_ID": "noun_dep",
             #     "REL_OP": ">",
-            #     "RIGHT_ID": "adp_of",
+            #     "RIGHT_ID": "quant_num",
+            #     "RIGHT_ATTRS": {"POS": "NUM"}
+            # },
+            # {
+            #     "LEFT_ID": "anchor_issuable",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "adp",
             #     "RIGHT_ATTRS": {"POS": "ADP"}
             # },
             # {
-            #     "LEFT_ID": "adp_of",
-            #     "REL_OP": ">>",
-            #     "RIGHT_ID": "secu_ent",
-            #     "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "OP": "?"}
+            #     "LEFT_ID": "adp",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "price",
+            #     "RIGHT_ATTRS": {"ORTH": "price"}
             # },
-            {
-                "LEFT_ID": "anchor_issuable",
-                "REL_OP": ">",
-                "RIGHT_ID": "adp",
-                "RIGHT_ATTRS": {"POS": "ADP"}
-            },
-            {
-                "LEFT_ID": "adp",
-                "REL_OP": ">",
-                "RIGHT_ID": "price",
-                "RIGHT_ATTRS": {"ORTH": "price"}
-            },
-            {
-                "LEFT_ID": "price",
-                "REL_OP": ">",
-                "RIGHT_ID": "excercise",
-                "RIGHT_ATTRS": {"ORTH": "exercise"}
-            },
-            {
-                "LEFT_ID": "price",
-                "REL_OP": ">",
-                "RIGHT_ID": "adp_of2",
-                "RIGHT_ATTRS": {"POS": "ADP", "ORTH": "of"}
-            },
-            {
-                "LEFT_ID": "adp_of2",
-                "REL_OP": ">",
-                "RIGHT_ID": "num",
-                "RIGHT_ATTRS": {"POS": "NUM"}
-            },
-            {
-                "LEFT_ID": "num",
-                "REL_OP": ">",
-                "RIGHT_ID": "per",
-                "RIGHT_ATTRS": {"ORTH": "per"}
-            },
-            {
-                "LEFT_ID": "per",
-                "REL_OP": ">",
-                "RIGHT_ID": "noun_dep2",
-                "RIGHT_ATTRS": {"POS": "NOUN"}
-            }
-        ]
-        self.dep_matcher.add("EXCERCISE_PRICE", [pattern])
+            # {
+            #     "LEFT_ID": "price",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "excercise",
+            #     "RIGHT_ATTRS": {"ORTH": "exercise"}
+            # },
+            # {
+            #     "LEFT_ID": "price",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "adp_of2",
+            #     "RIGHT_ATTRS": {"POS": "ADP", "ORTH": "of"}
+            # },
+            # {
+            #     "LEFT_ID": "adp_of2",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "num",
+            #     "RIGHT_ATTRS": {"POS": "NUM"}
+            # },
+            # {
+            #     "LEFT_ID": "num",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "per",
+            #     "RIGHT_ATTRS": {"ORTH": "per"}
+            # },
+            # {
+            #     "LEFT_ID": "per",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "noun_dep2",
+            #     "RIGHT_ATTRS": {"POS": "NOUN"}
+            # }
+        # ]
+        # pattern2 = [
+        #     {
+        #         "RIGHT_ID": "anchor_issuable",
+        #         "RIGHT_ATTRS": {"ORTH": "issuable"}
+        #     },
+        #     {
+        #         "LEFT_ID": "anchor_issuable",
+        #         "REL_OP": "<",
+        #         "RIGHT_ID": "adp_of0",
+        #         "RIGHT_ATTRS": {"POS": "ADP", "ORTH": "of"}
+            # },
+            # {
+            #     "LEFT_ID": "adp_of0",
+            #     "REL_OP": "<",
+            #     "RIGHT_ID": "noun_dep",
+            #     "RIGHT_ATTRS": {"POS": "NOUN"}
+            # },
+            # {
+            #     "LEFT_ID": "noun_dep",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "quant_num",
+            #     "RIGHT_ATTRS": {"POS": "NUM"}
+            # },
+            # {
+            #     "LEFT_ID": "anchor_issuable",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "adp",
+            #     "RIGHT_ATTRS": {"POS": "ADP"}
+            # },
+            # {
+            #     "LEFT_ID": "adp",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "price",
+            #     "RIGHT_ATTRS": {"ORTH": "price"}
+            # },
+            # {
+            #     "LEFT_ID": "price",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "excercise",
+            #     "RIGHT_ATTRS": {"ORTH": "exercise"}
+            # },
+            # {
+            #     "LEFT_ID": "price",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "adp_of2",
+            #     "RIGHT_ATTRS": {"POS": "ADP", "ORTH": "of"}
+            # },
+            # {
+            #     "LEFT_ID": "adp_of2",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "num",
+            #     "RIGHT_ATTRS": {"POS": "NUM"}
+            # },
+            # {
+            #     "LEFT_ID": "num",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "per",
+            #     "RIGHT_ATTRS": {"ORTH": "per"}
+            # },
+            # {
+            #     "LEFT_ID": "per",
+            #     "REL_OP": ">",
+            #     "RIGHT_ID": "noun_dep2",
+            #     "RIGHT_ATTRS": {"POS": "NOUN"}
+            # }
+        # ]
+        # self.dep_matcher.add("EXCERCISE_PRICE", [pattern1, pattern2])
     
     def _take_longest_matches(self, matches):
             entries = []

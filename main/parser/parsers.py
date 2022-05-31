@@ -796,9 +796,9 @@ class HTMFilingParser(AbstractFilingParser):
                     close_to_toc = close_to_toc.parent
                 if "href" in close_to_toc.attrs:
                     name_or_id = close_to_toc["href"][-1]
-                    close_to_toc = doc.find(name=name_or_id)
+                    close_to_toc = doc.find(True, {"name":name_or_id})
                     if close_to_toc is None:
-                        close_to_toc = doc.find(id=name_or_id)
+                        close_to_toc = doc.find(True, {"id":name_or_id})
                 toc_table = close_to_toc.find_next("table")
                 found_toc = False
                 while found_toc is False:

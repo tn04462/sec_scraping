@@ -441,29 +441,25 @@ if __name__ == "__main__":
         sections = parser._split_by_table_of_contents_based_on_hrefs(parser.make_soup(doc))
         print([s.title for s in sections])
         
-    test_s3_splitting_by_toc_hrefs()
+    # test_s3_splitting_by_toc_hrefs()
 
     def test_spacy_secu_matches():
         from main.parser.extractors import spacy_text_search
         # text = "1,690,695 shares of common stock issuable upon exercise of stock options outstanding as of September 30, 2020 at a weighted-average exercise price of $12.86 per share."
         # doc = spacy_text_search.nlp(text)
         filing = create_htm_filing()
-        # print(filing.get_section(re.compile("DISTRIBUTION", re.I)))
-        
-        # doc = spacy_text_search.nlp(filing.get_section(re.compile("DISTRIBUTION", re.I)).text_only)
-        # matches = spacy_text_search.dep_matcher(doc)
-        # match_id, token_ids = matches[0]
-        # for i in sorted(token_ids):
-        #     print(doc[i].text)
+        doc = spacy_text_search.nlp(filing.get_section(re.compile("summary", re.I)).text_only)
+        # doc = spacy_text_search.nlp("2,500,000 shares of common stock issuable upon exercise at an exercise price of $12.50 per share;")
+        # doc = spacy_text_search.nlp("1,690,695 shares of common stock issuable upon exercise of stock options outstanding as of September 30, 2020 at a weighted-average exercise price of $12.86 per share.")
 
-        # displacy.serve(doc, style="dep")
+        displacy.serve(doc, style="ent")
         # for ent in doc.ents:
         #     if ent.label_ == "SECU":
         #         print(ent.label_, ": " ,ent.text)
         
         # for t in doc:
         #     print(t)
-    # test_spacy_secu_matches()
+    test_spacy_secu_matches()
 
     def test_parser_sc13d():
         parser = ParserSC13D()
