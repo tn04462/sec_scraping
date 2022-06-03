@@ -2,7 +2,7 @@ from abc import ABC
 import logging
 import spacy
 from spacy.matcher import Matcher, DependencyMatcher
-from spacy.tokens import Span
+from spacy.tokens import Span, Doc
 from spacy import Language
 from spacy.util import filter_spans
 from main.parser.filings_base import Filing, FilingValue
@@ -208,28 +208,29 @@ class SECUMatcher:
         ]
         self.matcher.add("SECU_ENT", [*patterns, *special_patterns], on_match=_add_SECU_ent)
 
-def _is_match_followed_by(doc, start: int, end: int, exclude: list[str]):
+def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if doc[end].lower not in exclude:
         return False
     return True
 
-def _is_match_preceeded_by(doc, start: int, end: int, exclude: list[str]):
+def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if (start == 0) or (exclude == []):
         return False
     if doc[start-1] not in exclude:
         return False
     return True
     
-def _add_SECU_ent(matcher, doc, i, matches):
+def _add_SECU_ent(matcher, doc: Doc, i, matches):
     _add_ent(doc, i, matches, "SECU", exclude_after=[
             "agreement"
             "agent",
-            "indebenture"])
+            "indebenture",
+            "rights"])
 
-def _add_SECUATTR_ent(matcher, doc, i, matches):
+def _add_SECUATTR_ent(matcher, doc: Doc, i, matches):
     _add_ent(doc, i, matches, "SECUATTR")
 
-def _add_ent(doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
+def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
     '''add a custom entity through an on_match callback.'''
     match_id, start, end = matches[i]
     # print(doc[start:end])
@@ -242,15 +243,22 @@ def _add_ent(doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclu
             doc.ents += (entity,)
         except ValueError as e:
             if "[E1010]" in str(e):
-                for ent in doc.ents:
+                # logger.debug(f"---NEW ENT--- {entity}")
+                previous_ents = set(doc.ents)
+                conflicting_ents = []
+                for ent in doc.ents:                
                     covered_tokens = range(ent.start, ent.end)
                     if (start in covered_tokens) or (end in covered_tokens):
-                        if (ent.end - ent.start) < (end - start):
-                            previous_ents = list(doc.ents)
-                            previous_ents.remove(ent)
-                            previous_ents.append(entity)
-                            doc.ents = previous_ents
-
+                        if (ent.end - ent.start) <= (end - start):
+                            # logger.debug(covered_tokens)
+                            # logger.debug(("ent: ", ent, ent.text, ent.label_, ent.start, ent.end))
+                            # logger.debug(("entity which replaces ent: ",entity, entity.text, entity.label_, entity.start, entity.end))
+                            conflicting_ents.append((ent.end - ent.start, ent))
+                if [end-start > k[0] for k in conflicting_ents] is True:
+                    [previous_ents.remove(k[1]) for k in conflicting_ents]
+                    previous_ents.append(entity)
+                doc.ents = previous_ents
+                    
 @Language.factory("secu_matcher")
 def create_secu_matcher(nlp, name):
     return SECUMatcher(nlp.vocab)

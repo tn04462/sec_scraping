@@ -459,7 +459,30 @@ if __name__ == "__main__":
         
         # for t in doc:
         #     print(t)
-    test_spacy_secu_matches()
+    # test_spacy_secu_matches()
+
+    def get_secu_list():
+        from main.parser.extractors import spacy_text_search
+        root = r"F:\example_filing_set_100_companies"
+        paths = [f for f in (Path(root) /"filings").rglob("*.htm")]
+        parser = HTMFilingParser()
+        secus = set()
+        for p in paths:
+            with open(p, "r", encoding="utf-8") as f:
+                raw = f.read()
+                soup = BeautifulSoup(raw, features="html5lib")
+                text = parser.get_text_content(soup, exclude=["script"])
+                if len(text) > 999999:
+                    print("SKIPPING TOO LONG FILE")
+                    continue
+                doc = spacy_text_search.nlp(text)
+                for ent in doc.ents:
+                    if ent.label_ == "SECU":
+                        secus.add(ent.text)
+        secus_list = list(secus)
+        pd.DataFrame(secus_list).to_clipboard()
+    get_secu_list()
+
 
     def test_parser_sc13d():
         parser = ParserSC13D()
