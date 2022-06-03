@@ -40,3 +40,5 @@ class DebtSecurity(BaseModel):
     cash_flow_right: CashFlowRight = CashFlowRight(has_cash_flow_right=True)
     dividend_right: DividendRight = DividendRight(has_dividend_right=False, has_cumulative_right=False)
 
+
+

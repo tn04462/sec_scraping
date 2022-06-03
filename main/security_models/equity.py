@@ -1,4 +1,3 @@
-from types import NoneType
 from typing import Callable
 from pydantic import BaseModel
 from datetime import datetime
@@ -19,7 +18,13 @@ class PreferredShares(BaseModel):
     life: Life = Life(has_maturity=False, maturity_date=None)
     par_value: ParValue = ParValue()
     
-if __name__ == "__main__":
-    # life = Life()
-    cs = CommonShares()
-    print(cs.json())
+# if __name__ == "__main__":
+    # life = Life(has_maturity=True, maturity_date=datetime(2020, 1, 1))
+    # cs = CommonShares(life=Life(has_maturity=True, maturity_date=datetime(2020, 1, 1)))
+    # json_ = cs.dict()
+    # import json
+# why is maturity_date null here ?
+    # json_ = json.dumps(json_)
+    # print(json_)
+
+    # cs2 = CommonShares(**json.loads(json_))

@@ -2,26 +2,38 @@ from pydantic import validator, BaseModel, root_validator
 from datetime import datetime
 from typing import Callable
 
+def _validate_datetime(cls, v):
+    if isinstance(v, datetime):
+        return v.isoformat()
+
 
 def _requires_fields(boolean_field: str, required_if_true: list[str]):
     def _get_and_check_switch_values(cls, values):
         switch = values.get(boolean_field)
         if switch is True:
-            assert [values.get(k) is not None for k in required_if_true]
+            assert [values.get(k) is not None for k in required_if_true] is True
+            return values
         if switch is False:
-            assert [values.get(k) is None for k in list(values.keys()).remove(boolean_field)]
+            keys_to_check = list(values.keys()).remove(boolean_field)
+            if keys_to_check is None:
+                return values
+            else:
+                assert [values.get(k) is None for k in keys_to_check] is True
+                return values
     return _get_and_check_switch_values
 
 class Life(BaseModel):
     has_maturity: bool = False
     maturity_date: datetime = None
 
-    _maturity_requires_field = root_validator(allow_reuse=True)(
-        _requires_fields(
-            "has_maturity",
-            ["maturity_date"]
-        )
-    )
+    _validate_maturity = validator("maturity_date", allow_reuse=True)(_validate_datetime)
+
+    # _maturity_requires_field = root_validator(allow_reuse=True)(
+    #     _requires_fields(
+    #         boolean_field="has_maturity",
+    #         required_if_true=["maturity_date"]
+    #     )
+    # )
 
 
 class ParValue(BaseModel):
