@@ -1,4 +1,5 @@
 from types import NoneType
+from xmlrpc.client import boolean
 from pydantic import validator, BaseModel, root_validator
 from datetime import datetime
 from typing import Callable
@@ -10,18 +11,25 @@ def _validate_datetime(cls, v):
         return None
 
 
+
 def _requires_fields(boolean_field: str, required_if_true: list[str]):
     def _get_and_check_switch_values(cls, values):
         switch = values.get(boolean_field)
         if switch is True:
-            assert [values.get(k) is not None for k in required_if_true] == [True*len(required_if_true)]
+            if required_if_true == ["all"]:
+                required_if_true = list(values.keys())
+                required_if_true.remove(boolean_field)
+            assert [values.get(k) is not None for k in required_if_true] == [True]*len(required_if_true)
             return values
         if switch is False:
-            keys_to_check = list(values.keys()).remove(boolean_field)
+            keys_to_check = list(values.keys())
+            keys_to_check.remove(boolean_field)
             if keys_to_check is None:
                 return values
             else:
-                assert [values.get(k) is None for k in keys_to_check] == [True*len(keys_to_check)]
+                for k in keys_to_check:
+                    values[k] = None
+                assert [values.get(k) is None for k in keys_to_check] == [True]*len(keys_to_check)
                 return values
     return _get_and_check_switch_values
 
@@ -46,9 +54,15 @@ class ParValue(BaseModel):
 
 
 class VotingRight(BaseModel):
-    voting_ratio: float = 1.0  #voting ratio in common shares
     has_voting_rights: bool = True
+    voting_ratio: float = 1.0  #voting ratio in common shares
     
+    _voting_rights_requires_fields = root_validator(allow_reuse=True)(
+        _requires_fields(
+            boolean_field="has_voting_rights",
+            required_if_true=["voting_ratio"]
+        )
+    )
 
 class CashFlowRight(BaseModel):
     has_cash_flow_right: bool = True
@@ -69,7 +83,7 @@ class RedemptionRight(BaseModel):
 
     _redemption_requires_fields = root_validator(allow_reuse=True)(
         _requires_fields(
-            "has_redemption",
+            "has_redemption_right",
             ["start_date", "end_date", "start_price", "end_price"]))
     _validate_start_date = validator("start_date", allow_reuse=True)(_validate_datetime)
     _validate_end_date = validator("end_date", allow_reuse=True)(_validate_datetime)

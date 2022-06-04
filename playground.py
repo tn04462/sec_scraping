@@ -481,7 +481,7 @@ if __name__ == "__main__":
                         secus.add(ent.text)
         secus_list = list(secus)
         pd.DataFrame(secus_list).to_clipboard()
-    get_secu_list()
+    # get_secu_list()
 
 
     def test_parser_sc13d():
@@ -608,4 +608,4 @@ if __name__ == "__main__":
         #     print(len(parser.parse_items(filing)))
 
     # item count in all 8-k's of the filings-database
-    # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
+    open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")

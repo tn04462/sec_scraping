@@ -1,5 +1,7 @@
 
 
+CREATE TYPE SECURITY_TYPES as ENUM ("CommonShares", "PreferredShares", "DebtSecurity", "Option", "Warrant")
+
 CREATE TABLE IF NOT EXISTS files_last_update(
     submissions_zip_lud TIMESTAMP,
     companyfacts_zip_lud TIMESTAMP
@@ -276,17 +278,18 @@ CREATE TABLE IF NOT EXISTS shelfs(
 
 CREATE TABLE IF NOT EXISTS offering_status(
     id SERIAL PRIMARY KEY,
-    status_name VARCHAR
-);
+    status_name VARCHAR UNIQUE
+    );
 -- tables: shelfs_offerings, offerings_underwriters, offerings_securities, securities, security as json?
 
 CREATE TABLE IF NOT EXISTS offerings(
     id SERIAL PRIMARY KEY,
+    offering_type VARCHAR,
     company_id SERIAL,
     shelf_id NOT NULL,
     final_offering_amount_usd BIGINT,
     anticipated_offering_amount_usd BIGINT,
-    offering_status_name SERIAL,
+    offering_status_id SERIAL,
     commencment_date TIMESTAMP,
     end_date TIMESTAMP,
       
@@ -294,83 +297,67 @@ CREATE TABLE IF NOT EXISTS offerings(
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
     CONSTRAINT fk_offering_status_id
-        FOREIGN KEY (offering_status_name)
-            REFERENCES offering_status(status_name)
+        FOREIGN KEY (offering_status_id)
+            REFERENCES offering_status(id)
 );
 
 
-CREATE TABLE IF NOT EXISTS warrants(
+CREATE TABLE IF NOT EXISTS securities (
     id SERIAL PRIMARY KEY,
-    warrant_name VARCHAR(255),
-    offering_id SERIAL,
-    shelf_id SERIAL,
-    acn_number VARCHAR(255),
-    amount_usd_equivalent BIGINT,
-    amount_issued BIGINT,
-    shares_per_unit FLOAT,
-    exercise_price FLOAT,
-    expiration_date DATE,
+    company_id SERIAL,
+    security_name VARCHAR,
+    security_type SECURITY_TYPES,
+    security_attributes JSON,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    CONSTRAINT unique_name_company
+        UNIQUE(company_id, security_name)
+
+);
+
+CREATE TABLE IF NOT EXISTS securities_conversion (
+    from_security_id SERIAL,
+    to_security_id SERIAL,
+    conversion_attributes JSON,
+
+    CONSTRAINT fk_from_security
+        FOREIGN KEY (from_security_id)
+            REFERENCES securities(id),
+    CONSTRAINT fk_to_security
+        FOREIGN KEY (to_security_id)
+            REFERENCES securities(id)
+);
+
+CREATE TABLE IF NOT EXISTS securities_offerings (
+    security_id SERIAL,
+    offerings_id SERIAL,
+
+    CONSTRAINT fk_security_id
+        FOREIGN KEY (security_id)
+            REFERENCES securities(id),
+    CONSTRAINT fk_offerings
+        FOREIGN KEY (offerings_id)
+            REFERENCES offerings(id)
+);
+
+CREATE TABLE IF NOT EXISTS securities_outstanding (
+    security_id SERIAL,
+    amount_outstanding BIGINT,
+
+    CONSTRAINT fk_security_id
+        FOREIGN KEY (security_id)
+            REFERENCES securities(id)
+);
+
+CREATE TABLE IF NOT EXISTS securities_authorized (
+    company_id SERIAL,
+    security_type VARCHAR,
+    amount_auhtorized BIGINT,
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
     
-    CONSTRAINT fk_offering_id
-        FOREIGN KEY (offering_id)
-            REFERENCES offerings(offering_id),
-    CONSTRAINT fk_shelf_id
-        FOREIGN KEY (shelf_id)
-            REFERENCES shelfs(shelf_id)
-);
-
-
-CREATE TABLE IF NOT EXISTS convertible_note_warrants(
-    id SERIAL PRIMARY KEY,
-    note_warrant_name VARCHAR(255),
-    offering_id SERIAL,
-    shelf_id SERIAL,
-    exercise_price FLOAT,
-    amount_issued BIGINT,
-    price_protection INT,
-    issue_date DATE,
-    exercisable_date DATE,
-    last_update DATE,
-    additional_notes VARCHAR(1000),
-
-    CONSTRAINT fk_offering_id
-        FOREIGN KEY (offering_id)
-            REFERENCES offerings(offering_id),
-    CONSTRAINT fk_shelf_id
-        FOREIGN KEY (shelf_id)
-            REFERENCES shelfs(shelf_id)
-);
-
-CREATE TABLE IF NOT EXISTS convertible_notes(
-    id SERIAL PRIMARY KEY,
-    offering_id SERIAL,
-    shelf_id SERIAL,
-
-    CONSTRAINT fk_offering_id
-        FOREIGN KEY (offering_id)
-            REFERENCES offerings(offering_id),
-    CONSTRAINT fk_shelf_id
-        FOREIGN KEY (shelf_id)
-            REFERENCES shelfs(shelf_id)
-
-);
-
-CREATE TABLE IF NOT EXISTS atm(
-    id SERIAL PRIMARY KEY,
-    offering_id SERIAL,
-    shelf_id SERIAL,
-    total_capacity BIGINT,
-    underwriter_id SERIAL,
-    agreement_start_date DATE,
-
-    CONSTRAINT fk_offering_id
-        FOREIGN KEY (offering_id)
-            REFERENCES offerings(offering_id),
-    CONSTRAINT fk_shelf_id
-        FOREIGN KEY (shelf_id)
-            REFERENCES shelfs(shelf_id),
-    CONSTRAINT fk_underwriter_id
-      FOREIGN KEY (underwriter_id)
-        REFERENCES underwriters(underwriter_id)
-
 );
