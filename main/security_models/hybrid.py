@@ -80,5 +80,11 @@ class ContigentConversionFeature(BaseModel):
 
 
 class ConvertibleFeature(BaseModel):
-    pass
+    conversion_ratio: float
+    contigent_conversion_features: list[ContigentConversionFeature] = []
+    call_features: list[CallFeature] = []
+    put_features: list[PutFeature] = []
+    reset_features: list[ResetFeature] = []
+
+
     
