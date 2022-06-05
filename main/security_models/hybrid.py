@@ -4,6 +4,7 @@ from base import _requires_fields, Life
 from pydantic import BaseModel, validator, root_validator
 from derivatives import Warrant
 from debt import DebtSecurity
+from main.security_models.equity import PreferredShares
 
 
 class ResetFeature(BaseModel):
@@ -80,11 +81,22 @@ class ContigentConversionFeature(BaseModel):
 
 
 class ConvertibleFeature(BaseModel):
+    conversion_to: str
     conversion_ratio: float
     contigent_conversion_features: list[ContigentConversionFeature] = []
     call_features: list[CallFeature] = []
     put_features: list[PutFeature] = []
     reset_features: list[ResetFeature] = []
+
+
+class ConvertibleDebtSecurity(DebtSecurity):
+    conversion_features = list[ConvertibleFeature]
+
+class ConvertiblePreferredShares(PreferredShares):
+    conversion_features = list[ConvertibleFeature]
+
+
+
 
 
     

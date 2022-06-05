@@ -270,7 +270,7 @@ if __name__ == "__main__":
             for ticker in tqdm(tickers[5000:5020]):
                 get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
     
-    def open_filings_in_browser(root: str, form: str, max=10):
+    def open_filings_in_browser(root: str, form: str, max=100):
         import webbrowser
         paths = get_all_filings_path(root, form_type=form)
         for idx, p in enumerate(paths):
@@ -608,4 +608,4 @@ if __name__ == "__main__":
         #     print(len(parser.parse_items(filing)))
 
     # item count in all 8-k's of the filings-database
-    open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
+    open_filings_in_browser(r"F:\example_filing_set_S3\filings", "S-3")

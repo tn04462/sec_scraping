@@ -1,6 +1,14 @@
 
 
-CREATE TYPE SECURITY_TYPES as ENUM ("CommonShares", "PreferredShares", "DebtSecurity", "Option", "Warrant")
+CREATE TYPE SECURITY_TYPES as ENUM (
+    "CommonShares",
+    "PreferredShares",
+    "DebtSecurity",
+    "Option",
+    "Warrant",
+    "ConvertiblePreferredShares",
+    "ConvertibleDebtSecurity"
+    );
 
 CREATE TABLE IF NOT EXISTS files_last_update(
     submissions_zip_lud TIMESTAMP,
@@ -307,15 +315,20 @@ CREATE TABLE IF NOT EXISTS securities (
     company_id SERIAL,
     security_name VARCHAR,
     security_type SECURITY_TYPES,
+    underlying_security_id SERIAL,
     security_attributes JSON,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
             REFERENCES companies(id),
+    CONSTRAINT fk_underlying_security_id
+        FOREIGN KEY (underlying_security_id)
+            REFERENCES securities(id),
     CONSTRAINT unique_name_company
         UNIQUE(company_id, security_name)
 
 );
+
 
 CREATE TABLE IF NOT EXISTS securities_conversion (
     from_security_id SERIAL,
@@ -354,7 +367,7 @@ CREATE TABLE IF NOT EXISTS securities_outstanding (
 CREATE TABLE IF NOT EXISTS securities_authorized (
     company_id SERIAL,
     security_type VARCHAR,
-    amount_auhtorized BIGINT,
+    amount_authorized BIGINT,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)

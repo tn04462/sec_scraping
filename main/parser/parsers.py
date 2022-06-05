@@ -600,7 +600,6 @@ class HTMFilingParser(AbstractFilingParser):
                 table[row_idx][field_idx] = content
         return table
             
-
     def parse_htmltable_with_header(
         self, htmltable, colspan_mode="separate", merge_delimiter=" "
     ):
