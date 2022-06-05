@@ -608,4 +608,4 @@ if __name__ == "__main__":
         #     print(len(parser.parse_items(filing)))
 
     # item count in all 8-k's of the filings-database
-    open_filings_in_browser(r"F:\example_filing_set_S3\filings", "S-3")
+    open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")

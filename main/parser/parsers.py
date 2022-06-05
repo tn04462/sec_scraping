@@ -2,6 +2,7 @@ import re
 import logging
 from pathlib import Path
 from types import NoneType
+from numpy import require
 import pandas as pd
 from bs4 import BeautifulSoup, NavigableString, element
 import re
@@ -404,13 +405,13 @@ class HTMFilingParser(AbstractFilingParser):
             return sections
 
     def split_by_table_of_contents(self, doc: BeautifulSoup):
-        """split a filing with a TOC into sections base on the TOC.
+        """split a filing with a TOC into sections based on the TOC.
 
         Args:
             doc: html parsed with bs4
 
         Returns:
-            {section_title: section_content} Where section_content is malformed html and section_title a string
+            list[HTMFilingSection]
         """
         # try and split by document by hrefs of the toc
         try:
@@ -1039,6 +1040,64 @@ class HTMFilingParser(AbstractFilingParser):
                             }
                         )
         return formatted_matches
+    
+    def _get_table_elements_containing(self, start_element: element.Tag, required_items: list[re.Pattern] = []):
+        '''
+        Get all the <table> items parsed after start_element
+        which have all required_items in them.
+        
+        Returns:
+            list[element.Tag]
+        '''
+        tables = start_element.find_all_next("table")
+        found_tables = []
+        for table in tables:
+            ritems = required_items.copy()
+            parsed_table = self.primitive_htmltable_parse(table)
+            for entry in sum(parsed_table, []):
+                try:
+                    remove_idx = None
+                    for idx, ritem in enumerate(ritems):
+                        if re.search(ritem, str(entry)):
+                            remove_idx = idx
+                            break
+                    if remove_idx is not None:
+                        ritems.pop(remove_idx)
+                except TypeError as e:
+                    logger.debug(e, exc_info=True)
+            if ritems == []:
+                found_tables.append(table)
+        return found_tables
+    
+    def _get_cover_page_from_toc(self, toc_element: element.Tag):
+        cover_page_start_ele = None
+        cover_page_end_ele = None
+        start_re_term = re.compile("PROSPECTUS")
+        end_re_term = re.compile("the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}is", re.I)
+        while(cover_page_start_ele is None or cover_page_end_ele is None) or ele is None:
+            prev = ele
+            ele = ele.next_element
+            string = None
+            if isinstance(ele, NavigableString):
+                string = ele
+            else:
+                string = ele.string if ele.string else " ".join([s for s in ele.strings])
+            if cover_page_start_ele is None:
+                if re.search(start_re_term, string):
+                    cover_page_start_ele = ele
+            if cover_page_end_ele is None:
+                if re.search(end_re_term, string):
+                    cover_page_end_ele = ele
+            if cover_page_end_ele is not None and cover_page_start_ele is not None:
+                # get soup between start, end ele and return it
+                # i might need to add this aswell as the tocs to the section_start_elements and then just pass it to the existing splitter?
+
+    def _get_soup_between_tags(self, start_ele: element.Tag, end_ele: element.Tag):
+        #function name is the game
+
+            
+
+
 
     def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag = None):
         """gets the elements of the TOC as a list.
@@ -1238,7 +1297,6 @@ class HTMFilingParser(AbstractFilingParser):
                     if ele is None:
                         prev_ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"])
                         break
-                # continue
             else:
                 while ele != section_start_elements[section_nr + 1]["ele"]:
                     next_ele = ele.next_element
@@ -1266,9 +1324,7 @@ class HTMFilingParser(AbstractFilingParser):
                 ),
                 text,
             )
-            # if len(section_start_elements) - 1 == idx:
-            #     pass
-            # else:
+
             end = re.search(
                 re.compile(
                     "-STOP_SECTION_TITLE_" + re.escape(sec["section_title"]),
@@ -1277,16 +1333,7 @@ class HTMFilingParser(AbstractFilingParser):
                 text,
             )
             try:
-                # if len(section_start_elements) - 1 == idx:
-                #     sections.append(
-                #         HTMFilingSection(
-                #             title=sec["section_title"],
-                #             content=text[start.span()[1] :],
-                #             extension=self.extension,
-                #             form_type=self.form_type
-                #         )
-                #     )
-                # else:
+
                 sections.append(
                     HTMFilingSection(
                         title=self._normalize_toc_title(sec["section_title"]),
@@ -1374,12 +1421,6 @@ class HTMFilingParser(AbstractFilingParser):
         unique_toc_titles = set([self._normalize_toc_title(t) for t in toc_titles])
         unique_match_titles = set(norm_title_matches)
 
-        # print("TITLES FOUND:")
-        # print(f"found/intersect/total: {len(unique_match_titles)}/{len(unique_match_titles & unique_toc_titles)}/{len(toc_titles)}")
-        # print("MISSING TOC MATCHES:")
-        # print(unique_toc_titles - unique_match_titles)
-        # print("FOUND BUT NOT IN TOC TITLES")
-        # print(unique_match_titles - unique_toc_titles)
         alternative_matches = []
         for failure in unique_toc_titles - unique_match_titles:
             if failure in TOC_ALTERNATIVES.keys():
