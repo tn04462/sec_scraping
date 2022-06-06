@@ -116,6 +116,13 @@ REGISTRATION_TABLE_HEADERS_S3 = [
             re.compile("Title(\s*)of(\s*)Each(\s*)Class(\s*)(.*)Regi(.*)", re.I),
             re.compile("Amount(\s*)(Being|to(\s*)be)(\s*)Registered", re.I)]
 
+REQUIRED_TOC_ITEMS_S3 = [
+    re.compile("ABOUT(\s*)THIS(\s*)PROSPECTUS", re.I),
+    re.compile("RISK(\s*)FACTORS(\s*)", re.I),
+    re.compile("PLAN(\s*)OF(\s*)DISTRIBUTION", re.I),
+    re.compile("USE(\s*)OF(\s*)PROCEEDS", re.I),
+]
+
 TOC_ALTERNATIVES = {
     "principal stockholders": [
         "SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT"
@@ -1069,31 +1076,33 @@ class HTMFilingParser(AbstractFilingParser):
                 found_tables.append(table)
         return found_tables
     
-    def _get_cover_page_from_toc(self, toc_element: element.Tag):
+    def _get_cover_page_start_ele_from_toc(self, toc_element: element.Tag):
         cover_page_start_ele = None
         cover_page_end_ele = None
         start_re_term = re.compile("PROSPECTUS")
         end_re_term = re.compile("the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}is", re.I)
-        while(cover_page_start_ele is None or cover_page_end_ele is None) or ele is None:
-            prev = ele
-            ele = ele.next_element
+        ele = toc_element
+        while(cover_page_start_ele is None or cover_page_end_ele is None):
+            ele = ele.previous_element
+            if ele is None:
+                return None
             string = None
             if isinstance(ele, NavigableString):
-                string = ele
+                string = str(ele)
             else:
-                string = ele.string if ele.string else " ".join([s for s in ele.strings])
-            if cover_page_start_ele is None:
-                if re.search(start_re_term, string):
-                    cover_page_start_ele = ele
-            if cover_page_end_ele is None:
-                if re.search(end_re_term, string):
-                    cover_page_end_ele = ele
-            if cover_page_end_ele is not None and cover_page_start_ele is not None:
+                string = ele.string if ele.string else None
+            if string:
+                if cover_page_start_ele is None:
+                    if re.search(start_re_term, string):
+                        cover_page_start_ele = ele if not isinstance(ele, NavigableString) else ele.parent
+                if cover_page_end_ele is None:
+                    if re.search(end_re_term, string):
+                        cover_page_end_ele = ele if not isinstance(ele, NavigableString) else ele.parent
+            if (cover_page_end_ele is not None) and (cover_page_start_ele is not None):
+                print(f"found cover page: {cover_page_start_ele}, {cover_page_end_ele}")
                 # get soup between start, end ele and return it
                 # i might need to add this aswell as the tocs to the section_start_elements and then just pass it to the existing splitter?
-
-    def _get_soup_between_tags(self, start_ele: element.Tag, end_ele: element.Tag):
-        #function name is the game
+                return cover_page_start_ele
 
             
 
@@ -1274,12 +1283,12 @@ class HTMFilingParser(AbstractFilingParser):
         )
 
     def _split_into_sections_by_tags(
-        self, doc: BeautifulSoup, section_start_elements: dict
+        self, doc: BeautifulSoup, section_start_elements: list[dict]
     ):
         """
         splits html doc into malformed html strings by section_start_elements.
         Args:
-            section_start_elements: {"section_title": section_title, "ele": element.Tag}
+            section_start_elements: [{"section_title": section_title, "ele": element.Tag}]
         """
         sections = []
         # make sure that the section_start_elements are sorted in ascending order by sourceline
@@ -1620,7 +1629,204 @@ class ParserS3(HTMFilingParser):
     '''process and parse s-3 filing.'''
 
     def split_into_sections(self, doc: BeautifulSoup | str):
-        return super().split_into_sections(doc)
+        if isinstance(doc, str):
+            doc_ = BeautifulSoup(doc, features="html5lib")
+        else:
+            doc_ = doc 
+        sections = self.split_by_table_of_contents(doc_)
+        if sections is not None:
+            return sections
+        else:
+            raise AttributeError(f"unhandled case of split_into_sections of the ParserS3")
+
+    def split_by_table_of_contents(self, doc: BeautifulSoup):
+        """split a filing with a TOC into sections based on the TOC.
+
+        Args:
+            doc: html parsed with bs4
+
+        Returns:
+            list[HTMFilingSection]
+        """
+       
+        section_start_elements = []
+         # get TOCs
+        tocs = self._get_table_elements_containing(doc, REQUIRED_TOC_ITEMS_S3)
+        # for t in tocs:
+        #     print(self.primitive_htmltable_parse(t))
+        for idx, toc in enumerate(tocs):
+            section_start_elements.append(
+                {"section_title": "toc "+str(idx), "ele": toc}
+            )
+            cover_page_start_ele = self._get_cover_page_start_ele_from_toc(toc)
+            if cover_page_start_ele:
+                section_start_elements.append(
+                    {"section_title": "cover page " + str(idx), "ele": cover_page_start_ele})
+            href_start_elements = self._get_section_start_elements_from_toc_hrefs(doc, toc)
+            if (href_start_elements is not None) and (href_start_elements != []):
+                [section_start_elements.append(x) for x in href_start_elements]
+            else:
+                header_start_elements =  self._get_section_start_elements_from_toc_headers(doc, toc)
+                if header_start_elements != []:
+                    [section_start_elements.append(x) for x in header_start_elements]
+        return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
+        
+    
+
+    def _get_section_start_elements_from_toc_headers(self, doc: BeautifulSoup,  toc_table: element.Tag):
+        """split the filing by the element strings of the TOC"""
+        toc = self.parse_htmltable_with_header(toc_table, colspan_mode="separate")
+        # check if we have desc, page header or not and remove it if so
+        possible_header = toc[0]
+        for head in possible_header:
+            if re.search(re.compile("(descript.*)|(page)", re.I), head):
+                toc.pop(0)
+                break
+        toc_titles = []
+        for entry in toc:
+            if entry[0] != "":
+                toc_titles.append(entry[0])
+
+        re_toc_titles = [
+            (
+                re.compile(
+                    "^\s*" + re.sub("(\s|\n)", "(?:.){0,4}", t) + "\s*$",
+                    re.I | re.DOTALL | re.MULTILINE,
+                ),
+                len(t) + 3,
+            )
+            for t in toc_titles
+        ]
+        ele_after_toc = toc_table.next_sibling
+        title_matches = self._look_for_toc_matches_after(
+            ele_after_toc, re_toc_titles, min_distance=5
+        )
+        stil_missing_toc_titles = [
+            s
+            for s in toc_titles
+            if self._normalize_toc_title(s)
+            not in [
+                self._normalize_toc_title(f.string)
+                if f.string
+                else self._normalize_toc_title(" ".join([t for t in f.strings]))
+                for f in title_matches
+            ]
+        ]
+        # assume that the still missing toc titles are multi tag titles or malformed after the 4th word
+        # so lets take take the first 4 words of the title and look for those
+        norm_four_word_titles = [
+            " ".join(self._normalize_toc_title(title).split(" ")[:4])
+            for title in stil_missing_toc_titles
+        ]
+        re_four_word_titles = [
+            self._create_toc_re(t, max_length=len(t) + 10)
+            for t in norm_four_word_titles
+        ]
+        four_word_matches = self._look_for_toc_matches_after(
+            ele_after_toc, re_four_word_titles
+        )
+        [title_matches.append(m) for m in four_word_matches]
+        norm_title_matches = [
+            self._normalize_toc_title(
+                t.string if t.string else " ".join([s for s in t.strings])
+            )
+            for t in title_matches
+        ]
+        unique_toc_titles = set([self._normalize_toc_title(t) for t in toc_titles])
+        unique_match_titles = set(norm_title_matches)
+
+        alternative_matches = []
+        for failure in unique_toc_titles - unique_match_titles:
+            if failure in TOC_ALTERNATIVES.keys():
+                alternative_options = TOC_ALTERNATIVES[failure]
+                for option in alternative_options:
+                    matches = self._look_for_toc_matches_after(
+                        ele_after_toc, [self._create_toc_re(option)]
+                    )
+                    if matches:
+                        alternative_matches.append(matches)
+                        break
+        for match in alternative_matches:
+            if len(match) > 1:
+                print(alternative_matches)
+                print("--------->>>!! address this now !!<<<-------------")
+            else:
+                title_matches.append(match[0])
+        section_start_elements = []
+        for match in title_matches:
+            _title = " ".join(
+                sum(
+                    [
+                        [
+                            match[idx].string
+                            if match[idx].string
+                            else " ".join([s for s in match[idx].strings])
+                            for idx in range(len(match))
+                        ]
+                    ],
+                    [],
+                )
+            )
+            section_title = self._normalize_toc_title(_title)
+            if section_title not in HEADERS_TO_DISCARD:
+                # print({"section_title": section_title, "ele": match[0]})
+                section_start_elements.append(
+                    {"section_title": section_title, "ele": match[0]}
+                )
+            else:
+                logger.info(
+                    f"_split_by_table_of_content_based_on_headers: \t Discarded section: {section_title} because it was in HEADERS_TO_DISCARD"
+                )
+        return section_start_elements
+
+    def _get_section_start_elements_from_toc_hrefs(self, doc: BeautifulSoup, toc_table: element.Tag):
+        """split the filing based on the hrefs, linking to different parts of the filing, from the TOC."""
+        try:
+            hrefs = toc_table.findChildren("a", href=True)
+            first_ids = [h["href"] for h in hrefs]
+        except AttributeError as e:
+            logger.info(e, exc_info=True)
+            return None
+        # determine first section so we can check if toc is multiple pages
+        id = first_ids[0]
+        id_match = doc.find(id=id[1:])
+        if id_match is None:
+            name_match = doc.find(attrs={"name": id[1:]})
+            first_toc_element = name_match
+        else:
+            first_toc_element = id_match
+        # check that we didnt miss other pages of toc
+        if not first_toc_element:
+            raise ValueError("couldnt find section of first element in TOC")
+        # get all tables before the first header found in toc
+        tables = first_toc_element.find_all_previous("table")
+        track_ids_done = []
+        section_start_elements = []
+        section_start_ids = []
+        for idx in range(len(tables) - 1, -1, -1):
+            table = tables[idx]
+            hrefs = table.findChildren("a", href=True)
+            ids = []
+            for a in hrefs:
+                id = a["href"]
+                toc_title = " ".join([s for s in a.strings]).lower()
+                ids.append((id, toc_title))
+            section_start_ids.append(ids)
+        for entry in sum(section_start_ids, []):
+            id = entry[0]
+            if id not in track_ids_done:
+                id_match = doc.find(attrs={"id": id[1:]})
+                if id_match is None:
+                    id_match = doc.find(attrs={"name": id[1:]})
+                track_ids_done.append(id)
+                if id_match:
+                    # print(id_match, entry)
+                    section_start_elements.append(
+                        {"ele": id_match, "section_title": entry[1]}
+                    )
+                else:
+                    logger.debug(("NO ID MATCH FOR", entry))
+        return section_start_elements
     
     def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
         '''see HTMFilingParser'''
