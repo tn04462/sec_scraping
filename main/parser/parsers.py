@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, NavigableString, element
 import re
 from abc import ABC, abstractmethod
 import copy
+import uuid
 
 from main.parser.filings_base import FilingSection, Filing, FilingSection
 from main.parser.extractors import extractor_factory
@@ -117,7 +118,7 @@ REGISTRATION_TABLE_HEADERS_S3 = [
             re.compile("Amount(\s*)(Being|to(\s*)be)(\s*)Registered", re.I)]
 
 REQUIRED_TOC_ITEMS_S3 = [
-    re.compile("ABOUT(\s*)THIS(\s*)PROSPECTUS", re.I),
+    # re.compile("(ABOUT(\s)*THIS(\s)*PROSPECTUS) | (PROSPECTUS(\s)*SUMMARY)", re.I),
     re.compile("RISK(\s*)FACTORS(\s*)", re.I),
     re.compile("PLAN(\s*)OF(\s*)DISTRIBUTION", re.I),
     re.compile("USE(\s*)OF(\s*)PROCEEDS", re.I),
@@ -140,6 +141,17 @@ RE_COMPILED = {
     "one_newline": re.compile("(\n)", re.MULTILINE),
     "two_spaces_or_more": re.compile("(\s){2,}", re.MULTILINE),
 }
+
+def _add_unique_id_to_dict(target: dict, key: str="UUID"):
+    '''Add a UUID to each entry in the target.
+    SideEffect: modifies the target, adds a key
+
+    Returns:
+        a modified copy of target
+    '''
+    target_copy = target.copy()
+    target_copy[key] = str(uuid.uuid4())
+    return target_copy
 
 class AbstractFilingParser(ABC):
     @property
@@ -1074,6 +1086,9 @@ class HTMFilingParser(AbstractFilingParser):
                     logger.debug(e, exc_info=True)
             if ritems == []:
                 found_tables.append(table)
+            else:
+                if len(ritems) < len(required_items):
+                    logger.debug(f"at least one required item present, following were missing to qualify: {ritems}")
         return found_tables
     
     def _get_cover_page_start_ele_from_toc(self, toc_element: element.Tag):
@@ -1281,6 +1296,8 @@ class HTMFilingParser(AbstractFilingParser):
             ),
             max_length,
         )
+    
+
 
     def _split_into_sections_by_tags(
         self, doc: BeautifulSoup, section_start_elements: list[dict]
@@ -1295,19 +1312,22 @@ class HTMFilingParser(AbstractFilingParser):
         sorted_section_start_elements = sorted(
             section_start_elements, key=lambda x: x["ele"].sourceline
         )
+        # logger.debug(sorted_section_start_elements)
+        for idx, section_start_element in enumerate(sorted_section_start_elements):
+            sorted_section_start_elements[idx] = _add_unique_id_to_dict(section_start_element)
         for section_nr, start_element in enumerate(sorted_section_start_elements):
 
             ele = start_element["ele"]
-            ele.insert_before("-START_SECTION_TITLE_" + start_element["section_title"])
-            if len(section_start_elements) - 1 == section_nr:
+            ele.insert_before("-START_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"])
+            if section_nr == len(sorted_section_start_elements) - 1:
                 while True:
                     prev_ele = ele
                     ele = ele.next_element
                     if ele is None:
-                        prev_ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"])
+                        prev_ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"])
                         break
             else:
-                while ele != section_start_elements[section_nr + 1]["ele"]:
+                while ele != sorted_section_start_elements[section_nr + 1]["ele"]:
                     next_ele = ele.next_element
                     if not next_ele:
                         logger.debug(
@@ -1323,12 +1343,13 @@ class HTMFilingParser(AbstractFilingParser):
                         # --> sort by sourceline at start to avoid fuckupy
                         break
                     ele = next_ele
-                ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"])
+                ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"])
         text = str(doc)
-        for idx, sec in enumerate(section_start_elements):
+        for idx, sec in enumerate(sorted_section_start_elements):
+            print("-START_SECTION_TITLE_" + re.escape(sec["section_title"] + start_element["UUID"]))
             start = re.search(
                 re.compile(
-                    "-START_SECTION_TITLE_" + re.escape(sec["section_title"]),
+                    "-START_SECTION_TITLE_" + re.escape(sec["section_title"] + start_element["UUID"]),
                     re.MULTILINE,
                 ),
                 text,
@@ -1336,7 +1357,7 @@ class HTMFilingParser(AbstractFilingParser):
 
             end = re.search(
                 re.compile(
-                    "-STOP_SECTION_TITLE_" + re.escape(sec["section_title"]),
+                    "-STOP_SECTION_TITLE_" + re.escape(sec["section_title"] + start_element["UUID"]),
                     re.MULTILINE,
                 ),
                 text,
@@ -1634,6 +1655,7 @@ class ParserS3(HTMFilingParser):
         else:
             doc_ = doc 
         sections = self.split_by_table_of_contents(doc_)
+        logger.debug(f"found sections: {sections}")
         if sections is not None:
             return sections
         else:
@@ -1652,6 +1674,7 @@ class ParserS3(HTMFilingParser):
         section_start_elements = []
          # get TOCs
         tocs = self._get_table_elements_containing(doc, REQUIRED_TOC_ITEMS_S3)
+        logger.debug(f"found following TOCs: {tocs}")
         # for t in tocs:
         #     print(self.primitive_htmltable_parse(t))
         for idx, toc in enumerate(tocs):
@@ -1827,7 +1850,7 @@ class ParserS3(HTMFilingParser):
                 else:
                     logger.debug(("NO ID MATCH FOR", entry))
         return section_start_elements
-    
+     
     def extract_tables(self, soup: BeautifulSoup, reintegrate=["ul_bullet_points", "one_row_table"]):
         '''see HTMFilingParser'''
         unparsed_tables = self.get_unparsed_tables(soup)

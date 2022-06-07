@@ -1,5 +1,6 @@
 
 from bs4 import BeautifulSoup
+from numpy import number
 from urllib3 import connection_from_url
 from dilution_db import DilutionDBUpdater
 # from dilution_db import DilutionDB
@@ -421,7 +422,8 @@ if __name__ == "__main__":
         
     def create_htm_filing():
         fake_filing_info = {
-            "path": r"F:/example_filing_set_S3/filings/0001183765/S-3/000119312520212471/d29932ds3.htm",
+            "path": r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001183765/S-3/000119312520212471/d29932ds3.htm",
+            # "path": r"C:/Users/Olivi/Desktop/test_set/set_s3/filings/0001325879/S-3/000119312518218817/d439397ds3.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000147793221000113",
             "cik": "0001477932",
@@ -433,7 +435,7 @@ if __name__ == "__main__":
         filing = filing_factory.create_filing(**fake_filing_info)
         return filing
     # 
-    create_htm_filing()
+    # create_htm_filing()
     def test_s3_splitting_by_toc_hrefs():
         s3_path = r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings\0001325879\S-3\000119312518218817\d439397ds3.htm"
         parser = HTMFilingParser()
@@ -609,3 +611,11 @@ if __name__ == "__main__":
 
     # item count in all 8-k's of the filings-database
     # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
+
+    filing: HTMFiling = create_htm_filing()
+    # print(f"filing: {filing}")
+    # for section in filing.sections:
+    #     print(section.title, len(section.content))
+    # cover_pages = filing.get_sections(re.compile("cover page", re.I))
+    # for cv in cover_pages:
+    #     print(cv.title, cv.text_only)
