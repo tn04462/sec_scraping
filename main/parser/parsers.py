@@ -316,7 +316,7 @@ class HTMFilingParser(AbstractFilingParser):
                 parsed_table = self.parse_htmltable_with_header(t)
             else:
                 parsed_table = self.primitive_htmltable_parse(t)
-            cleaned_table = self._clean_parsed_table(
+            cleaned_table = self._clean_parsed_table_columnwise(
                 self._preprocess_table(parsed_table)
             )
             classification = self.classify_table(cleaned_table)
@@ -534,8 +534,27 @@ class HTMFilingParser(AbstractFilingParser):
                 if isinstance(field_content, str):
                     t[ridx][cidx] = self.preprocess_text(field_content)
         return t
+    
+    def _clean_parsed_table_fieldwise(
+        self, table: list[list], remove_: list = ["", None, "None", " "]
+    ):
+        '''clean a parsed table of shape m,n removing all fields which are in remove_'''
+        drop = []
+        for ridx, row in enumerate(table):
+            for fidx, field in enumerate(row):
+                if field in remove_:
+                    drop.insert(0, (ridx, fidx))
+        for drop_ in drop:
+            table[drop_[0]].pop(drop_[1])
+        drop_row = []
+        for ridx, row in enumerate(table):
+            if row == []:
+                drop_row.insert(0, ridx)
+        for d in drop_row:
+            table.pop(d)
+        return table
 
-    def _clean_parsed_table(
+    def _clean_parsed_table_columnwise(
         self, table: list[list], remove_identifier: list = ["", "None", None, " "]
     ):
         """clean a parsed table of shape m,n by removing all columns whose row values are a combination of remove_identifier"""
@@ -599,6 +618,78 @@ class HTMFilingParser(AbstractFilingParser):
         """gets the cleaned text content of a single element.Tag"""
         content = " ".join([s.strip().replace("\n", " ") for s in ele.strings]).strip()
         return content
+
+    def _parse_toc_table_element(self, table_element: element.Tag):
+        '''convert the toc table element into a list[dict].
+        
+        Returns:
+            list[dict]: where each dict is a entry from the toc with keys:
+                        title, href, page
+        '''
+        rows =  table_element.find_all("tr")
+        amount_rows = len(rows)
+        amount_columns = 0
+        table = None
+        for row in rows:
+            nr_columns = len(row.find_all("td"))
+            if nr_columns > amount_columns:
+                amount_columns = nr_columns
+        # create empty table
+        table = [[None] * amount_columns for each in range(amount_rows)]
+        hrefs = []
+        # write each row and keep separat list of hrefs for each row
+        for row_idx, row in enumerate(rows):
+            href = []
+            for field_idx, field in enumerate(row.find_all("td")):
+                content = self.get_element_text_content(field)                
+                table[row_idx][field_idx] = content if content else ""
+                href = self.get_element_hrefs(row)
+            if href != []:
+                if len(href) > 1:
+                    raise AttributeError(f"parse_toc_table can only handle one href per toc row! More than one href found: {hrefs}")
+                hrefs.append(href[0])
+            else:
+                hrefs.append(None)
+        idx = 0
+        print(len(table), len(hrefs))
+        for href in hrefs:
+             table[idx].append(href)
+             idx += 1
+        table = self._clean_parsed_table_columnwise(table)
+        table = self._clean_parsed_table_fieldwise(table)
+        
+        toc_table = []
+        for field in table[0]:
+            if re.search(re.compile("(descript.*)|(page)", re.I), field):
+                table.pop(0)
+                break
+        # print(table)
+        for row in table:
+            title = row[0]
+            try:
+                page = row[1]
+            except IndexError:
+                page = None
+            try:
+                href = row[2]
+            except IndexError:
+                href = None
+            toc_table.append({
+                "title": title,
+                "page": page,
+                "href": href
+            })
+        return toc_table
+
+        
+
+    def get_element_hrefs(self, ele: element.Tag):
+        hrefs = []
+        containg_hrefs = ele.find_all(lambda x: x.has_attr("href"))
+        if containg_hrefs:
+            return [e["href"] for e in containg_hrefs]
+        else:
+            return []
 
     def primitive_htmltable_parse(self, htmltable):
         """parse simple html tables without col or rowspan"""
@@ -1683,6 +1774,7 @@ class ParserS3(HTMFilingParser):
         #     print(self.primitive_htmltable_parse(t))
         for idx, toc in enumerate(tocs):
             logger.debug(f"working on toc number: {idx}")
+            logger.debug(f"parsed toc table: {self._parse_toc_table_element(toc)}")
             section_start_elements.append(
                 {"section_title": "toc "+str(idx), "ele": toc}
             )
@@ -1707,18 +1799,11 @@ class ParserS3(HTMFilingParser):
 
     def _get_section_start_elements_from_toc_headers(self, doc: BeautifulSoup,  toc_table: element.Tag):
         """split the filing by the element strings of the TOC"""
-        toc = self.parse_htmltable_with_header(toc_table, colspan_mode="separate")
-        # check if we have desc, page header or not and remove it if so
-        possible_header = toc[0]
-        for head in possible_header:
-            if re.search(re.compile("(descript.*)|(page)", re.I), head):
-                toc.pop(0)
-                break
+        toc = self._parse_toc_table_element(toc_table)
         toc_titles = []
         for entry in toc:
-            if entry[0] != "":
-                toc_titles.append(entry[0])
-
+            if entry["title"] != "":
+                toc_titles.append(entry["title"])
         re_toc_titles = [
             (
                 re.compile(
@@ -1813,41 +1898,23 @@ class ParserS3(HTMFilingParser):
 
     def _get_section_start_elements_from_toc_hrefs(self, doc: BeautifulSoup, toc_table: element.Tag):
         """split the filing based on the hrefs, linking to different parts of the filing, from the TOC."""
-        try:
-            hrefs = toc_table.findChildren("a", href=True)
-            first_ids = [h["href"] for h in hrefs]
-        except AttributeError as e:
-            logger.info(e, exc_info=True)
+        table = self._parse_toc_table_element(toc_table)
+        id = table[0]["href"]
+        if id is None:
             return None
-        # determine first section so we can check if toc is multiple pages
-        id = first_ids[0]
         id_match = doc.find(attrs={"id":id[1:]})
         if id_match is None:
             name_match = doc.find(attrs={"name": id[1:]})
             first_toc_element = name_match
         else:
             first_toc_element = id_match
-        # check that we didnt miss other pages of toc
         if not first_toc_element:
             raise ValueError("couldnt find section of first element in TOC")
-        # get all tables before the first header found in toc
-        tables = first_toc_element.find_all_previous("table")
         track_ids_done = []
         section_start_elements = []
-        section_start_ids = []
-        for idx in range(len(tables) - 1, -1, -1):
-            table = tables[idx]
-            hrefs = table.findChildren("a", href=True)
-            ids = []
-            for a in hrefs:
-                id = a["href"]
-                toc_title = " ".join([s for s in a.strings]).lower()
-                ids.append((id, toc_title))
-            section_start_ids.append(ids)
-        # logger.debug(f"section_start_ids: {section_start_ids}")
-        for entry in sum(section_start_ids, []):
+        for entry in table:
             logger.debug(f"looking for section start element of entry: {entry}")
-            id = entry[0]
+            id = entry["href"]
             if id not in track_ids_done:
                 id_match = doc.find(attrs={"id": id[1:]})
                 if id_match is None:
@@ -1856,7 +1923,7 @@ class ParserS3(HTMFilingParser):
                 if id_match:
                     # print(id_match, entry)
                     section_start_elements.append(
-                        {"ele": id_match, "section_title": entry[1]}
+                        {"ele": id_match, "section_title": entry["title"]}
                     )
                 else:
                     logger.debug(("NO ID MATCH FOR", entry))
@@ -1872,7 +1939,7 @@ class ParserS3(HTMFilingParser):
                 parsed_table = self.parse_htmltable_with_header(t)
             else:
                 parsed_table = self.primitive_htmltable_parse(t)
-            cleaned_table = self._clean_parsed_table(
+            cleaned_table = self._clean_parsed_table_columnwise(
                 self._preprocess_table(parsed_table)
             )
             classification = self.classify_table(cleaned_table)
@@ -2280,7 +2347,7 @@ class ParserSC13D(HTMFilingParser):
                 parsed_table = self.parse_htmltable_with_header(t)
             else:
                 parsed_table = self.primitive_htmltable_parse(t)
-            cleaned_table = self._clean_parsed_table(
+            cleaned_table = self._clean_parsed_table_columnwise(
                 self._preprocess_table(parsed_table)
             )
 
