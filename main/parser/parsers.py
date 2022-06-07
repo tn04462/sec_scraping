@@ -1095,7 +1095,8 @@ class HTMFilingParser(AbstractFilingParser):
         cover_page_start_ele = None
         cover_page_end_ele = None
         start_re_term = re.compile("PROSPECTUS")
-        end_re_term = re.compile("the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}is", re.I)
+        alternative_start_re_term = re.compile("subject(\s)*to(\s)*completion,", re.I)
+        end_re_term = re.compile("the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}(?:supplement)?(?:\s){,3}is", re.I)
         ele = toc_element
         while(cover_page_start_ele is None or cover_page_end_ele is None):
             ele = ele.previous_element
@@ -1107,17 +1108,17 @@ class HTMFilingParser(AbstractFilingParser):
             else:
                 string = ele.string if ele.string else None
             if string:
-                if cover_page_start_ele is None:
-                    if re.search(start_re_term, string):
-                        cover_page_start_ele = ele if not isinstance(ele, NavigableString) else ele.parent
+                if re.search(start_re_term, string) or re.search(alternative_start_re_term, string):
+                    cover_page_start_ele = ele if not isinstance(ele, NavigableString) else ele.parent
                 if cover_page_end_ele is None:
                     if re.search(end_re_term, string):
                         cover_page_end_ele = ele if not isinstance(ele, NavigableString) else ele.parent
             if (cover_page_end_ele is not None) and (cover_page_start_ele is not None):
-                print(f"found cover page: {cover_page_start_ele}, {cover_page_end_ele}")
-                # get soup between start, end ele and return it
-                # i might need to add this aswell as the tocs to the section_start_elements and then just pass it to the existing splitter?
-                return cover_page_start_ele
+                if cover_page_end_ele.sourceline > cover_page_start_ele.sourceline:
+                    print(f"found cover page: {cover_page_start_ele}, {cover_page_end_ele}")
+                    # get soup between start, end ele and return it
+                    # i might need to add this aswell as the tocs to the section_start_elements and then just pass it to the existing splitter?
+                    return cover_page_start_ele
 
             
 
@@ -1315,9 +1316,11 @@ class HTMFilingParser(AbstractFilingParser):
         # logger.debug(sorted_section_start_elements)
         for idx, section_start_element in enumerate(sorted_section_start_elements):
             sorted_section_start_elements[idx] = _add_unique_id_to_dict(section_start_element)
+        logger.debug([s["section_title"] for s in list(sorted_section_start_elements)])
         for section_nr, start_element in enumerate(sorted_section_start_elements):
 
             ele = start_element["ele"]
+            logger.debug(f'{ele.sourceline} inserted start ele {"-START_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"]}')
             ele.insert_before("-START_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"])
             if section_nr == len(sorted_section_start_elements) - 1:
                 while True:
@@ -1343,13 +1346,14 @@ class HTMFilingParser(AbstractFilingParser):
                         # --> sort by sourceline at start to avoid fuckupy
                         break
                     ele = next_ele
+                logger.debug(f'{ele.sourceline} inserted stop ele {"-STOP_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"]}')
                 ele.insert_before("-STOP_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"])
         text = str(doc)
         for idx, sec in enumerate(sorted_section_start_elements):
-            print("-START_SECTION_TITLE_" + re.escape(sec["section_title"] + start_element["UUID"]))
+            logger.debug(f'looking for: {"-START_SECTION_TITLE_" + re.escape(sec["section_title"] + sec["UUID"])}')
             start = re.search(
                 re.compile(
-                    "-START_SECTION_TITLE_" + re.escape(sec["section_title"] + start_element["UUID"]),
+                    "-START_SECTION_TITLE_" + re.escape(sec["section_title"] + sec["UUID"]),
                     re.MULTILINE,
                 ),
                 text,
@@ -1357,7 +1361,7 @@ class HTMFilingParser(AbstractFilingParser):
 
             end = re.search(
                 re.compile(
-                    "-STOP_SECTION_TITLE_" + re.escape(sec["section_title"] + start_element["UUID"]),
+                    "-STOP_SECTION_TITLE_" + re.escape(sec["section_title"] + sec["UUID"]),
                     re.MULTILINE,
                 ),
                 text,
@@ -1655,7 +1659,7 @@ class ParserS3(HTMFilingParser):
         else:
             doc_ = doc 
         sections = self.split_by_table_of_contents(doc_)
-        logger.debug(f"found sections: {sections}")
+        logger.debug(f"found sections: {len(sections), [sec.title if sec.title else None for sec in sections]}")
         if sections is not None:
             return sections
         else:
@@ -1674,10 +1678,11 @@ class ParserS3(HTMFilingParser):
         section_start_elements = []
          # get TOCs
         tocs = self._get_table_elements_containing(doc, REQUIRED_TOC_ITEMS_S3)
-        logger.debug(f"found following TOCs: {tocs}")
+        logger.debug(f"found following TOCs: {[self.primitive_htmltable_parse(toc) for toc in tocs]}")
         # for t in tocs:
         #     print(self.primitive_htmltable_parse(t))
         for idx, toc in enumerate(tocs):
+            logger.debug(f"working on toc number: {idx}")
             section_start_elements.append(
                 {"section_title": "toc "+str(idx), "ele": toc}
             )
@@ -1687,11 +1692,15 @@ class ParserS3(HTMFilingParser):
                     {"section_title": "cover page " + str(idx), "ele": cover_page_start_ele})
             href_start_elements = self._get_section_start_elements_from_toc_hrefs(doc, toc)
             if (href_start_elements is not None) and (href_start_elements != []):
-                [section_start_elements.append(x) for x in href_start_elements]
+                for x in href_start_elements:
+                    if x not in section_start_elements:
+                        section_start_elements.append(x)
             else:
                 header_start_elements =  self._get_section_start_elements_from_toc_headers(doc, toc)
                 if header_start_elements != []:
-                    [section_start_elements.append(x) for x in header_start_elements]
+                    for x in header_start_elements:
+                        if x not in section_start_elements:
+                            section_start_elements.append(x)
         return self._split_into_sections_by_tags(doc, section_start_elements=section_start_elements)
         
     
@@ -1812,7 +1821,7 @@ class ParserS3(HTMFilingParser):
             return None
         # determine first section so we can check if toc is multiple pages
         id = first_ids[0]
-        id_match = doc.find(id=id[1:])
+        id_match = doc.find(attrs={"id":id[1:]})
         if id_match is None:
             name_match = doc.find(attrs={"name": id[1:]})
             first_toc_element = name_match
@@ -1835,7 +1844,9 @@ class ParserS3(HTMFilingParser):
                 toc_title = " ".join([s for s in a.strings]).lower()
                 ids.append((id, toc_title))
             section_start_ids.append(ids)
+        # logger.debug(f"section_start_ids: {section_start_ids}")
         for entry in sum(section_start_ids, []):
+            logger.debug(f"looking for section start element of entry: {entry}")
             id = entry[0]
             if id not in track_ids_done:
                 id_match = doc.find(attrs={"id": id[1:]})
