@@ -119,7 +119,7 @@ REGISTRATION_TABLE_HEADERS_S3 = [
 
 REQUIRED_TOC_ITEMS_S3 = [
     # re.compile("(ABOUT(\s)*THIS(\s)*PROSPECTUS) | (PROSPECTUS(\s)*SUMMARY)", re.I),
-    re.compile("RISK(\s*)FACTORS(\s*)", re.I),
+    # re.compile("RISK(\s*)FACTORS(\s*)", re.I),
     re.compile("PLAN(\s*)OF(\s*)DISTRIBUTION", re.I),
     re.compile("USE(\s*)OF(\s*)PROCEEDS", re.I),
 ]
@@ -143,11 +143,10 @@ RE_COMPILED = {
 }
 
 def _add_unique_id_to_dict(target: dict, key: str="UUID"):
-    '''Add a UUID to each entry in the target.
-    SideEffect: modifies the target, adds a key
+    '''Add a UUID to the target.
 
     Returns:
-        a modified copy of target
+        a modified copy of target with a key that contains a string of a uuid4
     '''
     target_copy = target.copy()
     target_copy[key] = str(uuid.uuid4())
@@ -521,6 +520,8 @@ class HTMFilingParser(AbstractFilingParser):
             else:
                 return "unclassified"
         return "unclassified"
+    
+    # def _create_section_start_element(self, section_title: str, ele: element.Tag, meta: dict)
 
     def _preprocess_table(self, table: list[list]):
         """preprocess the strings in the table, removing multiple whitespaces and newlines
@@ -1215,63 +1216,63 @@ class HTMFilingParser(AbstractFilingParser):
 
 
 
-    def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag = None):
-        """gets the elements of the TOC as a list.
+    # def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag = None):
+    #     """gets the elements of the TOC as a list.
 
-        currently doesnt account for multi table TOC.
-        Returns:
-            list of [description, page_number]
-        """
-        if start_table is None:
-            try:
-                close_to_toc = doc.find(
-                    string=re.compile("(table.?.?of.?.?contents)", re.I | re.DOTALL),
-                    recursive=True,
-                )
-                if isinstance(close_to_toc, NavigableString):
-                    close_to_toc = close_to_toc.parent
-                if "href" in close_to_toc.attrs:
-                    name_or_id = close_to_toc["href"][-1]
-                    close_to_toc = doc.find(name=name_or_id)
-                    if close_to_toc is None:
-                        close_to_toc = doc.find(id=name_or_id)
-                toc_table = close_to_toc.find_next("table")
-            except AttributeError as e:
-                logger.info(e, exc_info=True)
-                logger.info(
-                    "This filing mostlikely doesnt have a TOC. Couldnt find TOC from close_to_toc tag"
-                )
-                return None
-        else:
-            toc_table = start_table
-        if toc_table is None:
-            logger.info("couldnt find TOC from close_to_toc tag")
-        dirty_toc = self.parse_htmltable_with_header(toc_table, colspan_mode="separate")
-        if dirty_toc is None:
-            logger.info("couldnt get toc from toc_table")
-            return None
-        if len(dirty_toc) < 10:
-            # assume we missed the toc
-            try:
-                toc_table = toc_table.find_next("table")
-                toc = self._get_toc_list(doc, toc_table)
-                return toc
-            except AttributeError:
-                return None
-        toc = []
-        for row in dirty_toc:
-            offset = 0
-            for idx in range(len(row)):
-                field = row[idx - offset]
-                if (field is None) or (field == ""):
-                    row.pop(idx - offset)
-                    offset += 1
+    #     currently doesnt account for multi table TOC.
+    #     Returns:
+    #         list of [description, page_number]
+    #     """
+    #     if start_table is None:
+    #         try:
+    #             close_to_toc = doc.find(
+    #                 string=re.compile("(table.?.?of.?.?contents)", re.I | re.DOTALL),
+    #                 recursive=True,
+    #             )
+    #             if isinstance(close_to_toc, NavigableString):
+    #                 close_to_toc = close_to_toc.parent
+    #             if "href" in close_to_toc.attrs:
+    #                 name_or_id = close_to_toc["href"][-1]
+    #                 close_to_toc = doc.find(name=name_or_id)
+    #                 if close_to_toc is None:
+    #                     close_to_toc = doc.find(id=name_or_id)
+    #             toc_table = close_to_toc.find_next("table")
+    #         except AttributeError as e:
+    #             logger.info(e, exc_info=True)
+    #             logger.info(
+    #                 "This filing mostlikely doesnt have a TOC. Couldnt find TOC from close_to_toc tag"
+    #             )
+    #             return None
+    #     else:
+    #         toc_table = start_table
+    #     if toc_table is None:
+    #         logger.info("couldnt find TOC from close_to_toc tag")
+    #     dirty_toc = self.parse_htmltable_with_header(toc_table, colspan_mode="separate")
+    #     if dirty_toc is None:
+    #         logger.info("couldnt get toc from toc_table")
+    #         return None
+    #     if len(dirty_toc) < 10:
+    #         # assume we missed the toc
+    #         try:
+    #             toc_table = toc_table.find_next("table")
+    #             toc = self._get_toc_list(doc, toc_table)
+    #             return toc
+    #         except AttributeError:
+    #             return None
+    #     toc = []
+    #     for row in dirty_toc:
+    #         offset = 0
+    #         for idx in range(len(row)):
+    #             field = row[idx - offset]
+    #             if (field is None) or (field == ""):
+    #                 row.pop(idx - offset)
+    #                 offset += 1
 
-            if row != []:
-                if len(row) == 1:
-                    row.append("None")
-                toc.append(row)
-        return toc
+    #         if row != []:
+    #             if len(row) == 1:
+    #                 row.append("None")
+    #             toc.append(row)
+    #     return toc
         # toc_table2 = toc_table.find_next("table")
         # toc2 = self.parse_htmltable_with_header(toc_table2, colspan_mode="separate")
         # if toc2 is not None:
@@ -1291,6 +1292,7 @@ class HTMFilingParser(AbstractFilingParser):
         start_ele: element.Tag,
         re_toc_titles: list[(re.Pattern, int)],
         min_distance: int = 5,
+        stop_ele: element.Tag = None
     ):
         """
         looks for regex matches in the string of the tags of the element tree.
@@ -1299,13 +1301,19 @@ class HTMFilingParser(AbstractFilingParser):
         together.
 
         Args:
+            start_ele: from what element to start the search
             re_toc_titles: should be a list of tuples consisting of (the regex pattern, the max length to match for)
             max length to match for should be equal to the  length + some whitespace margin of the toc_title string
+            min_distance: minimum number of elements between matches
+            stop_ele: at what element to stop the search at the latest.
         """
         title_matches = []
         min_distance_count = 0
         matched_ele = None
         for ele in start_ele.next_elements:
+            if stop_ele is not None:
+                if ele == stop_ele:
+                    break
             if matched_ele == ele.previous_element:
                 if min_distance_count >= min_distance:
                     matched_ele = None
@@ -1772,6 +1780,7 @@ class ParserS3(HTMFilingParser):
         logger.debug(f"found following TOCs: {[self.primitive_htmltable_parse(toc) for toc in tocs]}")
         # for t in tocs:
         #     print(self.primitive_htmltable_parse(t))
+        cover_page_list = []
         for idx, toc in enumerate(tocs):
             logger.debug(f"working on toc number: {idx}")
             logger.debug(f"parsed toc table: {self._parse_toc_table_element(toc)}")
@@ -1782,13 +1791,19 @@ class ParserS3(HTMFilingParser):
             if cover_page_start_ele:
                 section_start_elements.append(
                     {"section_title": "cover page " + str(idx), "ele": cover_page_start_ele})
+            cover_page_list.append(cover_page_start_ele if cover_page_start_ele else None)
+        for idx, toc in enumerate(tocs):
             href_start_elements = self._get_section_start_elements_from_toc_hrefs(doc, toc)
             if (href_start_elements is not None) and (href_start_elements != []):
                 for x in href_start_elements:
                     if x not in section_start_elements:
                         section_start_elements.append(x)
             else:
-                header_start_elements =  self._get_section_start_elements_from_toc_headers(doc, toc)
+                try:
+                    stop_ele = cover_page_list[idx]
+                except IndexError:
+                    stop_ele = None
+                header_start_elements =  self._get_section_start_elements_from_toc_headers(doc, toc, stop_ele=stop_ele)
                 if header_start_elements != []:
                     for x in header_start_elements:
                         if x not in section_start_elements:
@@ -1797,7 +1812,7 @@ class ParserS3(HTMFilingParser):
         
     
 
-    def _get_section_start_elements_from_toc_headers(self, doc: BeautifulSoup,  toc_table: element.Tag):
+    def _get_section_start_elements_from_toc_headers(self, doc: BeautifulSoup,  toc_table: element.Tag, stop_ele: element.Tag=None):
         """split the filing by the element strings of the TOC"""
         toc = self._parse_toc_table_element(toc_table)
         toc_titles = []
@@ -1816,7 +1831,7 @@ class ParserS3(HTMFilingParser):
         ]
         ele_after_toc = toc_table.next_sibling
         title_matches = self._look_for_toc_matches_after(
-            ele_after_toc, re_toc_titles, min_distance=5
+            ele_after_toc, re_toc_titles, min_distance=5, stop_ele=stop_ele
         )
         stil_missing_toc_titles = [
             s
@@ -1840,7 +1855,7 @@ class ParserS3(HTMFilingParser):
             for t in norm_four_word_titles
         ]
         four_word_matches = self._look_for_toc_matches_after(
-            ele_after_toc, re_four_word_titles
+            ele_after_toc, re_four_word_titles, stop_ele=stop_ele
         )
         [title_matches.append(m) for m in four_word_matches]
         norm_title_matches = [
@@ -1858,7 +1873,7 @@ class ParserS3(HTMFilingParser):
                 alternative_options = TOC_ALTERNATIVES[failure]
                 for option in alternative_options:
                     matches = self._look_for_toc_matches_after(
-                        ele_after_toc, [self._create_toc_re(option)]
+                        ele_after_toc, [self._create_toc_re(option)], stop_ele=stop_ele
                     )
                     if matches:
                         alternative_matches.append(matches)
