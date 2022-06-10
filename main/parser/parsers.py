@@ -536,6 +536,16 @@ class HTMFilingParser(AbstractFilingParser):
                     t[ridx][cidx] = self.preprocess_text(field_content)
         return t
     
+    def _clean_parsed_table_drop_empty_rows(self, table: list[list], remove_: list=["", None]):
+        '''clean a parsed table, removing all rows consisting only of fields in remove_'''
+        drop_rows = []
+        for idx, row in enumerate(table):
+            if _row_is_ignore(row) is True:
+                drop_rows.insert(0, idx)
+        for d in drop_rows:
+            table.pop(d)
+        return table
+    
     def _clean_parsed_table_fieldwise(
         self, table: list[list], remove_: list = ["", None, "None", " "]
     ):
@@ -1212,8 +1222,44 @@ class HTMFilingParser(AbstractFilingParser):
                     # i might need to add this aswell as the tocs to the section_start_elements and then just pass it to the existing splitter?
                     return cover_page_start_ele
 
-            
-
+    
+    def _get_front_page_sections_from_first_cover_page(self, start_ele: element.Tag, re_terms: list[re.Pattern]=[re.compile("EXPLANATORY(\s)*NOTE")]):
+        '''
+        
+        Args:
+            re_terms: list of re.Patterns that should be split of from the front page into their own section_start_elements
+            start_ele: the start element of the first cover page
+        '''
+        section_start_elements = []
+        ele = start_ele
+        while True:
+            prev_ele = ele
+            ele = ele.previous_element
+            if ele.name == "title":
+                if isinstance(prev_ele, NavigableString):
+                    while isinstance(prev_ele, NavigableString):
+                        prev_ele = prev_ele.next_element
+                section_start_elements.append(
+                    {
+                        "section_title": "front page",
+                        "ele": prev_ele
+                    }
+                )
+                break
+            if not isinstance(ele, NavigableString):
+                string = ele.string if ele.string else None
+                if string:
+                    for term in re_terms:
+                        if re.search(term, string):
+                            section_start_elements.append(
+                                {
+                                    "section_title":  self._normalize_toc_title(string),
+                                    "ele": ele
+                                }
+                            )
+                            re_terms.remove(term)
+        logger.debug(f"section_start_elements from  _get_front_page...: {section_start_elements}")
+        return section_start_elements
 
 
     # def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag = None):
@@ -1791,6 +1837,10 @@ class ParserS3(HTMFilingParser):
             if cover_page_start_ele:
                 section_start_elements.append(
                     {"section_title": "cover page " + str(idx), "ele": cover_page_start_ele})
+                if idx == 0:
+                    front_page_sections = self._get_front_page_sections_from_first_cover_page(cover_page_start_ele)
+                    if front_page_sections != []:
+                        [section_start_elements.append(x) for x in front_page_sections]
             cover_page_list.append(cover_page_start_ele if cover_page_start_ele else None)
         for idx, toc in enumerate(tocs):
             href_start_elements = self._get_section_start_elements_from_toc_hrefs(doc, toc)
@@ -1954,8 +2004,10 @@ class ParserS3(HTMFilingParser):
                 parsed_table = self.parse_htmltable_with_header(t)
             else:
                 parsed_table = self.primitive_htmltable_parse(t)
-            cleaned_table = self._clean_parsed_table_columnwise(
-                self._preprocess_table(parsed_table)
+            cleaned_table = self._clean_parsed_table_drop_empty_rows(
+                    self._clean_parsed_table_columnwise(
+                        self._preprocess_table(parsed_table)),
+                remove_=["", None]
             )
             classification = self.classify_table(cleaned_table)
             if classification == "unclassified":
@@ -1988,8 +2040,12 @@ class ParserS3(HTMFilingParser):
     def classify_table(self, table: list[list]):
         table_shape = (len(table), len(table[0]))
         if table_shape[0] > 1:
-            if table_header_has_fields(table[0], REGISTRATION_TABLE_HEADERS_S3):
-                return "registration_table"
+            for row in table:
+                if _row_is_ignore(row=row) is False:
+                    if table_header_has_fields(row, REGISTRATION_TABLE_HEADERS_S3):
+                        return "registration_table"
+                    else:
+                        break
         return "unclassified"
 
     
@@ -2481,6 +2537,13 @@ def _re_is_main_table_start(table: list[list], items_dict: dict):
                 return True
     return False
 
+def _row_is_ignore(row: list, ignore: set=set(["", None])):
+    row_set = set(row)
+    if len(row_set - ignore) == 0:
+        return True
+    else:
+        return False
+
 def _re_get_key_value_table(table: list[list], items_dict: dict, current_item: int):
     '''extract the key value from items dict from table.
     Args:
@@ -2653,9 +2716,31 @@ class HTMFiling(BaseFiling):
             return self.preprocess_section(section)
         else:
             return []
+    
+    def get_tables(self, classification: str="unclassified", table_type: str="extracted") -> list:
+        '''
+        Gets tables by table_type and classification.
+        
+        Args:
+            classification: "all" or any classification declared with classify_table
+            table_type: either "extracted" or "reintegrated"
+        
+        Returns:
+            list: if tables matching the classification and table_type where found
+            None: if no tables were found
+        '''
+        tables = []
+        for table in self.tables[table_type]:
+            if (table["classification"] == classification) or (classification == "all"):
+                tables.append(table)
+        if len(tables) > 0:
+            return tables
+        else:
+            return None
 
     def get_section(self, identifier: str | int | re.Pattern):
-        """gets a section either by index or by exact title match.
+        """
+        gets a section either by index or by exact title match.
 
         Returns:
             FilingSection or [], if no section was found."""

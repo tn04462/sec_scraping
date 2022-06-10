@@ -423,7 +423,7 @@ if __name__ == "__main__":
     def create_htm_filing():
         fake_filing_info = {
             # "path": r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0000002178/S-3/000000217820000138/a2020forms-3.htm",
-            "path": r"C:/Users/Olivi/Desktop/test_set/set_s3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
+            "path": r"F:/example_filing_set_S3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
             # "path": r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312518056145/d531632ds3.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000147793221000113",
@@ -615,8 +615,12 @@ if __name__ == "__main__":
 
     filing: HTMFiling = create_htm_filing()
     # print(f"filing: {filing}")
-    for section in filing.sections:
-        print(section.title, len(section.content))
+    ex = filing.get_section("explanatory note")
+    fp = filing.get_section("front page")
+    print([(t["parsed_table"], t["classification"]) for t in fp.tables["extracted"]])
+    # print(ex.text_only)
+    # for section in filing.sections:
+    #     print(section.title, len(section.content))
     # cover_pages = filing.get_sections(re.compile("cover page", re.I))
     # for cv in cover_pages:
         # print(cv.title, cv.text_only)
