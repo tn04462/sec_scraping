@@ -2679,6 +2679,27 @@ class HTMFilingSection(FilingSection):
             "tables_reintegrated": len(self.tables["reintegrated"])
             }
 
+    def get_tables(self, classification: str="unclassified", table_type: str="extracted") -> list:
+        '''
+        Gets tables by table_type and classification.
+        
+        Args:
+            classification: "all" or any classification declared with classify_table
+            table_type: either "extracted" or "reintegrated"
+        
+        Returns:
+            list: if tables matching the classification and table_type where found
+            None: if no tables were found
+        '''
+        tables = []
+        for table in self.tables[table_type]:
+            if (table["classification"] == classification) or (classification == "all"):
+                tables.append(table)
+        if len(tables) > 0:
+            return tables
+        else:
+            return None
+
 
 class HTMFiling(BaseFiling):
     def __init__(
@@ -2716,27 +2737,6 @@ class HTMFiling(BaseFiling):
             return self.preprocess_section(section)
         else:
             return []
-    
-    def get_tables(self, classification: str="unclassified", table_type: str="extracted") -> list:
-        '''
-        Gets tables by table_type and classification.
-        
-        Args:
-            classification: "all" or any classification declared with classify_table
-            table_type: either "extracted" or "reintegrated"
-        
-        Returns:
-            list: if tables matching the classification and table_type where found
-            None: if no tables were found
-        '''
-        tables = []
-        for table in self.tables[table_type]:
-            if (table["classification"] == classification) or (classification == "all"):
-                tables.append(table)
-        if len(tables) > 0:
-            return tables
-        else:
-            return None
 
     def get_section(self, identifier: str | int | re.Pattern):
         """

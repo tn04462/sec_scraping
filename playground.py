@@ -615,9 +615,21 @@ if __name__ == "__main__":
 
     filing: HTMFiling = create_htm_filing()
     # print(f"filing: {filing}")
-    ex = filing.get_section("explanatory note")
     fp = filing.get_section("front page")
-    print([(t["parsed_table"], t["classification"]) for t in fp.tables["extracted"]])
+    if isinstance(fp, list):
+        raise AttributeError(f"couldnt get the front page section; sections present: {[s.title for s in filing.sections]}")
+    registration_table  = fp.get_tables(classification="registration_table", table_type="extracted")
+    if registration_table is not None:
+        if len(registration_table) == 1:
+            registration_table = registration_table[0]["parsed_table"]
+            print(registration_table)
+            registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Offering Price Per Unit", "Offering Price Aggregate", "Fee"])
+            values = {}
+            print(registration_df)
+            print(registration_df["Title"])
+            if "Total" in registration_df["Title"]:
+                    row = registration_df[registration_df["Title"] == "Total"]
+                    print(row)
     # print(ex.text_only)
     # for section in filing.sections:
     #     print(section.title, len(section.content))
