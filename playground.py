@@ -423,7 +423,7 @@ if __name__ == "__main__":
     def create_htm_filing():
         fake_filing_info = {
             # "path": r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0000002178/S-3/000000217820000138/a2020forms-3.htm",
-            "path": r"F:/example_filing_set_S3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
+            "path": r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
             # "path": r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312518056145/d531632ds3.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000147793221000113",
@@ -623,13 +623,15 @@ if __name__ == "__main__":
         if len(registration_table) == 1:
             registration_table = registration_table[0]["parsed_table"]
             print(registration_table)
-            registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Offering Price Per Unit", "Offering Price Aggregate", "Fee"])
+            registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Price Per Unit", "Price Aggregate", "Fee"])
             values = {}
             print(registration_df)
-            print(registration_df["Title"])
-            if "Total" in registration_df["Title"]:
+            if "Total" in registration_df["Title"].values:
                     row = registration_df[registration_df["Title"] == "Total"]
-                    print(row)
+                    print(type(row["Amount"].item()), row["Amount"].item())
+                    if row["Amount"].item() != "":
+                        print(f"amount: {row['Amount']}")
+
     # print(ex.text_only)
     # for section in filing.sections:
     #     print(section.title, len(section.content))

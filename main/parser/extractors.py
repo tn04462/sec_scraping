@@ -51,7 +51,7 @@ class BaseExtractor():
         for value in values_list:
             for k, v in value.items():
                 if k != "context":
-                    filing_values.append(self.create_filing_value(filing, date_parsed, field_name=k, field_values=v, context=values_list["context"]  if "context" in value.keys() else None))
+                    filing_values.append(self.create_filing_value(filing, field_name=k, field_values=v, context=values_list["context"]  if "context" in value.keys() else None))
         return filing_values
 
 
