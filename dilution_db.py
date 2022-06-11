@@ -23,7 +23,7 @@ from datetime import datetime
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
-from main.parser.filings_base import FilingValue
+from main.parser.filings_base import FilingValue, Filing
 import main.parser.extractors as extractors
 import main.parser.parsers as parsers
 from main.configs import cnf
@@ -1051,21 +1051,21 @@ class DilutionDBUtil:
         for unparsed in self.get_unparsed_filings(id, cik):
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
             logger.debug(f"values passed to _parse_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
-            filing_values.append(self._parse_filing(form_type, accession_number, file_path, filing_date, cik, file_number))
+            filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
+            for filing in filings:
+                filing_values.append(self._parse_filing(filing))
         return filing_values
 
-    
-    def _parse_filing(self, 
+    def _create_filing(self,
         form_type: str,
         accession_number: str,
         path: str,
         filing_date: str = None,
         cik: str = None,
         file_number: str = None,
-        ) -> list[list[FilingValue]]:
+        ) -> list[Filing]:
         extension = Path(path).suffix
-        logger.debug(f"got extension: {extension}")
-        filing = parsers.filing_factory.create_filing(
+        filings = parsers.filing_factory.create_filing(
             extension=extension,
             path=path,
             filing_date=filing_date,
@@ -1073,8 +1073,16 @@ class DilutionDBUtil:
             cik=cik,
             file_number=file_number,
             form_type=form_type)
+        if isinstance(filings, list):
+            return filings
+        else:
+            return [filings]
+
+    def _parse_filing(self, 
+        filing: Filing
+        ) -> list[list[FilingValue]]:
         try:
-            extractor = extractors.extractor_factory.get_extractor(form_type, extension)
+            extractor = extractors.extractor_factory.get_extractor(filing.form_type, filing.extension)
         except ValueError:
             return []
         return extractor.extract_filing_values(filing)
