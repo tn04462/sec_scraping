@@ -2647,6 +2647,20 @@ parser_factory_default = [
 ]
 parser_factory = ParserFactory(defaults=parser_factory_default)
 
+class HTMFilingBuilder():
+    def __init__(self, form_type: str, extension: str, path: str, **kwargs):
+        self.form_type = form_type
+        self.extension = extension
+        self.path = path
+        self.parser: AbstractFilingParser = parser_factory.get_parser(
+            extension=self.extension,
+            form_type=self.form_type)
+        self.doc = self.parser.get_doc(self.path)
+        # now create the sections and check for multi prospectus flag
+        # if multi prospectus flag then create HTMFILING
+        # for this to work i need to be able to provide the Filing with
+        # custom doc and sections so we avoid having wrong doc with wrong sections 
+
 
 class BaseFiling(Filing):
     def __init__(self, form_type: str, **kwargs):
