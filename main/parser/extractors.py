@@ -8,6 +8,7 @@ from spacy.util import filter_spans
 from main.parser.filings_base import Filing, FilingValue
 from datetime import datetime
 import pandas as pd
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseExtractor, AbstractFilingExtractor):
-    def extract_general_offering_amount(self, filing: Filing):
+    def extract_shelf_capacity(self, filing: Filing):
         fp = filing.get_section("front page")
         if isinstance(fp, list):
             raise AttributeError(f"couldnt get the front page section; sections present: {[s.title for s in filing.sections]}")
@@ -80,16 +81,32 @@ class HTMS3Extractor(BaseExtractor, AbstractFilingExtractor):
         if registration_table is not None:
             if len(registration_table) == 1:
                 registration_table = registration_table[0]["parsed_table"]
-                registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Offering Price Per Unit", "Offering Price Aggregate", "Fee"])
-                values = {}
-                if "Total" in registration_df["Title"]:
-                     row = registration_df[registration_df["Title"] == "Total"]
-                     
-            else:
-                raise AttributeError(f"more than one registration_table found on the front page; unhandled case; registration tables present: {registration_table}")
-        else:
-            raise AttributeError(f"Couldnt get a registration_table from the filing; present tables in the fron_page: {fp.tables}")
-            
+                print(registration_table)
+                try:
+                    if re.search(re.compile("^total.*", re.I | re.MULTILINE), registration_table[-1][0]):
+                        registration_table[-1][0] = "total"
+                except IndexError:
+                    pass
+                registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Price Per Unit", "Price Aggregate", "Fee"])
+                values = []
+                print(registration_df)
+                row = None
+                if "total" in registration_df["Title"].values:
+                    row = registration_df[registration_df["Title"] == "total"]
+                elif len(registration_df["Title"].values) == 1:
+                    row = registration_df.iloc[0]
+                if row is None:
+                    raise ValueError(f"couldnt determine correct row while extracting from registration table: {registration_df}")
+                if row["Amount"].item() != "":
+                    values.append({"total_shelf_capacity": {"amount": row["Amount"].item(), "unit": "shares"}})
+                elif row["Price Aggregate"].item() != "":
+                    values.append({"total_shelf_capacity": {"amount": row['Price Aggregate'].item(), "unit": "$"}})
+                return self.create_filing_values(values, filing)
+    
+    
+
+
+
 class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_filing_values(self, filing: Filing):
         return [self.extract_outstanding_shares(filing)]
