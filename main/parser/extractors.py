@@ -69,12 +69,16 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def classify_s3(self, filing: Filing):
-        text = ""
-        cover_page = filing.get_section(re.compile("cover page"))
-        if isinstance(cover_page, list):
-            raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
 
+
+    # def classify_s3(self, filing: Filing):
+    #     text = ""
+    #     cover_page = filing.get_section(re.compile("cover page"))
+    #     if isinstance(cover_page, list):
+    #         raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
+
+    def _is_base_prospectus(self, filing: Filing):
+        
 
     def extract_shelf_capacity(self, filing: Filing):
         fp = filing.get_section("front page")
