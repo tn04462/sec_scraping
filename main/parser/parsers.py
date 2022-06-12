@@ -223,7 +223,7 @@ class FilingFactory:
         but mostlikely work with the default implementation of
         the extension provided
         """
-        self.register_builder(None, ".htm", HTMFiling)
+        self.register_builder(None, ".htm", SimpleHTMFiling)
 
     def register_builder(self, form_type: str, extension: str, builder: Filing):
         """register a new builder for a combination of (form_type, extension)"""
@@ -2648,7 +2648,17 @@ parser_factory_default = [
 parser_factory = ParserFactory(defaults=parser_factory_default)
 
 class HTMFilingBuilder():
-    def __init__(self, form_type: str, extension: str, path: str, **kwargs):
+    def __init__(
+        self,
+        form_type: str,
+        extension: str,
+        path: str,
+        filing_date: str,
+        accession_number: str,
+        cik: str,
+        file_number: str,
+        **kwargs):
+        self.filing = Filing(path, filing_date, accession_number, cik, file_number, form_type, extension)
         self.form_type = form_type
         self.extension = extension
         self.path = path
@@ -2656,20 +2666,63 @@ class HTMFilingBuilder():
             extension=self.extension,
             form_type=self.form_type)
         self.doc = self.parser.get_doc(self.path)
-        # now create the sections and check for multi prospectus flag
+        self.sections = self.parser.split_into_sections(self.doc)
+        return self._split_into_filings()
+    
+    def _split_into_filings(self) -> list[Filing]:
+        is_multiprospectus_filing, cover_pages = self._is_multiprospectus_registration_statement()
+        if is_multiprospectus_filing is True:
+            filings = []
+            start_idx = 0
+            for idx, cover_page in enumerate(cover_pages):
+                for sidx, section in enumerate(self.sections):
+                    if section == cover_page:
+                        filings.append(
+                            BaseHTMFiling(
+                                **self.filing,
+                                doc=self.doc,
+                                sections=self.sections[start_idx:sidx]
+                            )
+                        )
+                        start_idx = sidx + 1
+            return filings
+        else:
+            return SimpleHTMFiling(
+                **self.filing,
+                doc=self.doc,
+                sections=self.sections
+            )
+
+        
+
+    
+    def _select_sections(self, re_term: re.Pattern):
+        selected = []
+        for section in self.sections:
+            if re.search(re_term, section.title):
+                selected.append(section)
+        return selected
+    
+    def _is_multiprospectus_registration_statement(self):
+        cover_pages = self._select_sections(re.compile("cover_page", re.I))
+        if len(cover_pages) > 1:
+            return True, cover_pages
+        else:
+            return False, None
+                # now create the sections and check for multi prospectus flag
         # if multi prospectus flag then create HTMFILING
         # for this to work i need to be able to provide the Filing with
         # custom doc and sections so we avoid having wrong doc with wrong sections 
 
 
-class BaseFiling(Filing):
-    def __init__(self, form_type: str, **kwargs):
-        super().__init__(form_type=form_type, **kwargs)
-        self.parser: AbstractFilingParser = parser_factory.get_parser(
-            extension=self.extension,
-            form_type=self.form_type)
-        self.doc = self.parser.get_doc(self.path)
-        self.sections: list[FilingSection] = self.parser.split_into_sections(self.doc)
+# class BaseFiling(Filing):
+#     def __init__(self, form_type: str, **kwargs):
+#         super().__init__(form_type=form_type, **kwargs)
+#         self.parser: AbstractFilingParser = parser_factory.get_parser(
+#             extension=self.extension,
+#             form_type=self.form_type)
+#         self.doc = self.parser.get_doc(self.path)
+#         self.sections: list[FilingSection] = self.parser.split_into_sections(self.doc)
 
 
 class HTMFilingSection(FilingSection):
@@ -2714,8 +2767,7 @@ class HTMFilingSection(FilingSection):
         else:
             return None
 
-
-class HTMFiling(BaseFiling):
+class BaseHTMFiling(Filing):
     def __init__(
         self,
         path: str = None,
@@ -2724,7 +2776,9 @@ class HTMFiling(BaseFiling):
         cik: str = None,
         file_number: str = None,
         form_type: str = None,
-        extension: str = None
+        extension: str = None,
+        doc = None,
+        sections: list[FilingSection] = None
     ):
         super().__init__(
             path=path,
@@ -2735,6 +2789,11 @@ class HTMFiling(BaseFiling):
             form_type=form_type,
             extension=extension
         )
+        self.parser: AbstractFilingParser = parser_factory.get_parser(
+            extension=self.extension,
+            form_type=self.form_type)
+        self.doc = self.parser.get_doc(self.path) if doc is None else doc
+        self.sections = self.parser.split_into_sections(self.doc) if sections is None else sections
         self.soup: BeautifulSoup = self.parser.make_soup(self.doc)
 
     def get_preprocessed_text_content(self) -> str:
@@ -2794,14 +2853,39 @@ class HTMFiling(BaseFiling):
         )
         return self.parser.preprocess_section_content(text_content)
 
+class SimpleHTMFiling(BaseHTMFiling):
+    def __init__(
+        self,
+        path: str = None,
+        filing_date: str = None,
+        accession_number: str = None,
+        cik: str = None,
+        file_number: str = None,
+        form_type: str = None,
+        extension: str = None
+    ):
+        super().__init__(
+            path=path,
+            filing_date=filing_date,
+            accession_number=accession_number,
+            cik=cik,
+            file_number=file_number,
+            form_type=form_type,
+            extension=extension,
+            doc = None,
+            sections = None
+        )
+
+
+
 
 filing_factory_default = [
-    ("S-1", ".htm", HTMFiling),
-    ("DEF 14A", ".htm", HTMFiling),
-    ("8-K", ".htm", HTMFiling),
-    ("SC 13D", ".htm", HTMFiling),
-    ("SC 13G", ".htm", HTMFiling),
-    ("S-3", ".htm", HTMFiling)
+    ("S-1", ".htm", SimpleHTMFiling),
+    ("DEF 14A", ".htm", SimpleHTMFiling),
+    ("8-K", ".htm", SimpleHTMFiling),
+    ("SC 13D", ".htm", SimpleHTMFiling),
+    ("SC 13G", ".htm", SimpleHTMFiling),
+    ("S-3", ".htm", HTMFilingBuilder)
     ]
 
 filing_factory = FilingFactory(defaults=filing_factory_default)
