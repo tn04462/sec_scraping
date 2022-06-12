@@ -1,5 +1,5 @@
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from os import PathLike
 from pathlib import Path
@@ -13,6 +13,7 @@ class Filing:
     file_number: str
     form_type: str
     extension: str = None
+    meta: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.extension is None:

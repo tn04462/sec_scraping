@@ -10,7 +10,7 @@ from dilution_db import DilutionDBUpdater
 # from main.data_aggregation.bulk_files import update_bulk_files
 
 
-from main.parser.parsers import HTMFilingParser, Parser8K, ParserSC13D, HTMFiling
+from main.parser.parsers import HTMFilingParser, Parser8K, ParserSC13D, BaseHTMFiling
 from pathlib import Path
 
 from psycopg import Connection
@@ -400,6 +400,8 @@ if __name__ == "__main__":
     
     
     def test_spacy():
+        from main.parser.filing_nlp import SpacyFilingTextSearch
+        spacy_text_search = SpacyFilingTextSearch()
         # import spacy
         # from spacy.matcher import Matcher
 
@@ -412,7 +414,7 @@ if __name__ == "__main__":
         # pattern2 = [{"LEMMA": "base"},{"LEMMA": "on"},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "+"}]
         # matcher.add("Test", [pattern1])
         text = (" The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022")
-        matches = extractors.spacy_text_search.match_outstanding_shares(text)
+        matches = spacy_text_search.match_outstanding_shares(text)
         print(matches)
         # doc = nlp(text)
         # for ent in doc.ents:
@@ -447,7 +449,8 @@ if __name__ == "__main__":
     # test_s3_splitting_by_toc_hrefs()
 
     def test_spacy_secu_matches():
-        from main.parser.extractors import spacy_text_search
+        from main.parser.filing_nlp import SpacyFilingTextSearch
+        spacy_text_search = SpacyFilingTextSearch()
         # text = "1,690,695 shares of common stock issuable upon exercise of stock options outstanding as of September 30, 2020 at a weighted-average exercise price of $12.86 per share."
         # doc = spacy_text_search.nlp(text)
         filing = create_htm_filing()
@@ -465,7 +468,8 @@ if __name__ == "__main__":
     # test_spacy_secu_matches()
 
     def get_secu_list():
-        from main.parser.extractors import spacy_text_search
+        from main.parser.filing_nlp import SpacyFilingTextSearch
+        spacy_text_search = SpacyFilingTextSearch()
         root = r"F:\example_filing_set_100_companies"
         paths = [f for f in (Path(root) /"filings").rglob("*.htm")]
         parser = HTMFilingParser()
@@ -502,7 +506,7 @@ if __name__ == "__main__":
         }
         
         from main.parser.parsers import filing_factory
-        filing: HTMFiling = filing_factory.create_filing(**fake_filing_info)
+        filing: BaseHTMFiling = filing_factory.create_filing(**fake_filing_info)
         # b = filing.get_section("before items")
         # print([t["parsed_table"] for t in b.tables])
     # test_parser_sc13d()
@@ -523,7 +527,7 @@ if __name__ == "__main__":
             "extension": ".htm"
             }
             print(path)
-            filing: HTMFiling = filing_factory.create_filing(**info)
+            filing: BaseHTMFiling = filing_factory.create_filing(**info)
 
     # test_sc13d_main_table()
 
@@ -542,7 +546,7 @@ if __name__ == "__main__":
             "extension": ".htm"
             }
             print(path)
-            filing: HTMFiling = filing_factory.create_filing(**info)
+            filing: BaseHTMFiling = filing_factory.create_filing(**info)
 
     # test_sc13g_main_table()
 
@@ -613,9 +617,11 @@ if __name__ == "__main__":
     # item count in all 8-k's of the filings-database
     # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
 
-    filing: HTMFiling = create_htm_filing()
-    fp = filing.get_section("front page")
-    
+    filing: BaseHTMFiling = create_htm_filing()
+    for f in filing:
+        print([s.title for s in f.sections])
+        # cp = f.get_section(re.compile("cover page"))
+        # print(cp.text_only)
     # print(ex.text_only)
     # for section in filing.sections:
     #     print(section.title, len(section.content))
