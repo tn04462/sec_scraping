@@ -4,7 +4,8 @@ from main.parser.filings_base import Filing, FilingValue
 from datetime import datetime
 import pandas as pd
 import re
-from filing_nlp import SpacyFilingTextSearch
+from spacy.matcher import Matcher
+from .filing_nlp import SpacyFilingTextSearch
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,60 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     #     if isinstance(cover_page, list):
     #         raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
 
-    def _is_base_prospectus(self, filing: Filing):
-        
+    def _is_base_prospectus(self, doc): # import Doc from spacy for Type
+        '''
+        look for key phrases in the cover page to determine if this is a base prospectus.
+        '''
+        matcher = Matcher(self.spacy_text_search.nlp.vocab)
+        pattern1 = [
+            {"IS_SENT_START": True},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": "not"},
+            {"LEMMA": "be"},
+            {"LEMMA": "use"},
+            {"ORTH": "to"},
+            {"LEMMA": {"IN": ["offer", "consummate", "sell"]}},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": {"IN": ["any", "these"]}},
+            {"LOWER": {"IN": ["securities", "security"]}},
+            {"LOWER": "unless"},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LEMMA": "accompany"},
+            {"OP": "*", "IS_SENT_START": False},
+            {"ORTH": "by"},
+            {"ORTH": "a"},
+            {"OP": "?", "IS_SENT_START": False},
+            {"ORTH": {"IN": ["supplement", "supplements"]}}
+            ]
+        pattern2 = [
+            {"LOWER": "each"},
+            {"LOWER": "time"},
+            {"OP": "?", "IS_SENT_START": False},
+            {"LEMMA": {"IN": ["sell", "offer"]}},
+            {"LOWER": {"IN": ["securities", "security"]}},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LEMMA": "provide"},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": {"IN": ["supplement", "supplements"]}}
+        ]
+        pattern3 = [
+            {"LOWER": "each"},
+            {"LOWER": "time"},
+            {"OP": "?", "IS_SENT_START": False},
+            {"LOWER": {"IN": ["securities", "security"]}},
+            {"LEMMA": "be"},
+            {"LEMMA": {"IN": ["sell", "offer"]}},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LEMMA": "provide"},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": {"IN": ["supplement", "supplements"]}}
+        ]
+        matcher.add("base_prospectus", [pattern1, pattern2, pattern3])
+        possible_matches = matcher(doc, as_spans=True)
+        logger.debug(f"possible matches for _is_base_prospectus: {[m for m in possible_matches]}")
+        if len(possible_matches) > 0:
+            return True
+        return False
 
     def extract_shelf_capacity(self, filing: Filing):
         fp = filing.get_section("front page")

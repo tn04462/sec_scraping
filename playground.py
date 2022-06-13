@@ -425,8 +425,8 @@ if __name__ == "__main__":
     def create_htm_filing():
         fake_filing_info = {
             # "path": r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0000002178/S-3/000000217820000138/a2020forms-3.htm",
-            # "path": r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
-            "path": r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312518056145/d531632ds3.htm",
+            "path": r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001325879/S-3/000119312520289207/d201932ds3.htm",
+            # "path": r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312518056145/d531632ds3.htm",
             "filing_date": "2022-01-05",
             "accession_number": "000147793221000113",
             "cik": "0001477932",
@@ -617,12 +617,19 @@ if __name__ == "__main__":
     # item count in all 8-k's of the filings-database
     # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
 
-    filing: BaseHTMFiling = create_htm_filing()
+    # text = " prospectus provides, describes general description or terms of securities. Each time we sell or offer securities or  securities are offered or sold we will provide you with prospectus supplement | supplement to this prospectus | supplement."
+    # text = "Is accompanied by a single thing."
+    from main.parser.filing_nlp import SpacyFilingTextSearch
+    from main.parser.extractors import HTMS3Extractor
+    extractor = HTMS3Extractor()
+    search = SpacyFilingTextSearch()
+    filing = create_htm_filing()
     for f in filing:
-        print([s.title for s in f.sections])
-        # cp = f.get_section(re.compile("cover page"))
-        # print(cp.text_only)
-    # print(ex.text_only)
+        cover_page = f.get_section(re.compile("cover page", re.I))
+        text = cover_page.text_only
+        doc = search.nlp(text)
+        extractor._is_base_prospectus(doc)
+
     # for section in filing.sections:
     #     print(section.title, len(section.content))
     # cover_pages = filing.get_sections(re.compile("cover page", re.I))
