@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "f7ebc5f4d53180e045d015a6ff38cc11d292fda3705997f34cc6274c66f50fae"
+            "sha256": "c4a49b6240094556e3909b7034631b09a4c9dd91d3be7937e7983f1e2353ac54"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -78,6 +78,14 @@
             ],
             "markers": "python_full_version >= '3.6.8'",
             "version": "==3.0.9"
+        },
+        "pysec-downloader": {
+            "hashes": [
+                "sha256:22902a48f9256fbd0fa5a3a8d4fe30d90d337379b00d998d22038146778cba8b",
+                "sha256:5de47ae95cd37e58ace59757108f78613a428c027eacfe909cdd0525a286f5aa"
+            ],
+            "index": "pypi",
+            "version": "==0.0.42"
         },
         "pytest": {
             "hashes": [

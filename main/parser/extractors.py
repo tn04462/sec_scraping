@@ -77,10 +77,18 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     #     cover_page = filing.get_section(re.compile("cover page"))
     #     if isinstance(cover_page, list):
     #         raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
-
-    def _is_base_prospectus(self, doc): # import Doc from spacy for Type
+    def _is_at_the_market_prospectus(self, doc):
         '''
-        look for key phrases in the cover page to determine if this is a base prospectus.
+        Determine if this is an "at-the-market" offering, rule 415(a)(4) Act 1933,
+        by checking for key phrase in the "cover page" and "plan of distribution".
+        
+        '''
+
+
+    def _is_base_prospectus(self, doc):
+        '''
+        Determine if this is a base prospectus
+        by checking for key phrases in the "cover page", "about this" or "summary".
         '''
         matcher = Matcher(self.spacy_text_search.nlp.vocab)
         pattern1 = [
