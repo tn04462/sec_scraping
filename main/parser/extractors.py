@@ -9,6 +9,33 @@ from .filing_nlp import SpacyFilingTextSearch
 
 logger = logging.getLogger(__name__)
 
+def int_to_roman(input):
+    """ Convert an integer to a Roman numeral. """
+
+    if not isinstance(input, type(1)):
+        raise TypeError, "expected integer, got %s" % type(input)
+    if not 0 < input < 4000:
+        raise ValueError("Argument must be between 1 and 3999")
+    ints = (1000, 900,  500, 400, 100,  90, 50,  40, 10,  9,   5,  4,   1)
+    nums = ('M',  'CM', 'D', 'CD','C', 'XC','L','XL','X','IX','V','IV','I')
+    result = []
+    for i in range(len(ints)):
+        count = int(input / ints[i])
+        result.append(nums[i] * count)
+        input -= ints[i] * count
+    return ''.join(result).lower()
+
+def roman_list():
+    return ["(" + int_to_roman(i)+")" for i in range(50)]
+
+def alphabetic_list():
+    return ["(" + letter +")" for letter in list(str.ascii_lowercase)]
+
+def numeric_list():
+    return ["(" + number + ")" for number in range(150)]
+
+
+
 
 class AbstractFilingExtractor(ABC):
     def extract_filing_values(self, filing: Filing):
@@ -83,6 +110,37 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         by checking for key phrase in the "cover page" and "plan of distribution".
         
         '''
+        matcher = Matcher(self.spacy_text_search.nlp.vocab)
+        at_the_market_cases = [
+            ["at", "-", "the", "-", "market"],
+            ["at", "the", "market", "offering"],
+            ["at", "the", "market", "offerings"],
+            ["at", "the", "market"]
+        ]
+        pattern1 = [
+            {"LEMMA": {"IN": ["sale", "Sale", "sell"]}},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": "under"},
+            {"LOWER": "this"},
+            {"LOWER": "prospectus"},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LEMMA": "be"},
+            {"LEMMA": "make"},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": "deemed"},
+            {"LOWER": "to"},
+            {"LOWER": "be"},
+            {"IS_PUNCT": True, "IS_SENT_START": False},
+            at_the_market_case,
+            {"IS_PUNCT": True, "IS_SENT_START": False},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": "as"},
+            {"LEMMA": "define"},
+            {"LOWER": "in"},
+            # need to add label LAW or SECACT for rules from 1933/1934
+            # add rule 415 cases then create dicts from at_the-market_case list
+
+        ]
 
 
     def _is_base_prospectus(self, doc):

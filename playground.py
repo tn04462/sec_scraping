@@ -619,17 +619,20 @@ if __name__ == "__main__":
     # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
 
     # text = " prospectus provides, describes general description or terms of securities. Each time we sell or offer securities or  securities are offered or sold we will provide you with prospectus supplement | supplement to this prospectus | supplement."
-    # text = "Is accompanied by a single thing."
+    text = "Defined in Rule 415 (a) (4) as common stock."
     from main.parser.filing_nlp import SpacyFilingTextSearch
-    from main.parser.extractors import HTMS3Extractor
-    extractor = HTMS3Extractor()
     search = SpacyFilingTextSearch()
-    filing = create_htm_filing()
-    for f in filing:
-        cover_page = f.get_section(re.compile("cover page", re.I))
-        text = cover_page.text_only
-        doc = search.nlp(text)
-        extractor._is_base_prospectus(doc)
+    doc = search.nlp(text)
+    for token in doc:
+        print(token.text)
+    # from main.parser.extractors import HTMS3Extractor
+    # extractor = HTMS3Extractor()
+    # filing = create_htm_filing()
+    # for f in filing:
+    #     cover_page = f.get_section(re.compile("cover page", re.I))
+    #     text = cover_page.text_only
+    #     doc = search.nlp(text)
+    #     extractor._is_base_prospectus(doc)
 
     # for section in filing.sections:
     #     print(section.title, len(section.content))
