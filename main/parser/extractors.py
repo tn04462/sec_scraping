@@ -95,6 +95,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             ["at", "the", "market"]
         ]
         pattern1 = [
+            [
             {"LEMMA": {"IN": ["sale", "Sale", "sell"]}},
             {"OP": "*", "IS_SENT_START": False},
             {"LOWER": "under"},
@@ -114,6 +115,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             {"LOWER": "as"},
             {"LEMMA": "define"},
             {"LOWER": "in"},
+            {"_": {"sec_act": True}, "TEXT": {"REGEX": "415"}}]
+            for at_the_market_case in at_the_market_cases
             # need to add label LAW or SECACT for rules from 1933/1934
             # add rule 415 cases then create dicts from at_the-market_case list
 

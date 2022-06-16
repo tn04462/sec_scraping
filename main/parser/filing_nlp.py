@@ -52,7 +52,7 @@ class SecurityFilingsRetokenizer:
                 span = doc.char_span(start, end)
                 if span is not None:
                     match_spans.append(span)
-        sorted_match_spans = sorted(match_spans, lambda x: x[1])
+        sorted_match_spans = sorted(match_spans, key=lambda x: x[1])
         longest_matches = _take_longest_matches(sorted_match_spans)
         with doc.retokenize() as retokenizer:
             for span in longest_matches:
@@ -86,11 +86,12 @@ class SecurityActMatcher:
         letters = alphabetic_list()
         upper_letters = [a.upper() for a in letters]
         patterns = [
-        # include Rule xxx, Section
             [   
                 {"ORTH": {"IN": ["Rule", "Section", "section"]}},
-                {"ORTH": {"IN": [str(x) for x in range(1000)]}},
-                {"LOWER": {"IN": sum([romans, numerals, letters, upper_letters], [])}, "OP": "*"}
+                {"LOWER": {
+                    "REGEX": r'(\d\d?\d?\d?(?:\((?:(?:[a-z0-9])|(?:(?=[mdclxvi])m*(c[md]|d?C{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})))\)){0,})'
+                        },
+                "OP": "*"}
             ],
             [
                 {"ORTH": {"IN": ["Section" + x for x in  list(string.ascii_uppercase)]}},
@@ -305,13 +306,10 @@ class SpacyFilingTextSearch:
         if cls._instance is None:
             cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
             cls._instance.nlp = spacy.load("en_core_web_lg")
+            cls._instance.nlp.add_pipe("regex_retokenizer")
             cls._instance.nlp.add_pipe("secu_matcher")
             cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
-
-    def add_special_token_rules(self):
-         self.nlp.tokenizer.add_special_case("(a)", [{"ORTH": "(a)"}])
-        
 
 
     def match_outstanding_shares(self, text):
