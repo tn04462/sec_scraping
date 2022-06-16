@@ -1,9 +1,12 @@
 import spacy
 from spacy.matcher import Matcher, DependencyMatcher
-from spacy.tokens import Span, Doc
+from spacy.tokens import Span, Doc, Token
 from spacy import Language
 from spacy.util import filter_spans
 import logging
+import string
+import re
+import  pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +14,9 @@ def int_to_roman(input):
     """ Convert an integer to a Roman numeral. """
 
     if not isinstance(input, type(1)):
-        raise TypeError, "expected integer, got %s" % type(input)
-    if not 0 < input < 4000: 
+        raise TypeError(f"expected integer, got {type(input)}")
+    if not (0 < input < 4000):
+        print(input)
         raise ValueError("Argument must be between 1 and 3999")
     ints = (1000, 900,  500, 400, 100,  90, 50,  40, 10,  9,   5,  4,   1)
     nums = ('M',  'CM', 'D', 'CD','C', 'XC','L','XL','X','IX','V','IV','I')
@@ -24,34 +28,75 @@ def int_to_roman(input):
     return ''.join(result).lower()
 
 def roman_list():
-    return ["(" + int_to_roman(i)+")" for i in range(50)]
+    return ["(" + int_to_roman(i)+")" for i in range(1, 50)]
 
 def alphabetic_list():
-    return ["(" + letter +")" for letter in list(str.ascii_lowercase)]
+    return ["(" + letter +")" for letter in list(string.ascii_lowercase)]
 
 def numeric_list():
-    return ["(" + number + ")" for number in range(150)]
+    return ["(" + str(number) + ")" for number in range(150)]
 
-class SecurityActMatcher:
-    _instance = None
+class SecurityFilingsRetokenizer:
 
-    def __init__(self, vocab):
-        self.matcher = Matcher(vocab)
-        self.add_1933_to_matcher()
+    def __init__(self,  vocab):
+        pass
     
     def __call__(self, doc):
-        self.matcher(doc)
+        expressions = [
+            re.compile(r'(\d\d?\d?(?:\((?:(?:[a-zA-Z0-9])|(?:(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})))\)){1,})', re.I)
+        ]
+        match_spans = []
+        for expression in expressions:
+            for match in re.finditer(expression, doc.text):
+                start, end = match.span()
+                span = doc.char_span(start, end)
+                if span is not None:
+                    match_spans.append(span)
+        sorted_match_spans = sorted(match_spans, lambda x: x[1])
+        longest_matches = _take_longest_matches(sorted_match_spans)
+        with doc.retokenize() as retokenizer:
+            for span in longest_matches:
+                retokenizer.merge(span)
+        return doc
+        
+
+
+class SecurityActMatcher:
+
+    def __init__(self, vocab):
+        Token.set_extension("sec_act", default=False)
+        self.matcher = Matcher(vocab)
+        self.add_sec_acts_to_matcher()
+    
+    def __call__(self, doc):
+        matches = self.matcher(doc)
+        spans = []  # Collect the matched spans here
+        for match_id, start, end in matches:
+            spans.append(doc[start:end])
+        with doc.retokenize() as retokenizer:
+            for span in spans:
+                retokenizer.merge(span)
+                for token in span:
+                    token._.sec_act = True
         return doc 
     
-    def add_1933_act_to_matcher(self):
+    def add_sec_acts_to_matcher(self):
         romans = roman_list()
         numerals = numeric_list()
         letters = alphabetic_list()
         upper_letters = [a.upper() for a in letters]
-        patters = [
-            {"LOWER": {"IN": sum([romans, numerals, letters, upper_letters], [])}, "OP": "*"}
-
+        patterns = [
+        # include Rule xxx, Section
+            [   
+                {"ORTH": {"IN": ["Rule", "Section", "section"]}},
+                {"ORTH": {"IN": [str(x) for x in range(1000)]}},
+                {"LOWER": {"IN": sum([romans, numerals, letters, upper_letters], [])}, "OP": "*"}
+            ],
+            [
+                {"ORTH": {"IN": ["Section" + x for x in  list(string.ascii_uppercase)]}},
+            ]
         ]
+        self.matcher.add("sec_act", patterns, greedy="LONGEST")
 
 
 class SECUMatcher:
@@ -240,6 +285,14 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
 def create_secu_matcher(nlp, name):
     return SECUMatcher(nlp.vocab)
 
+@Language.factory("secu_act_matcher")
+def create_secu_act_matcher(nlp, name):
+    return SecurityActMatcher(nlp.vocab)
+
+@Language.factory("regex_retokenizer")
+def create_regex_retokenizer(nlp, name):
+    return SecurityFilingsRetokenizer(nlp.vocab)
+
 class SpacyFilingTextSearch:
     _instance = None
     # make this a singleton/get it from factory through cls._instance so we can avoid
@@ -253,7 +306,12 @@ class SpacyFilingTextSearch:
             cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
             cls._instance.nlp = spacy.load("en_core_web_lg")
             cls._instance.nlp.add_pipe("secu_matcher")
+            cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
+
+    def add_special_token_rules(self):
+         self.nlp.tokenizer.add_special_case("(a)", [{"ORTH": "(a)"}])
+        
 
 
     def match_outstanding_shares(self, text):
@@ -267,7 +325,7 @@ class SpacyFilingTextSearch:
         if possible_matches == []:
             logger.debug("no matches for outstanding shares found")
             return []
-        matches = self._convert_matches_to_spans(doc, self._take_longest_matches(possible_matches))
+        matches = _convert_matches_to_spans(doc, _take_longest_matches(possible_matches))
         values = []
         for match in matches:
             value = {"outstanding_shares": {}}
@@ -287,32 +345,32 @@ class SpacyFilingTextSearch:
     
 
     
-    def _take_longest_matches(self, matches):
-            entries = []
-            prev_m = None
-            current_longest = None
-            for m in matches:
-                if prev_m is None:
-                    prev_m = m
+def _take_longest_matches(matches):
+        entries = []
+        prev_m = None
+        current_longest = None
+        for m in matches:
+            if prev_m is None:
+                prev_m = m
+                current_longest = m
+                continue
+            if prev_m[1] == m[1]:
+                if prev_m[2] < m[2]:
                     current_longest = m
-                    continue
-                if prev_m[1] == m[1]:
-                    if prev_m[2] < m[2]:
-                        current_longest = m
-                else:
-                    entries.append(current_longest)
-                    current_longest = m
-                    prev_m = m
-                    continue
-            if current_longest not in entries:
+            else:
                 entries.append(current_longest)
-            return entries
+                current_longest = m
+                prev_m = m
+                continue
+        if current_longest not in entries:
+            entries.append(current_longest)
+        return entries
 
-    def _convert_matches_to_spans(self, doc, matches):
-        m = []
-        for match in matches:
-            m.append(doc[match[1]:match[2]])
-        return m
+def _convert_matches_to_spans(doc, matches):
+    m = []
+    for match in matches:
+        m.append(doc[match[1]:match[2]])
+    return m
 
 def validate_filing_values(values, field_name, attributes):
     '''validate a flat filing value'''
