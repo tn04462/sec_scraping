@@ -438,6 +438,21 @@ if __name__ == "__main__":
         from main.parser.parsers import filing_factory
         filing = filing_factory.create_filing(**fake_filing_info)
         return filing
+    
+    def _create_filing(form_type, path, extension=".htm"):
+        fake_filing_info = {
+            "path": path,
+            # "path": r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312518056145/d531632ds3.htm",
+            "filing_date": "2022-01-05",
+            "accession_number": "000147793221000113",
+            "cik": "0001477932",
+            "file_number": "001-3259",
+            "form_type": form_type,
+            "extension": extension
+        }
+        from main.parser.parsers import filing_factory
+        filing = filing_factory.create_filing(**fake_filing_info)
+        return filing
     # 
     # create_htm_filing()
     def test_s3_splitting_by_toc_hrefs():
@@ -619,12 +634,19 @@ if __name__ == "__main__":
     # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
 
     # text = " prospectus provides, describes general description or terms of securities. Each time we sell or offer securities or  securities are offered or sold we will provide you with prospectus supplement | supplement to this prospectus | supplement."
-    text = "Defined in Rule 415(a)(4) as common stock."
+    text = "8,007,500 shares of common stock issuable upon exercise, at an exercise price of $0.30 per share, of warrants issued to certain selling stockholders in connection with the Series C Offering;"
     from main.parser.filing_nlp import SpacyFilingTextSearch
     search = SpacyFilingTextSearch()
-    doc = search.nlp(text)
-    for token in doc:
-        print(token.text, token._.sec_act)
+    # filing = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
+    # text = filing.get_section("cover page 0").text_only
+    # print(text)
+    # doc = search.nlp(text)
+    # for token in doc:
+    #     print(token)
+    search.match_secu_relation(text)
+    # doc = search.nlp(text)
+    # for token in doc:
+    #     print(token.text, token._.sec_act)
     # from main.parser.extractors import HTMS3Extractor
     # extractor = HTMS3Extractor()
     # filing = create_htm_filing()

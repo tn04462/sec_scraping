@@ -1607,7 +1607,7 @@ class HTMFilingParser(AbstractFilingParser):
                         break
                     ele = next_ele
                 logger.debug(
-                    f'{ele.sourceline} inserted stop ele {"-STOP_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"]}'
+                    f'{ele.sourceline if not isinstance(ele, NavigableString) else ele.parent.sourceline} inserted stop ele {"-STOP_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"]}'
                 )
                 ele.insert_before(
                     "-STOP_SECTION_TITLE_"

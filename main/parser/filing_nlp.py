@@ -1,3 +1,4 @@
+from typing import Set
 import spacy
 from spacy.matcher import Matcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
@@ -36,15 +37,18 @@ def alphabetic_list():
 def numeric_list():
     return ["(" + str(number) + ")" for number in range(150)]
 
-class SecurityFilingsRetokenizer:
+class FilingsSecurityLawRetokenizer:
 
     def __init__(self,  vocab):
         pass
     
     def __call__(self, doc):
         expressions = [
-            re.compile(r'(\d\d?\d?(?:\((?:(?:[a-zA-Z0-9])|(?:(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})))\)){1,})', re.I)
-        ]
+            # eg: 415(a)(4)
+            re.compile(r'(\d\d?\d?\d?(?:\((?:(?:[a-zA-Z0-9])|(?:(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})))\)){1,})', re.I),
+            re.compile(r"\s\((?:(?:[a-zA-Z0-9])|(?:(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})))\)\s", re.I),
+            re.compile(r"(\s[a-z0-9]{1,2}\))|(^[a-z0-9]{1,2}\))", re.I | re.MULTILINE)
+            ]
         match_spans = []
         for expression in expressions:
             for match in re.finditer(expression, doc.text):
@@ -52,11 +56,12 @@ class SecurityFilingsRetokenizer:
                 span = doc.char_span(start, end)
                 if span is not None:
                     match_spans.append(span)
-        sorted_match_spans = sorted(match_spans, key=lambda x: x[1])
-        longest_matches = _take_longest_matches(sorted_match_spans)
+        # sorted_match_spans = sorted(match_spans, key=lambda x: x[1])
+        longest_matches = filter_matches(match_spans)
         with doc.retokenize() as retokenizer:
             for span in longest_matches:
-                retokenizer.merge(span)
+                if span is not None:
+                    retokenizer.merge(span)
         return doc
         
 
@@ -290,9 +295,9 @@ def create_secu_matcher(nlp, name):
 def create_secu_act_matcher(nlp, name):
     return SecurityActMatcher(nlp.vocab)
 
-@Language.factory("regex_retokenizer")
+@Language.factory("security_law_retokenizer")
 def create_regex_retokenizer(nlp, name):
-    return SecurityFilingsRetokenizer(nlp.vocab)
+    return FilingsSecurityLawRetokenizer(nlp.vocab)
 
 class SpacyFilingTextSearch:
     _instance = None
@@ -306,7 +311,7 @@ class SpacyFilingTextSearch:
         if cls._instance is None:
             cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
             cls._instance.nlp = spacy.load("en_core_web_lg")
-            cls._instance.nlp.add_pipe("regex_retokenizer")
+            cls._instance.nlp.add_pipe("security_law_retokenizer")
             cls._instance.nlp.add_pipe("secu_matcher")
             cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
@@ -323,7 +328,7 @@ class SpacyFilingTextSearch:
         if possible_matches == []:
             logger.debug("no matches for outstanding shares found")
             return []
-        matches = _convert_matches_to_spans(doc, _take_longest_matches(possible_matches))
+        matches = _convert_matches_to_spans(doc, filter_matches(possible_matches))
         values = []
         for match in matches:
             value = {"outstanding_shares": {}}
@@ -341,28 +346,118 @@ class SpacyFilingTextSearch:
                 values.append(value)
         return values
     
+    def match_secu_relation(self, text):
+        secu_transformative_actions = ["exercise", "conversion"]
+        pattern1 = [
+            [
+            {"ENT_TYPE": "CARDINAL"},
+            {"LOWER": "shares"},
+            {"LOWER": "issuable"},
+            {"LOWER": "upon"},
+            {"LOWER": transformative_action},
+            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+            {"LOWER": transformative_action},
+            {"LOWER": "price"},
+            {"LOWER": "of"},
+            {"ENT_TYPE": "MONEY"},
+            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+            {"LOWER": "of"},
+            {"ENT_TYPE": "SECU", "OP": "+"}
+            ]
+            for transformative_action in secu_transformative_actions
+        ]
+        pattern2 = [
+            [
+            {"ENT_TYPE": "CARDINAL"},
+            {"LOWER": "shares"},
+            {"LOWER": "of"},
+            {"ENT_TYPE": "SECU", "OP": "+"},
+            {"LOWER": "issuable"},
+            {"LOWER": "upon"},
+            {"LOWER": transformative_action},
+            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+            {"LOWER": transformative_action},
+            {"LOWER": "price"},
+            {"LOWER": "of"},
+            {"ENT_TYPE": "MONEY"},
+            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+            {"LOWER": "of"},
+            {"ENT_TYPE": "SECU", "OP": "+"}
+            ]
+            for transformative_action in secu_transformative_actions
+        ]
+        pattern3 = [
+            [
+            {"ENT_TYPE": "CARDINAL"},
+            {"LOWER": "shares"},
+            {"LOWER": "of"},
+            {"ENT_TYPE": "SECU", "OP": "+"},
+            {"LOWER": "issuable"},
+            {"LOWER": "upon"},
+            {"LOWER": transformative_action},
+            {"LOWER": "of"},
+            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+            {"ENT_TYPE": "SECU", "OP": "+"}
+            ]
+            for transformative_action in secu_transformative_actions
+        ]
+        matcher = Matcher(self.nlp.vocab)
+        matcher.add("sec_relation", [*pattern1, *pattern2, *pattern3])
+        doc = self.nlp(text)
+        possible_matches = matcher(doc, as_spans=False)
+        if possible_matches == []:
+            logger.debug("no matches for secu_relation found")
+            return []
+        matches = filter_matches(possible_matches)
+        # matches = _take_longest_matches(possible_matches)
+        # matches = _convert_matches_to_spans(doc, _take_longest_matches(possible_matches))
+        values = []
+        for match in matches:
+            value = {"secu_relation": {}}
+            print(match)
+            # for ent in match.ents:
+            #     logger.debug((ent, ent.label_))
+
+def filter_matches(matches):
+    '''works as spacy.util.filter_spans but for matches'''
+    if len(matches) <= 1:
+        return matches
+    get_sort_key = lambda match: (match[2] - match[1], -match[1])
+    sorted_matches = sorted(matches, key=get_sort_key, reverse=True)
+    result = []
+    seen_tokens: Set[int] = set()
+    for match in sorted_matches:
+        # Check for end - 1 here because boundaries are inclusive
+        if match[1] not in seen_tokens and match[2] - 1 not in seen_tokens:
+            result.append(match)
+            seen_tokens.update(range(match[1], match[2]))
+    result = sorted(result, key=lambda match: match[1])
+    return result  
 
     
-def _take_longest_matches(matches):
-        entries = []
-        prev_m = None
-        current_longest = None
-        for m in matches:
-            if prev_m is None:
-                prev_m = m
-                current_longest = m
-                continue
-            if prev_m[1] == m[1]:
-                if prev_m[2] < m[2]:
-                    current_longest = m
-            else:
-                entries.append(current_longest)
-                current_longest = m
-                prev_m = m
-                continue
-        if current_longest not in entries:
-            entries.append(current_longest)
-        return entries
+# def _take_longest_matches(matches):
+#         entries = []
+#         prev_m = None
+#         current_longest = None
+#         sorted_matches = sorted(matches, key=lambda x: x[1])
+#         if sorted_matches == []:
+#             return []
+#         for m in sorted_matches:
+#             if prev_m is None:
+#                 prev_m = m
+#                 current_longest = m
+#                 continue
+#             if prev_m[1] == m[1]:
+#                 if prev_m[2] < m[2]:
+#                     current_longest = m
+#             else:
+#                 entries.append(current_longest)
+#                 current_longest = m
+#                 prev_m = m
+#                 continue
+#         if current_longest not in entries:
+#             entries.append(current_longest)
+#         return entries
 
 def _convert_matches_to_spans(doc, matches):
     m = []
