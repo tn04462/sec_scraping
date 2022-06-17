@@ -359,6 +359,7 @@ class SpacyFilingTextSearch:
             {"LOWER": transformative_action},
             {"LOWER": "price"},
             {"LOWER": "of"},
+            {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
             {"ENT_TYPE": "MONEY"},
             {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
             {"LOWER": "of"},
@@ -371,14 +372,17 @@ class SpacyFilingTextSearch:
             {"ENT_TYPE": "CARDINAL"},
             {"LOWER": "shares"},
             {"LOWER": "of"},
+            {"LOWER": "our", "OP": "?"},
             {"ENT_TYPE": "SECU", "OP": "+"},
             {"LOWER": "issuable"},
             {"LOWER": "upon"},
+            {"LOWER": "the", "OP": "?"},
             {"LOWER": transformative_action},
             {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
             {"LOWER": transformative_action},
             {"LOWER": "price"},
             {"LOWER": "of"},
+            {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
             {"ENT_TYPE": "MONEY"},
             {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
             {"LOWER": "of"},
@@ -391,9 +395,11 @@ class SpacyFilingTextSearch:
             {"ENT_TYPE": "CARDINAL"},
             {"LOWER": "shares"},
             {"LOWER": "of"},
+            {"LOWER": "our", "OP": "?"},
             {"ENT_TYPE": "SECU", "OP": "+"},
             {"LOWER": "issuable"},
             {"LOWER": "upon"},
+            {"LOWER": "the", "OP": "?"},
             {"LOWER": transformative_action},
             {"LOWER": "of"},
             {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
@@ -404,6 +410,7 @@ class SpacyFilingTextSearch:
         matcher = Matcher(self.nlp.vocab)
         matcher.add("sec_relation", [*pattern1, *pattern2, *pattern3])
         doc = self.nlp(text)
+        logger.debug([token for token in doc])
         possible_matches = matcher(doc, as_spans=False)
         if possible_matches == []:
             logger.debug("no matches for secu_relation found")

@@ -634,15 +634,17 @@ if __name__ == "__main__":
     # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
 
     # text = " prospectus provides, describes general description or terms of securities. Each time we sell or offer securities or  securities are offered or sold we will provide you with prospectus supplement | supplement to this prospectus | supplement."
-    text = "8,007,500 shares of common stock issuable upon exercise, at an exercise price of $0.30 per share, of warrants issued to certain selling stockholders in connection with the Series C Offering;"
+    # text = "8,007,500 shares of common stock issuable upon exercise, at an exercise price of $0.30 per share, of warrants issued to certain selling stockholders in connection with the Series C Offering;"
+    # text = "This prospectus relates to the sale from time to time by the selling stockholders identified in this prospectus for their own account of up to a total of 12,558,795 shares of our common stock, including up to an aggregate of 3,588,221 shares of our common stock issuable upon the exercise of warrants."
     from main.parser.filing_nlp import SpacyFilingTextSearch
     search = SpacyFilingTextSearch()
-    # filing = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
-    # text = filing.get_section("cover page 0").text_only
-    # print(text)
+    filing = _create_filing("S-3", r"C:/Users/Olivi/Desktop/test_set/set_s3/filings/0001183765/S-3/000095013408017439/f43706a1sv3za.htm")
+    section = filing.get_section("cover page 0")
+    text = section.parser.preprocess_section_content(section.text_only)
+    print(text)
     # doc = search.nlp(text)
     # for token in doc:
-    #     print(token)
+        # print(token,"\t" , token.ent_type_, "\t")
     search.match_secu_relation(text)
     # doc = search.nlp(text)
     # for token in doc:

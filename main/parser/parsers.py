@@ -729,7 +729,14 @@ class HTMFilingParser(AbstractFilingParser):
             idx += 1
         table = self._clean_parsed_table_columnwise(table)
         table = self._clean_parsed_table_fieldwise(table)
-
+        drop_none_complete = []
+        for ridx, row in enumerate(table):
+            if len(row) != 3:
+                drop_none_complete.insert(0, ridx)
+        for ridx in drop_none_complete:
+            table.pop(ridx)
+        if table == []:
+            return None
         toc_table = []
         for field in table[0]:
             if re.search(re.compile("(descript.*)|(page)", re.I), field):
@@ -906,10 +913,13 @@ class HTMFilingParser(AbstractFilingParser):
             # finding first <tr> element to check if it is empty
             # otherwise consider it a header
             possible_header = htmltable.find("tr")
-            header_fields = [
-                self.get_element_text_content(td)
-                for td in possible_header.find_all("td")
-            ]
+            try:
+                header_fields = [
+                    self.get_element_text_content(td)
+                    for td in possible_header.find_all("td")
+                ]
+            except AttributeError:
+                return False
             for h in header_fields:
                 if (h != "") and (h != []):
                     has_header = True
@@ -1289,7 +1299,7 @@ class HTMFilingParser(AbstractFilingParser):
     def _get_cover_page_start_ele_from_toc(self, toc_element: element.Tag):
         cover_page_start_ele = None
         cover_page_end_ele = None
-        start_re_term = re.compile("PROSPECTUS")
+        start_re_term = re.compile("^\s*PROSPECTUS", re.MULTILINE)
         alternative_start_re_term = re.compile("subject(\s)*to(\s)*completion,", re.I)
         end_re_term = re.compile(
             "the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}(?:supplement)?(?:\s){,3}is",
@@ -1559,7 +1569,7 @@ class HTMFilingParser(AbstractFilingParser):
         sections = []
         # make sure that the section_start_elements are sorted in ascending order by sourceline
         sorted_section_start_elements = sorted(
-            section_start_elements, key=lambda x: x["ele"].sourcepos
+            section_start_elements, key=lambda x: (x["ele"].sourceline, x["ele"].sourcepos)
         )
         # logger.debug(sorted_section_start_elements)
         for idx, section_start_element in enumerate(sorted_section_start_elements):
@@ -1571,7 +1581,7 @@ class HTMFilingParser(AbstractFilingParser):
 
             ele = start_element["ele"]
             logger.debug(
-                f'{ele.sourceline} inserted start ele {"-START_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"]}'
+                f'{ele.sourceline, ele.sourcepos} inserted start ele {"-START_SECTION_TITLE_" + start_element["section_title"] + start_element["UUID"]}'
             )
             ele.insert_before(
                 "-START_SECTION_TITLE_"
@@ -1651,7 +1661,7 @@ class HTMFilingParser(AbstractFilingParser):
                 print(
                     f"start: {start}, end: {end}, section_title: {sec['section_title']}, section_idx/total: {idx}/{len(section_start_elements)-1}"
                 )
-                print(e)
+                logger.debug(e, exc_info=True)
                 print("----------------")
         return sections
 
@@ -1993,6 +2003,7 @@ class ParserS3(HTMFilingParser):
             cover_page_list.append(
                 cover_page_start_ele if cover_page_start_ele else None
             )
+        logger.debug(f"section_start_elements before doing sections: {[sec['section_title'] for sec in section_start_elements]}")
         for idx, toc in enumerate(tocs):
             href_start_elements = self._get_section_start_elements_from_toc_hrefs(
                 doc, toc
@@ -2141,6 +2152,7 @@ class ParserS3(HTMFilingParser):
         for entry in table:
             logger.debug(f"looking for section start element of entry: {entry}")
             id = entry["href"]
+            logger.debug(f"working on id: {id}")
             if id not in track_ids_done:
                 id_match = doc.find(attrs={"id": id[1:]})
                 if id_match is None:
@@ -2148,6 +2160,7 @@ class ParserS3(HTMFilingParser):
                 track_ids_done.append(id)
                 if id_match:
                     # print(id_match.sourceline, id_match.sourcepos, entry)
+                    logger.debug(f"id_match found: {type(id_match), id_match}")
                     section_start_elements.append(
                         {"ele": id_match, "section_title": entry["title"]}
                     )
@@ -2163,16 +2176,21 @@ class ParserS3(HTMFilingParser):
         tables = {"reintegrated": [], "extracted": []}
         for t in unparsed_tables:
             parsed_table = None
+            if t is None:
+                continue
             if self.table_has_header(t):
                 parsed_table = self.parse_htmltable_with_header(t)
             else:
                 parsed_table = self.primitive_htmltable_parse(t)
-            cleaned_table = self._clean_parsed_table_drop_empty_rows(
-                self._clean_parsed_table_columnwise(
-                    self._preprocess_table(parsed_table)
-                ),
-                remove_=["", None],
-            )
+            try:
+                cleaned_table = self._clean_parsed_table_drop_empty_rows(
+                    self._clean_parsed_table_columnwise(
+                        self._preprocess_table(parsed_table)
+                    ),
+                    remove_=["", None],
+                )
+            except IndexError:
+                continue
             classification = self.classify_table(cleaned_table)
             if classification == "unclassified":
                 classification = super().classify_table(cleaned_table)
