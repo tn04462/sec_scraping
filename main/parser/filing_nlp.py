@@ -402,48 +402,7 @@ class SpacyFilingTextSearch:
                                 {"ENT_TYPE": "SECU", "OP": "+"}
                               ]
                     pattern1.append(pattern)
-        # pattern2 = [
-        #     [
-        #     {"ENT_TYPE": "CARDINAL"},
-        #     {"LOWER": "shares"},
-        #     {"LOWER": "of"},
-        #     {"LOWER": "our", "OP": "?"},
-        #     {"ENT_TYPE": "SECU", "OP": "+"},
-        #     {"LOWER": "issuable"},
-        #     {"LOWER": "upon"},
-        #     {"LOWER": "the", "OP": "?"},
-        #     {"LOWER": transformative_action},
-        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-        #     {"LOWER": {"IN": ["exercise", "conversion"]}},
-        #     {"LOWER": "price"},
-        #     {"LOWER": "of"},
-        #     {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-        #     {"ENT_TYPE": "MONEY"},
-        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-        #     {"LOWER": "of"},
-        #     {"ENT_TYPE": "SECU", "OP": "+"}
-        #     ]
-        #     for transformative_action in secu_transformative_actions
-        # ]
-        # pattern3 = [
-        #     [
-        #     {"ENT_TYPE": "CARDINAL"},
-        #     {"LOWER": "shares"},
-        #     {"LOWER": "issuable"},
-        #     {"LOWER": "upon"},
-        #     {"LOWER": transformative_action},
-        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-        #     {"LOWER": {"IN": ["exercise", "conversion"]}},
-        #     {"LOWER": "price"},
-        #     {"LOWER": "of"},
-        #     {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-        #     {"ENT_TYPE": "MONEY"},
-        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-        #     {"LOWER": "of"},
-        #     {"ENT_TYPE": "SECU", "OP": "+"}
-        #     ]
-        #     for transformative_action in secu_transformative_actions
-        # ]
+        
         pattern2 = [
             [
             {"ENT_TYPE": "CARDINAL"},
@@ -464,27 +423,16 @@ class SpacyFilingTextSearch:
         matcher = Matcher(self.nlp.vocab)
         matcher.add("sec_relation", [*pattern1, *pattern2])
         doc = self.nlp(text)
-        matches = []
-        for sent in doc.sents:
-            logger.debug(sent)
-            per_sent_matches = _convert_matches_to_spans(sent, filter_matches(matcher(sent, as_spans=False)))
-            for m in per_sent_matches:
-                logger.debug(m)
-                matches.append(m)
-            logger.debug("________sentend______")
-        # logger.debug([sent for sent in doc.sents])
-        # possible_matches = matcher(doc, as_spans=False)
+        matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         if matches == []:
             logger.debug("no matches for secu_relation found")
             return []
-        # logger.debug(f"matches before filtering: {matches}")
-        # matches = filter_matches(possible_matches)
-        # logger.debug(f"matches after filtering: {matches}")
-        # matches = _take_longest_matches(possible_matches)
-        # matches = _convert_matches_to_spans(doc, matches)
         values = []
         for match in matches:
             value = {"secu_relation": {}}
+            # keys: registered_amount, dilutive (bool), secu, converted_from/issuable_through secu, exercise_prices 
+            # OR
+            # keys: "converted_to": common stock by default, base_secu, converted_amount, exercise_prices, base_amount: None default 
             print(match)
             # for ent in match.ents:
             #     logger.debug((ent, ent.label_))

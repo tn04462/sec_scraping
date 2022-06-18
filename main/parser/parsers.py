@@ -172,6 +172,7 @@ class AbstractFilingParser(ABC):
     def extension(cls):
         raise NotImplementedError
 
+
     def split_into_sections(self, doc):
         """
         Must be implemented by the subclass.
@@ -361,12 +362,12 @@ class HTMFilingParser(AbstractFilingParser):
                 )
         return tables
 
-    def get_text_content(self, doc: BeautifulSoup = None, exclude=["table", "script"]):
+    def get_text_content(self, doc: BeautifulSoup = None, exclude=["table", "script"], strip=True):
         """extract the unstructured language"""
         doc_copy = copy.copy(doc)
         if exclude != [] or exclude is not None:
             [s.extract() for s in doc_copy(exclude)]
-        return doc_copy.get_text(separator=" ", strip=False)
+        return doc_copy.get_text(separator=" ", strip=strip)
 
     def get_span_of_element(self, doc: str, ele: element.Tag, pos: int = None):
         """gets the span (start, end) of the element ele in doc
@@ -901,6 +902,9 @@ class HTMFilingParser(AbstractFilingParser):
         section_content = re.sub(re.compile("(?<!(\.|\?|!))(\n)((\s)?![A-Z0-9])", re.MULTILINE), " ", section_content)
         section_content = re.sub(
             re.compile("(\s){2,}", re.MULTILINE), " ", section_content
+        )
+        section_content = re.sub(
+            re.compile("(\s)", re.MULTILINE), " ", section_content
         )
         return section_content
 

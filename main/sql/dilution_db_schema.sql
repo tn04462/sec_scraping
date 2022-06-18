@@ -10,6 +10,12 @@ CREATE TYPE SECURITY_TYPES as ENUM (
     "ConvertibleDebtSecurity"
     );
 
+CREATE TYPE CONVERSION_DIRECTION as ENUM (
+    "from",
+    "to",
+    "NULL"
+);
+
 CREATE TABLE IF NOT EXISTS files_last_update(
     submissions_zip_lud TIMESTAMP,
     companyfacts_zip_lud TIMESTAMP
@@ -331,6 +337,7 @@ CREATE TABLE IF NOT EXISTS securities (
 
 
 CREATE TABLE IF NOT EXISTS securities_conversion (
+    id SERIAL PRIMARY KEY,
     from_security_id SERIAL,
     to_security_id SERIAL,
     conversion_attributes JSON,
@@ -346,13 +353,24 @@ CREATE TABLE IF NOT EXISTS securities_conversion (
 CREATE TABLE IF NOT EXISTS securities_offerings (
     security_id SERIAL,
     offerings_id SERIAL,
+    conversion_id SERIAL NULL,
+    conversion_direction CONVERSION_DIRECTION,
+    amount BIGINT
+
+
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
     CONSTRAINT fk_offerings
         FOREIGN KEY (offerings_id)
-            REFERENCES offerings(id)
+            REFERENCES offerings(id),
+    CONSTRAINT fk_conversion_id
+        FOREIGN KEY (conversion_id)
+            REFERENCES securities_conversion(id),
+
+    CONSTRAINT secucrity_offering_conversion
+        UNIQUE (security_id, offerings_id, conversion_id)
 );
 
 CREATE TABLE IF NOT EXISTS securities_outstanding (
