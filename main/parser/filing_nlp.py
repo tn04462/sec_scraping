@@ -348,49 +348,103 @@ class SpacyFilingTextSearch:
     
     def match_secu_relation(self, text):
         secu_transformative_actions = ["exercise", "conversion"]
-        pattern1 = [
+        part1 = [
             [
-            {"ENT_TYPE": "CARDINAL"},
-            {"LOWER": "shares"},
-            {"LOWER": "issuable"},
-            {"LOWER": "upon"},
-            {"LOWER": transformative_action},
-            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-            {"LOWER": transformative_action},
-            {"LOWER": "price"},
-            {"LOWER": "of"},
-            {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-            {"ENT_TYPE": "MONEY"},
-            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-            {"LOWER": "of"},
-            {"ENT_TYPE": "SECU", "OP": "+"}
+                {"ENT_TYPE": "CARDINAL"},
+                {"LOWER": "shares"},
+                {"LOWER": "issuable"},
+                {"LOWER": "upon"}
+            ],
+            [
+                {"ENT_TYPE": "CARDINAL"},
+                {"LOWER": "shares"},
+                {"LOWER": "of"},
+                {"LOWER": "our", "OP": "?"},
+                {"ENT_TYPE": "SECU", "OP": "+"},
+                {"LOWER": "issuable"},
+                {"LOWER": "upon"},
+                {"LOWER": "the", "OP": "?"}    
             ]
-            for transformative_action in secu_transformative_actions
         ]
+        part2 = [
+            [
+                {"LOWER": {"IN": ["exercise", "conversion"]}},
+                {"LOWER": "price"},
+                {"LOWER": "of"},
+                {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"ENT_TYPE": "MONEY"},
+                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}}
+            ],
+            [
+                {"LOWER": {"IN": ["exercise", "conversion"]}},
+                {"LOWER": {"IN": ["price", "prices"]}},
+                {"LOWER": "ranging"},
+                {"LOWER": "from"},
+                {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"ENT_TYPE": "MONEY"},
+                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"LOWER": "to"},
+                {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"ENT_TYPE": "MONEY"},
+                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}}
+            ]
+        ]
+        pattern1 = []
+        for transformative_action in secu_transformative_actions:
+            for p1 in part1:
+                for p2 in part2:
+                    pattern = [
+                                *p1,
+                                {"LOWER": transformative_action},
+                                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                                *p2,
+                                {"LOWER": "of"},
+                                {"ENT_TYPE": "SECU", "OP": "+"}
+                              ]
+                    pattern1.append(pattern)
+        # pattern2 = [
+        #     [
+        #     {"ENT_TYPE": "CARDINAL"},
+        #     {"LOWER": "shares"},
+        #     {"LOWER": "of"},
+        #     {"LOWER": "our", "OP": "?"},
+        #     {"ENT_TYPE": "SECU", "OP": "+"},
+        #     {"LOWER": "issuable"},
+        #     {"LOWER": "upon"},
+        #     {"LOWER": "the", "OP": "?"},
+        #     {"LOWER": transformative_action},
+        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+        #     {"LOWER": {"IN": ["exercise", "conversion"]}},
+        #     {"LOWER": "price"},
+        #     {"LOWER": "of"},
+        #     {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+        #     {"ENT_TYPE": "MONEY"},
+        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+        #     {"LOWER": "of"},
+        #     {"ENT_TYPE": "SECU", "OP": "+"}
+        #     ]
+        #     for transformative_action in secu_transformative_actions
+        # ]
+        # pattern3 = [
+        #     [
+        #     {"ENT_TYPE": "CARDINAL"},
+        #     {"LOWER": "shares"},
+        #     {"LOWER": "issuable"},
+        #     {"LOWER": "upon"},
+        #     {"LOWER": transformative_action},
+        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+        #     {"LOWER": {"IN": ["exercise", "conversion"]}},
+        #     {"LOWER": "price"},
+        #     {"LOWER": "of"},
+        #     {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+        #     {"ENT_TYPE": "MONEY"},
+        #     {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+        #     {"LOWER": "of"},
+        #     {"ENT_TYPE": "SECU", "OP": "+"}
+        #     ]
+        #     for transformative_action in secu_transformative_actions
+        # ]
         pattern2 = [
-            [
-            {"ENT_TYPE": "CARDINAL"},
-            {"LOWER": "shares"},
-            {"LOWER": "of"},
-            {"LOWER": "our", "OP": "?"},
-            {"ENT_TYPE": "SECU", "OP": "+"},
-            {"LOWER": "issuable"},
-            {"LOWER": "upon"},
-            {"LOWER": "the", "OP": "?"},
-            {"LOWER": transformative_action},
-            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-            {"LOWER": transformative_action},
-            {"LOWER": "price"},
-            {"LOWER": "of"},
-            {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-            {"ENT_TYPE": "MONEY"},
-            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-            {"LOWER": "of"},
-            {"ENT_TYPE": "SECU", "OP": "+"}
-            ]
-            for transformative_action in secu_transformative_actions
-        ]
-        pattern3 = [
             [
             {"ENT_TYPE": "CARDINAL"},
             {"LOWER": "shares"},
@@ -408,16 +462,26 @@ class SpacyFilingTextSearch:
             for transformative_action in secu_transformative_actions
         ]
         matcher = Matcher(self.nlp.vocab)
-        matcher.add("sec_relation", [*pattern1, *pattern2, *pattern3])
+        matcher.add("sec_relation", [*pattern1, *pattern2])
         doc = self.nlp(text)
-        logger.debug([token for token in doc])
-        possible_matches = matcher(doc, as_spans=False)
-        if possible_matches == []:
+        matches = []
+        for sent in doc.sents:
+            logger.debug(sent)
+            per_sent_matches = _convert_matches_to_spans(sent, filter_matches(matcher(sent, as_spans=False)))
+            for m in per_sent_matches:
+                logger.debug(m)
+                matches.append(m)
+            logger.debug("________sentend______")
+        # logger.debug([sent for sent in doc.sents])
+        # possible_matches = matcher(doc, as_spans=False)
+        if matches == []:
             logger.debug("no matches for secu_relation found")
             return []
-        matches = filter_matches(possible_matches)
+        # logger.debug(f"matches before filtering: {matches}")
+        # matches = filter_matches(possible_matches)
+        # logger.debug(f"matches after filtering: {matches}")
         # matches = _take_longest_matches(possible_matches)
-        # matches = _convert_matches_to_spans(doc, _take_longest_matches(possible_matches))
+        # matches = _convert_matches_to_spans(doc, matches)
         values = []
         for match in matches:
             value = {"secu_relation": {}}

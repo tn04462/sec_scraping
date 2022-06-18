@@ -366,7 +366,7 @@ class HTMFilingParser(AbstractFilingParser):
         doc_copy = copy.copy(doc)
         if exclude != [] or exclude is not None:
             [s.extract() for s in doc_copy(exclude)]
-        return doc_copy.getText(separator=" ", strip=False)
+        return doc_copy.get_text(separator=" ", strip=False)
 
     def get_span_of_element(self, doc: str, ele: element.Tag, pos: int = None):
         """gets the span (start, end) of the element ele in doc
@@ -881,14 +881,8 @@ class HTMFilingParser(AbstractFilingParser):
             body = [row for row in htmltable.find_all("tr")][1:]
         return parsed_header, colspans, body
 
-    def preprocess_section_content(self, section_content: str):
-        """cleanes section_content and returns only text"""
-        if isinstance(section_content, BeautifulSoup):
-            soup = section_content
-        else:
-            soup = self.make_soup(section_content)
-        section_content = soup.getText(separator=" ", strip=True)
-        # replace unwanted unicode characters
+    def preprocess_section_text_content(self, section_content: str):
+        """cleanes section_content and returns only text with unwanted characters removed"""
         section_content.replace("\xa04", "")
         section_content.replace("\xa0", " ")
         section_content.replace("\u200b", " ")
@@ -896,8 +890,15 @@ class HTMFilingParser(AbstractFilingParser):
         section_content = re.sub(
             re.compile("(\n){2,}", re.MULTILINE), "\n", section_content
         )
-        section_content = re.sub(re.compile("(\n)", re.MULTILINE), " ", section_content)
+        
         # fold multiple spaces into one
+        section_content = re.sub(
+            re.compile("(\s){2,}", re.MULTILINE), " ", section_content
+        )
+        section_content = re.sub(re.compile("(?<!(\.|\?|!))(\n)(?![A-Z0-9])", re.MULTILINE), " ", section_content)
+        section_content = re.sub(re.compile("(?<!(\.|\?|!)(\s))(\n)((\s)?![A-Z0-9])", re.MULTILINE), " ", section_content)
+        section_content = re.sub(re.compile("(?<!(\.|\?|!)(\s))(\n)(?![A-Z0-9])", re.MULTILINE), " ", section_content)
+        section_content = re.sub(re.compile("(?<!(\.|\?|!))(\n)((\s)?![A-Z0-9])", re.MULTILINE), " ", section_content)
         section_content = re.sub(
             re.compile("(\s){2,}", re.MULTILINE), " ", section_content
         )
@@ -2902,8 +2903,10 @@ class HTMFilingSection(FilingSection):
         )
         self.soup: BeautifulSoup = self.parser.make_soup(self.content)
         self.tables: dict = self.parser.extract_tables(self.soup)
-        self.text_only = self.parser.get_text_content(
-            self.soup, exclude=["table", "script", "title", "head"]
+        self.text_only = self.parser.preprocess_section_text_content(
+            self.parser.get_text_content(
+                self.soup, exclude=["table", "script", "title", "head"]
+            )
         )
 
     def quick_summary(self) -> dict:
