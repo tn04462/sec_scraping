@@ -129,7 +129,7 @@ REGISTRATION_TABLE_HEADERS_S3 = [
 REQUIRED_TOC_ITEMS_S3 = [
     # re.compile("(ABOUT(\s)*THIS(\s)*PROSPECTUS) | (PROSPECTUS(\s)*SUMMARY)", re.I),
     # re.compile("RISK(\s*)FACTORS(\s*)", re.I),
-    re.compile("PLAN(\s*)OF(\s*)DISTRIBUTION", re.I),
+    re.compile("(PLAN(\s*)OF(\s*)DISTRIBUTION)|(Rescission(\s*)Offer)", re.I),
     re.compile("USE(\s*)OF(\s*)PROCEEDS", re.I),
 ]
 
@@ -528,7 +528,10 @@ class HTMFilingParser(AbstractFilingParser):
             table: should be a list of lists cleaned with clean_parsed_table.
         """
         # assume header
-        table_shape = (len(table), len(table[0]))
+        try:
+            table_shape = (len(table), len(table[0]))
+        except IndexError:
+            return "empty"
         # logger.debug(f"table shape is: {table_shape}")
         # could be a bullet point table
         if table_shape[0] == 1:
@@ -568,7 +571,7 @@ class HTMFilingParser(AbstractFilingParser):
         return table
 
     def _clean_parsed_table_fieldwise(
-        self, table: list[list], remove_: list = ["", None, "None", " "]
+        self, table: list[list], remove_: list = ["", None, "None", " ", "\u200b"]
     ):
         """clean a parsed table of shape m,n removing all fields which are in remove_"""
         drop = []
@@ -587,7 +590,7 @@ class HTMFilingParser(AbstractFilingParser):
         return table
 
     def _clean_parsed_table_columnwise(
-        self, table: list[list], remove_identifier: list = ["", "None", None, " "]
+        self, table: list[list], remove_identifier: list = ["", "None", None, " ", "\u200b"]
     ):
         """clean a parsed table of shape m,n by removing all columns whose row values are a combination of remove_identifier"""
         tablec = table.copy()
@@ -714,13 +717,22 @@ class HTMFilingParser(AbstractFilingParser):
             for field_idx, field in enumerate(row.find_all("td")):
                 content = self.get_element_text_content(field)
                 table[row_idx][field_idx] = content if content else ""
-                href = self.get_element_hrefs(row)
+            href = self.get_element_hrefs(row)
             if href != []:
-                if len(href) > 1:
+                unseen = []
+                for h in href:
+                    if h not in hrefs:
+                        unseen.append(h)
+                if len(set(unseen)) > 1:
+                    logger.debug(f"unhandled row: {row}")
+                    logger.debug(f"unhandled field: {field}")
                     raise AttributeError(
                         f"parse_toc_table can only handle one href per toc row! More than one href found: {hrefs}"
                     )
-                hrefs.append(href[0])
+                if unseen == []:
+                    hrefs.append(None)
+                    continue
+                hrefs.append(unseen[0])
             else:
                 hrefs.append(None)
         idx = 0
@@ -732,6 +744,7 @@ class HTMFilingParser(AbstractFilingParser):
         table = self._clean_parsed_table_fieldwise(table)
         drop_none_complete = []
         for ridx, row in enumerate(table):
+            logger.debug(f"toc_row: {row}")
             if len(row) != 3:
                 drop_none_complete.insert(0, ridx)
         for ridx in drop_none_complete:
@@ -1311,7 +1324,7 @@ class HTMFilingParser(AbstractFilingParser):
             re.I,
         )
         ele = toc_element
-        while cover_page_start_ele is None or cover_page_end_ele is None:
+        while True:
             ele = ele.previous_element
             if ele is None:
                 return None
@@ -1327,13 +1340,22 @@ class HTMFilingParser(AbstractFilingParser):
                     cover_page_start_ele = (
                         ele if not isinstance(ele, NavigableString) else ele.parent
                     )
+                    logger.debug(f"found cover_page_start_ele: {cover_page_start_ele}")
                 if cover_page_end_ele is None:
                     if re.search(end_re_term, string):
                         cover_page_end_ele = (
                             ele if not isinstance(ele, NavigableString) else ele.parent
                         )
+                        logger.debug(f"found cover_page_end_ele: {cover_page_end_ele}")
             if (cover_page_end_ele is not None) and (cover_page_start_ele is not None):
-                if cover_page_end_ele.sourceline > cover_page_start_ele.sourceline:
+                if (cover_page_end_ele.sourceline > cover_page_start_ele.sourceline
+                    ) or (
+                        (
+                            cover_page_end_ele.sourceline == cover_page_start_ele.sourceline
+                        ) and (
+                            cover_page_end_ele.sourcepos > cover_page_start_ele.sourcepos
+                        )
+                ):
                     print(
                         f"found cover page: {cover_page_start_ele}, {cover_page_end_ele}"
                     )
@@ -1357,7 +1379,7 @@ class HTMFilingParser(AbstractFilingParser):
         while True:
             prev_ele = ele
             ele = ele.previous_element
-            if ele.name == "title":
+            if (ele.name == "title") or (ele.name == "text"):
                 if isinstance(prev_ele, NavigableString):
                     while isinstance(prev_ele, NavigableString):
                         prev_ele = prev_ele.next_element
@@ -2196,6 +2218,8 @@ class ParserS3(HTMFilingParser):
                 )
             except IndexError:
                 continue
+            if cleaned_table == []:
+                continue
             classification = self.classify_table(cleaned_table)
             if classification == "unclassified":
                 classification = super().classify_table(cleaned_table)
@@ -2224,7 +2248,10 @@ class ParserS3(HTMFilingParser):
         return tables
 
     def classify_table(self, table: list[list]):
-        table_shape = (len(table), len(table[0]))
+        try:
+            table_shape = (len(table), len(table[0]))
+        except IndexError:
+            return "empty"
         if table_shape[0] > 1:
             for row in table:
                 if _row_is_ignore(row=row) is False:
@@ -2629,7 +2656,8 @@ class ParserSC13D(HTMFilingParser):
             cleaned_table = self._clean_parsed_table_columnwise(
                 self._preprocess_table(parsed_table)
             )
-
+            if cleaned_table == []:
+                continue
             classification = self.classify_table(cleaned_table)
             if classification == "unclassified":
                 classification = super().classify_table(cleaned_table)

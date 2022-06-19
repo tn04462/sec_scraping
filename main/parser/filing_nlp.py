@@ -315,7 +315,20 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("secu_matcher")
             cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
-
+    
+    def match_prospectus_relates_to(self, text):
+        pattern = [
+            # This prospectus relates to
+            {"LOWER": "prospectus"},
+            {"LEMMA": "relate"},
+            {"LOWER": "to"},
+            {"OP": "*", "IS_SENT_START": False}
+        ]
+        matcher = Matcher(self.nlp.vocab)
+        matcher.add("relates_to", [pattern])
+        doc = self.nlp(text)
+        matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
+        return matches if matches is not None else []
 
     def match_outstanding_shares(self, text):
         pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]

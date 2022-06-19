@@ -505,6 +505,43 @@ if __name__ == "__main__":
         secus_list = list(secus)
         pd.DataFrame(secus_list).to_clipboard()
     # get_secu_list()
+    def get_relates_to_list():
+        from main.parser.filing_nlp import SpacyFilingTextSearch
+        from main.parser.parsers import ParserS3
+        spacy_text_search = SpacyFilingTextSearch()
+        root = r"F:\example_filing_set_S3\filings"
+        paths = get_all_filings_path(root, "S-3")
+        parser = ParserS3()
+        relates = set()
+        unmatched_files = set()
+        try:
+            for p in paths:
+                filing = _create_filing("S-3", p)
+                if isinstance(filing, list):
+                    for f in filing:
+                        cp = f.get_section(re.compile("cover page", re.I))
+                        if cp:
+                            matches = spacy_text_search.match_prospectus_relates_to(cp.text_only)
+                            print(f"----------matches: {matches}")
+                            if matches:
+                                for m in matches:
+                                    relates.add(m)
+                else:
+                    cp = f.get_section(re.compile("cover page", re.I))
+                    if cp:
+                        matches = spacy_text_search.match_prospectus_relates_to(cp.text_only)
+                        print(f"----------matches: {matches}")
+                        if matches:
+                            for m in matches:
+                                relates.add(m)
+                        else:
+                            unmatched_files.add(p)
+        finally:
+            secus_list = list(relates)
+            unmatched = list(unmatched_files)
+            pd.DataFrame(secus_list).to_clipboard()
+            pd.DataFrame(unmatched).to_csv(r"F:\example_filing_set_S3\failed_to_match_relating_to.csv")
+    get_relates_to_list()
 
 
     def test_parser_sc13d():
@@ -638,17 +675,23 @@ if __name__ == "__main__":
     # from main.parser.parsers import ParserS3
     # p = ParserS3()
     # text = p.preprocess_section_text_content(text)
-    from main.parser.filing_nlp import SpacyFilingTextSearch
-    
-    search = SpacyFilingTextSearch()
-    filing = _create_filing("S-3", r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
-    section = filing.get_section("cover page 0")
-    text = section.text_only
-    # print(text)
-    # doc = search.nlp(text)
-    # for token in doc:
-    #     print(token,"\t" , token.ent_type_, "\t")
-    search.match_secu_relation(text)
+
+
+
+    # from main.parser.filing_nlp import SpacyFilingTextSearch
+    # search = SpacyFilingTextSearch()
+    # filing = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
+    # section = filing.get_section("cover page 0")
+    # text = section.text_only
+    # # print(text)
+    # # # doc = search.nlp(text)
+    # # # for token in doc:
+    # # #     print(token,"\t" , token.ent_type_, "\t")
+    # matches = search.match_secu_relation(text)
+    # print(f"matches: {matches}")
+
+
+
     # doc = search.nlp(text)
     # for token in doc:
     #     print(token.text, token._.sec_act)
@@ -666,3 +709,7 @@ if __name__ == "__main__":
     # cover_pages = filing.get_sections(re.compile("cover page", re.I))
     # for cv in cover_pages:
         # print(cv.title, cv.text_only)
+
+
+
+    # f = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001514281/S-3/000151428121000068/mittforms-3may2021.htm")
