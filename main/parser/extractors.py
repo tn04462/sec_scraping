@@ -81,6 +81,25 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     #     cover_page = filing.get_section(re.compile("cover page"))
     #     if isinstance(cover_page, list):
     #         raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
+    
+    def _is_resale_prospectus(self, doc):
+        '''
+        determine if this is a resale of securities by anyone other than the registrar,
+        by checking for key phrases in the "cover page".'''
+        matcher = Matcher(self.spacy_text_search.nlp.vocab)
+        pattern1 = [
+            {"LOWER": "prospectus"},
+            {"LEMMA": "relate"},
+            {"LOWER": "to"},
+            {"OP": "*", "IS_SENT_START": False},
+            {"LOWER": "by"},
+            {"LOWER": "the"},
+            {"LOWER": "selling"},
+            {"LOWER": {"IN": ["stockholder", "stockholders"]}},
+
+        ]
+
+
     def _is_at_the_market_prospectus(self, doc):
         '''
         Determine if this is an "at-the-market" offering, rule 415(a)(4) Act 1933,
@@ -121,6 +140,12 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             # add rule 415 cases then create dicts from at_the-market_case list
 
         ]
+        matcher.add("ATM", [pattern1])
+        possible_matches = matcher(doc, as_spans=True)
+        logger.debug(f"possible matches for _is_at_the_market_prospectus: {[m for m in possible_matches]}")
+        if len(possible_matches) > 0:
+            return True
+        return False
 
 
     def _is_base_prospectus(self, doc):

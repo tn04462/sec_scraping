@@ -54,12 +54,13 @@ class FilingsSecurityLawRetokenizer:
             for match in re.finditer(expression, doc.text):
                 start, end = match.span()
                 span = doc.char_span(start, end)
-                if span is not None:
-                    match_spans.append(span)
+                if match is not None:
+                    match_spans.append([span, start, end])
         # sorted_match_spans = sorted(match_spans, key=lambda x: x[1])
         longest_matches = filter_matches(match_spans)
         with doc.retokenize() as retokenizer:
             for span in longest_matches:
+                span = span[0]
                 if span is not None:
                     retokenizer.merge(span)
         return doc
@@ -454,6 +455,7 @@ def filter_matches(matches):
     '''works as spacy.util.filter_spans but for matches'''
     if len(matches) <= 1:
         return matches
+    logger.debug(f"pre filter matches: {[m for m in matches]}")
     get_sort_key = lambda match: (match[2] - match[1], -match[1])
     sorted_matches = sorted(matches, key=get_sort_key, reverse=True)
     result = []

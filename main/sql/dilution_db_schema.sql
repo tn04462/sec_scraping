@@ -1,19 +1,19 @@
 
 
 CREATE TYPE SECURITY_TYPES as ENUM (
-    "CommonShares",
-    "PreferredShares",
-    "DebtSecurity",
-    "Option",
-    "Warrant",
-    "ConvertiblePreferredShares",
-    "ConvertibleDebtSecurity"
+    'CommonShares',
+    'PreferredShares',
+    'DebtSecurity',
+    'Option',
+    'Warrant',
+    'ConvertiblePreferredShares',
+    'ConvertibleDebtSecurity'
     );
 
 CREATE TYPE CONVERSION_DIRECTION as ENUM (
-    "from",
-    "to",
-    "NULL"
+    'from',
+    'to',
+    'NULL'
 );
 
 CREATE TABLE IF NOT EXISTS files_last_update(
@@ -44,15 +44,7 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 
 
-CREATE TABLE IF NOT EXISTS securities(
-    company_id SERIAL, --issuer
-    cusip_number VARCHAR (16) PRIMARY KEY,
-    class VARCHAR,
 
-    CONSTRAINT fk_company_id
-        FOREIGN KEY (company_id)
-            REFERENCES companies(id)
-);
 
 CREATE TABLE IF NOT EXISTS company_last_update(
     company_id SERIAL UNIQUE,
@@ -264,8 +256,8 @@ CREATE TABLE IF NOT EXISTS underwriters_shelfs(
             REFERENCES shelfs(id),
     CONSTRAINT fk_underwriter_id
         FOREIGN KEY (underwriter_id)
-            REFERENCES underwriters(underwriter_id),
-)
+            REFERENCES underwriters(underwriter_id)
+);
 
 CREATE TABLE IF NOT EXISTS shelfs(
     id SERIAL PRIMARY KEY,
@@ -335,6 +327,19 @@ CREATE TABLE IF NOT EXISTS securities (
 
 );
 
+CREATE TABLE IF NOT EXISTS securities_cusip(
+    company_id SERIAL, --issuer
+    cusip_number VARCHAR (16) PRIMARY KEY,
+    security_id SERIAL
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    CONSTRAINT fk_security_id
+        FOREIGN KEY (security_id)
+            REFERENCES securities(id)
+);
+
 
 CREATE TABLE IF NOT EXISTS securities_conversion (
     id SERIAL PRIMARY KEY,
@@ -355,7 +360,7 @@ CREATE TABLE IF NOT EXISTS securities_offerings (
     offerings_id SERIAL,
     conversion_id SERIAL NULL,
     conversion_direction CONVERSION_DIRECTION,
-    amount BIGINT
+    amount BIGINT,
 
 
 
@@ -389,6 +394,6 @@ CREATE TABLE IF NOT EXISTS securities_authorized (
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
-            REFERENCES companies(id),
+            REFERENCES companies(id)
     
 );

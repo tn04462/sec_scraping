@@ -268,7 +268,7 @@ if __name__ == "__main__":
                     pass
         with open("./resources/company_tickers.json", "r") as f:
             tickers = list(json.load(f).keys())
-            for ticker in tqdm(tickers[5000:5020]):
+            for ticker in tqdm(tickers[5000:5200]):
                 get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=50)
     
     def open_filings_in_browser(root: str, form: str, max=100):
@@ -509,38 +509,36 @@ if __name__ == "__main__":
         from main.parser.filing_nlp import SpacyFilingTextSearch
         from main.parser.parsers import ParserS3
         spacy_text_search = SpacyFilingTextSearch()
-        root = r"F:\example_filing_set_S3\filings"
+        root = r"C:\Users\Olivi\Desktop\test_set\set_s3\filings"
         paths = get_all_filings_path(root, "S-3")
         parser = ParserS3()
         relates = set()
         unmatched_files = set()
         try:
-            for p in paths:
+            for p in tqdm(paths[14:]):
                 filing = _create_filing("S-3", p)
                 if isinstance(filing, list):
                     for f in filing:
                         cp = f.get_section(re.compile("cover page", re.I))
                         if cp:
                             matches = spacy_text_search.match_prospectus_relates_to(cp.text_only)
-                            print(f"----------matches: {matches}")
                             if matches:
                                 for m in matches:
                                     relates.add(m)
                 else:
-                    cp = f.get_section(re.compile("cover page", re.I))
+                    cp = filing.get_section(re.compile("cover page", re.I))
                     if cp:
                         matches = spacy_text_search.match_prospectus_relates_to(cp.text_only)
-                        print(f"----------matches: {matches}")
                         if matches:
                             for m in matches:
                                 relates.add(m)
                         else:
                             unmatched_files.add(p)
         finally:
-            secus_list = list(relates)
+            relating_to = list(relates)
             unmatched = list(unmatched_files)
-            pd.DataFrame(secus_list).to_clipboard()
-            pd.DataFrame(unmatched).to_csv(r"F:\example_filing_set_S3\failed_to_match_relating_to.csv")
+            pd.DataFrame(relating_to).to_csv(r"C:\Users\Olivi\Desktop\test_set\set_s3\relating_to.csv")
+            pd.DataFrame(unmatched).to_csv(r"C:\Users\Olivi\Desktop\test_set\set_s3\failed_to_match_relating_to.csv")
     get_relates_to_list()
 
 
