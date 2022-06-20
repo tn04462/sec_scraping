@@ -87,6 +87,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         determine if this is a resale of securities by anyone other than the registrar,
         by checking for key phrases in the "cover page".'''
         matcher = Matcher(self.spacy_text_search.nlp.vocab)
+        # action_verbs = ["sell", "offer", "resell", "disposition"]
         pattern1 = [
             {"LOWER": "prospectus"},
             {"LEMMA": "relate"},
@@ -95,9 +96,14 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             {"LOWER": "by"},
             {"LOWER": "the"},
             {"LOWER": "selling"},
-            {"LOWER": {"IN": ["stockholder", "stockholders"]}},
-
+            {"LOWER": {"IN": ["stockholder", "stockholders"]}}
         ]
+        matcher.add("ATM", [pattern1])
+        possible_matches = matcher(doc, as_spans=True)
+        logger.debug(f"possible matches for _is_resale_prospectus: {[m for m in possible_matches]}")
+        if len(possible_matches) > 0:
+            return True
+        return False
 
 
     def _is_at_the_market_prospectus(self, doc):

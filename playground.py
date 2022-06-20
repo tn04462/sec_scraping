@@ -509,7 +509,8 @@ if __name__ == "__main__":
         from main.parser.filing_nlp import SpacyFilingTextSearch
         from main.parser.parsers import ParserS3
         spacy_text_search = SpacyFilingTextSearch()
-        root = r"C:\Users\Olivi\Desktop\test_set\set_s3\filings"
+        root_d = Path(r"F:\example_filing_set_S3")
+        root = root_d / "filings"
         paths = get_all_filings_path(root, "S-3")
         parser = ParserS3()
         relates = set()
@@ -537,8 +538,8 @@ if __name__ == "__main__":
         finally:
             relating_to = list(relates)
             unmatched = list(unmatched_files)
-            pd.DataFrame(relating_to).to_csv(r"C:\Users\Olivi\Desktop\test_set\set_s3\relating_to.csv")
-            pd.DataFrame(unmatched).to_csv(r"C:\Users\Olivi\Desktop\test_set\set_s3\failed_to_match_relating_to.csv")
+            pd.DataFrame(relating_to).to_csv(root_d / "relating_to.csv")
+            pd.DataFrame(unmatched).to_csv(root_d / "failed_to_match_relating_to.csv")
     get_relates_to_list()
 
 
