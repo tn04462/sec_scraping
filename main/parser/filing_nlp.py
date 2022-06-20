@@ -360,7 +360,10 @@ class SpacyFilingTextSearch:
                 values.append(value)
         return values
     
-    def match_secu_relation(self, text):
+    def match_issued_secu(self, text):
+        pass
+    
+    def match_issuable_secu(self, text):
         secu_transformative_actions = ["exercise", "conversion"]
         part1 = [
             [
