@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from os import PathLike
 from pathlib import Path
+from abc import ABC
 
 @dataclass
 class Filing:
@@ -45,3 +46,15 @@ class FilingValue:
     field_name: str
     field_values: dict
     context: str = None
+
+# class AbstractHTMFilingSection(ABC):
+#     def get_text_only(self):
+#         '''get the section text content from the soup'''
+#         raise NotImplementedError
+    
+#     def get_tables(self, classification: str, table_type: str) -> list:
+#         '''gets tables by table_type and classification'''
+#         raise NotImplementedError
+    
+
+

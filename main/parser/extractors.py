@@ -1,10 +1,11 @@
 from abc import ABC
 import logging
-from main.parser.filings_base import Filing, FilingValue
+from main.parser.filings_base import Filing, FilingSection, FilingValue
 from datetime import datetime
 import pandas as pd
 import re
 from spacy.matcher import Matcher
+from spacy.tokens import Doc
 from .filing_nlp import SpacyFilingTextSearch
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,9 @@ class BaseExtractor():
 class BaseHTMExtractor(BaseExtractor):
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
+    
+    def doc_from_section(self, section: FilingSection):
+        return self.spacy_text_search.nlp(section.text_only)
 
     def extract_outstanding_shares(self, filing: Filing):
         text = filing.get_text_only()
@@ -76,13 +80,26 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 
-    # def classify_s3(self, filing: Filing):
-    #     text = ""
-    #     cover_page = filing.get_section(re.compile("cover page"))
-    #     if isinstance(cover_page, list):
-    #         raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
-    
-    def _is_resale_prospectus(self, doc):
+    def classify_s3(self, filing: Filing):
+        text = ""
+        cover_page = filing.get_section(re.compile("cover page"))
+        distribution = filing.get_section(re.compile("distribution", re.I))
+        summary = filing.get_section(re.compile("summary", re.I))
+        about = filing.get_section(re.compile("about\s*this"), re.I)
+        if cover_page == []:
+            raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
+        cover_page_doc = self.doc_from_section(cover_page)
+        distribution_doc = self.doc_from_section(distribution) if distribution != [] else []
+        summary_doc = self.doc_from_section(summary) if summary != [] else []
+        about_doc = self.doc_from_section(about) if about != [] else []
+        if self._is_resale_prospectus(cover_page_doc):
+            return "resale"
+        if self._is_at_the_market_prospectus(cover_page_doc) or self._is_at_the_market_prospectus(distribution_doc):
+            return "ATM"
+        if True in [self._is_base_prospectus(x) if x != [] else False for x in [cover_page_doc, about_doc, summary_doc]]:
+            return "base"
+
+    def _is_resale_prospectus(self, doc: Doc) -> bool:
         '''
         determine if this is a resale of securities by anyone other than the registrar,
         by checking for key phrases in the "cover page".'''
@@ -106,7 +123,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return False
 
 
-    def _is_at_the_market_prospectus(self, doc):
+    def _is_at_the_market_prospectus(self, doc: Doc) -> bool:
         '''
         Determine if this is an "at-the-market" offering, rule 415(a)(4) Act 1933,
         by checking for key phrase in the "cover page" and "plan of distribution".
@@ -154,7 +171,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return False
 
 
-    def _is_base_prospectus(self, doc):
+    def _is_base_prospectus(self, doc: Doc) -> bool:
         '''
         Determine if this is a base prospectus
         by checking for key phrases in the "cover page", "about this" or "summary".

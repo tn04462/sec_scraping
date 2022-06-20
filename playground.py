@@ -540,7 +540,7 @@ if __name__ == "__main__":
             unmatched = list(unmatched_files)
             pd.DataFrame(relating_to).to_csv(root_d / "relating_to.csv")
             pd.DataFrame(unmatched).to_csv(root_d / "failed_to_match_relating_to.csv")
-    get_relates_to_list()
+    # get_relates_to_list()
 
 
     def test_parser_sc13d():
@@ -710,5 +710,20 @@ if __name__ == "__main__":
         # print(cv.title, cv.text_only)
 
 
+    from abc import ABC, abstractmethod
+    class abstractbase(ABC, object):
+        @property
+        def property1(self):
+            try:
+                return self._property1
+            except AttributeError:
+                raise NotImplementedError
+    
+    class one(abstractbase):
+        def __init__(self, value):
+            self.property1 = value
+    
+    t = one(2)
+    print(t.property1)
 
     # f = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001514281/S-3/000151428121000068/mittforms-3may2021.htm")
