@@ -225,23 +225,6 @@ CREATE TABLE IF NOT EXISTS filing_links(
 
 
 
-CREATE TABLE IF NOT EXISTS capital_raise(
-    company_id SERIAL,
-    shelf_id SERIAL,
-    kind VARCHAR(255),
-    amount_usd BIGINT,
-    form_type VARCHAR(200),
-    form_acn VARCHAR(255),
-    
-
-    CONSTRAINT fk_company_id
-        FOREIGN KEY (company_id)
-            REFERENCES companies(id),
-    CONSTRAINT fk_form_type
-        FOREIGN KEY (form_type)
-            REFERENCES form_types(form_type)
-);
-
 CREATE TABLE IF NOT EXISTS underwriters(
     underwriter_id SERIAL PRIMARY KEY,
     underwriter_name VARCHAR(255)
@@ -330,7 +313,7 @@ CREATE TABLE IF NOT EXISTS securities (
 CREATE TABLE IF NOT EXISTS securities_cusip(
     company_id SERIAL, --issuer
     cusip_number VARCHAR (16) PRIMARY KEY,
-    security_id SERIAL
+    security_id SERIAL,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
@@ -376,6 +359,19 @@ CREATE TABLE IF NOT EXISTS securities_offerings (
 
     CONSTRAINT secucrity_offering_conversion
         UNIQUE (security_id, offerings_id, conversion_id)
+);
+
+CREATE TABLE IF NOT EXISTS completed_offerings (
+    security_id  SERIAL,
+    offerings_id SERIAL,
+    amount BIGINT,
+    
+    CONSTRAINT fk_security_id
+        FOREIGN KEY (security_id)
+            REFERENCES securities(id),
+    CONSTRAINT fk_offerings
+        FOREIGN KEY (offerings_id)
+            REFERENCES offerings(id)
 );
 
 CREATE TABLE IF NOT EXISTS securities_outstanding (

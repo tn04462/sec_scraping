@@ -10,7 +10,8 @@ from .filing_nlp import SpacyFilingTextSearch
 
 logger = logging.getLogger(__name__)
 
-
+class UnhandledClassificationError(Exception):
+    pass
 
 
 
@@ -81,7 +82,6 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 
     def classify_s3(self, filing: Filing):
-        text = ""
         cover_page = filing.get_section(re.compile("cover page"))
         distribution = filing.get_section(re.compile("distribution", re.I))
         summary = filing.get_section(re.compile("summary", re.I))
@@ -96,8 +96,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             return "resale"
         if self._is_at_the_market_prospectus(cover_page_doc) or self._is_at_the_market_prospectus(distribution_doc):
             return "ATM"
-        if True in [self._is_base_prospectus(x) if x != [] else False for x in [cover_page_doc, about_doc, summary_doc]]:
-            return "base"
+        if True in [self._is_shelf_prospectus(x) if x != [] else False for x in [cover_page_doc, about_doc, summary_doc]]:
+            return "shelf"
+        raise UnhandledClassificationError
 
     def _is_resale_prospectus(self, doc: Doc) -> bool:
         '''
@@ -171,7 +172,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return False
 
 
-    def _is_base_prospectus(self, doc: Doc) -> bool:
+    def _is_shelf_prospectus(self, doc: Doc) -> bool:
         '''
         Determine if this is a base prospectus
         by checking for key phrases in the "cover page", "about this" or "summary".

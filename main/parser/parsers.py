@@ -129,7 +129,7 @@ REGISTRATION_TABLE_HEADERS_S3 = [
 REQUIRED_TOC_ITEMS_S3 = [
     # re.compile("(ABOUT(\s)*THIS(\s)*PROSPECTUS) | (PROSPECTUS(\s)*SUMMARY)", re.I),
     # re.compile("RISK(\s*)FACTORS(\s*)", re.I),
-    re.compile("(PLAN(\s*)OF(\s*)DISTRIBUTION)|(Rescission(\s*)Offer)", re.I),
+    re.compile("(PLAN(\s*)OF(\s*)DISTRIBUTION)|(Rescission(\s*)Offer)|(legal\s*matters)", re.I),
     re.compile("USE(\s*)OF(\s*)PROCEEDS", re.I),
 ]
 
