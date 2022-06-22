@@ -254,6 +254,7 @@ CREATE TABLE IF NOT EXISTS shelfs(
     last_update DATE,
     expiry DATE,
     filing_date DATE,
+    is_active BOOLEAN,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
@@ -338,7 +339,7 @@ CREATE TABLE IF NOT EXISTS securities_conversion (
             REFERENCES securities(id)
 );
 
-CREATE TABLE IF NOT EXISTS securities_offerings (
+CREATE TABLE IF NOT EXISTS securities_offerings_completed (
     security_id SERIAL,
     offerings_id SERIAL,
     conversion_id SERIAL NULL,
@@ -361,17 +362,27 @@ CREATE TABLE IF NOT EXISTS securities_offerings (
         UNIQUE (security_id, offerings_id, conversion_id)
 );
 
-CREATE TABLE IF NOT EXISTS completed_offerings (
-    security_id  SERIAL,
+CREATE TABLE IF NOT EXISTS securities_offerings_registered (
+    security_id SERIAL,
     offerings_id SERIAL,
+    conversion_id SERIAL NULL,
+    conversion_direction CONVERSION_DIRECTION,
     amount BIGINT,
-    
+
+
+
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
     CONSTRAINT fk_offerings
         FOREIGN KEY (offerings_id)
-            REFERENCES offerings(id)
+            REFERENCES offerings(id),
+    CONSTRAINT fk_conversion_id
+        FOREIGN KEY (conversion_id)
+            REFERENCES securities_conversion(id),
+
+    CONSTRAINT secucrity_offering_conversion
+        UNIQUE (security_id, offerings_id, conversion_id)
 );
 
 CREATE TABLE IF NOT EXISTS securities_outstanding (
