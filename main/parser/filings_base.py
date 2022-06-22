@@ -47,6 +47,8 @@ class FilingValue:
     field_values: dict
     context: str = None
 
+
+
 # class AbstractHTMFilingSection(ABC):
 #     def get_text_only(self):
 #         '''get the section text content from the soup'''

@@ -6,7 +6,7 @@ class BaseDerivative(BaseModel):
     life: Life
     underlying: str
     strike_price: float
-    settlement: str
+    settlement: str = "cash"
     multiplier: float
 
     @validator("settlement")

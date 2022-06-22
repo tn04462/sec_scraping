@@ -13,6 +13,30 @@ logger = logging.getLogger(__name__)
 class UnhandledClassificationError(Exception):
     pass
 
+class SecurityCompletedOffering:
+    def __init__(
+        self,
+        secu,
+        secu_amount,
+        source_secu
+    )
+
+class SecurityRegistration:
+    def __init__(
+        self,
+        registered_secu,
+        registered_secu_amount: int,
+        registered_secu_unit: str = "shares",
+        is_convertible: bool = False,
+        conversion_from_related: bool = True,
+        related_secu = None):
+        self.registered_secu = registered_secu
+        self.registered_secu_amount = registered_secu_amount
+        self.registered_secu_unit = registered_secu_unit
+        self.is_convertible = is_convertible
+        self.conversion_from_related = conversion_from_related
+        self.related_secu = related_secu
+
 
 
 
