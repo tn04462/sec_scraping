@@ -665,8 +665,7 @@ if __name__ == "__main__":
         #     # print(filing)
         #     print(len(parser.parse_items(filing)))
 
-    # item count in all 8-k's of the filings-database
-    # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3")
+    # open_filings_in_browser(r"C:\Users\Olivi\Desktop\test_set\set_s3\filings", "S-3", max=20)
 
     # text = " prospectus provides, describes general description or terms of securities. Each time we sell or offer securities or  securities are offered or sold we will provide you with prospectus supplement | supplement to this prospectus | supplement."
     # text = "The shares of common stock being offered include: 1)       6,406,000 shares of common stock issuable upon conversion of Series C Convertible Preferred Stock to shares issued to certain selling stockholders of certain private transactions occurring on certain dates between October 21, 2019 and December 6, 2019 (the “Series C Offering”); 2) 8,007,500 shares of common stock issuable upon exercise, at an exercise price of $0.30 per share, of warrants issued to certain selling stockholders in connection with the Series C Offering; 3)       1,620,000 shares of common stock issued to certain selling stockholders in connection with financial advisory fees arising from a transaction in November 2018 (the “November 2018 Transaction”); 4)      16,904,000 shares of common stock issuable upon conversion of Series D Convertible Preferred Stock to shares issued to certain selling stockholders of certain private transactions occurring on January 31, 2020 and March 13, 2020 (the “Series D Offering”); 5)      4,060,625 shares of common stock issuable upon exercise, at an exercise price of $1.00 per share, of warrants issued to certain selling stockholders in connection with the Series D Offering; 6) 3,800,000 shares of common stock issuable upon conversion, at an exercise price of $4.50 per share, of a long-term convertible note issued by a certain selling stockholder in connection with a long-term convertible note transaction on March 31, 2020 (the “Long-term Convertible Note Transaction”); 7)      2,500,000 shares of common stock issued in connection with the exercise, at an exercise price of $0.30, of warrants by a certain selling shareholder on February 4, 2020 and February 12, 2020, and the Long-term Convertible Note Transaction; 8)      2,500,000 shares of common stock issuable upon exercise, at exercise prices ranging from $0.57 per share to $0.83 per share, of warrants issued on March 6, 2015, February 15, 2018, November 8, 2018, and December 19, 2019 in connection with services provided by the Company’s Chief Executive Officer and certain consultants to the Company (the “Compensatory Warrant Grants”); 9) 600,000 shares of common stock issuable upon exercise, at exercise prices ranging from $0.39 per share to $0.63 per share, of stock options issued to certain selling stockholders on September 12, 2019, October 7, 2019, and December 19, 2019 in connection with services provided by consultants to the Company (the “Consultant Stock Option Grants”)."
@@ -677,10 +676,11 @@ if __name__ == "__main__":
 
 
 
-    # from main.parser.filing_nlp import SpacyFilingTextSearch
-    # search = SpacyFilingTextSearch()
-    # filing = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
+    from main.parser.filing_nlp import SpacyFilingTextSearch
+    search = SpacyFilingTextSearch()
+    filing = _create_filing("S-3", r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
     # section = filing.get_section("cover page 0")
+    print(search.match_mentioned_secus(search.nlp(filing.get_text_only())))
     # text = section.text_only
     # # print(text)
     # # # doc = search.nlp(text)
@@ -709,21 +709,5 @@ if __name__ == "__main__":
     # for cv in cover_pages:
         # print(cv.title, cv.text_only)
 
-
-    from abc import ABC, abstractmethod
-    class abstractbase(ABC, object):
-        @property
-        def property1(self):
-            try:
-                return self._property1
-            except AttributeError:
-                raise NotImplementedError
-    
-    class one(abstractbase):
-        def __init__(self, value):
-            self.property1 = value
-    
-    t = one(2)
-    print(t.property1)
 
     # f = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001514281/S-3/000151428121000068/mittforms-3may2021.htm")

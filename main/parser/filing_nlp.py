@@ -9,6 +9,8 @@ import string
 import re
 import  pandas as pd
 
+from main.security_models.naiv_models import CommonShare, Securities
+
 logger = logging.getLogger(__name__)
 
 def int_to_roman(input):
@@ -360,8 +362,129 @@ class SpacyFilingTextSearch:
                 values.append(value)
         return values
     
-    def match_issued_secu(self, text):
-        pass
+    def _normalize_SECU(self, security: str):
+        return security.lower()
+    
+    def match_mentioned_secus(self, doc: Doc):
+        '''get all SECU entities'''
+        secus = dict()
+        for ent in doc.ents:
+            if ent.label_ == "SECU":
+                normalized_ent = self._normalize_SECU(ent.text)
+                if normalized_ent in secus.keys():
+                    secus[normalized_ent].append(ent)
+                else:
+                    secus[normalized_ent] = [ent]
+        return secus
+    
+    def match_issuable_relation(self, doc: Doc, securities: Securities):
+        # make patterns match on base secu explicitly
+        # if part1[0] matches assume common stock?
+        # then extract relation (and note span of SECU aswell)
+        # normalize secu text to lower so we reduce amount of cases
+        # write function to create secu from secu_type and optional kwargs
+        secu_transformative_actions = ["exercise", "conversion"]
+        part1 = [
+            [
+                {"ENT_TYPE": "CARDINAL"},
+                {"LOWER": "shares"},
+                {"LOWER": "issuable"},
+                {"LOWER": "upon"}
+            ],
+            [
+                {"ENT_TYPE": "CARDINAL"},
+                {"LOWER": "shares"},
+                {"LOWER": "of"},
+                {"LOWER": "our", "OP": "?"},
+                {"ENT_TYPE": "SECU", "OP": "+"},
+                {"LOWER": "issuable"},
+                {"LOWER": "upon"},
+                {"LOWER": "the", "OP": "?"}    
+            ]
+        ]
+        part2 = [
+            [
+                {"LOWER": {"IN": ["exercise", "conversion"]}},
+                {"LOWER": "price"},
+                {"LOWER": "of"},
+                {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"ENT_TYPE": "MONEY"},
+                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}}
+            ],
+            [
+                {"LOWER": {"IN": ["exercise", "conversion"]}},
+                {"LOWER": {"IN": ["price", "prices"]}},
+                {"LOWER": "ranging"},
+                {"LOWER": "from"},
+                {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"ENT_TYPE": "MONEY"},
+                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"LOWER": "to"},
+                {"OP": "?", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                {"ENT_TYPE": "MONEY"},
+                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}}
+            ]
+        ]
+        no_primary_secu_pattern = []
+        for transformative_action in secu_transformative_actions:
+            p1 = part1[0]
+            for p2 in part2:
+                pattern = [
+                            *p1,
+                            {"LOWER": transformative_action},
+                            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                            *p2,
+                            {"LOWER": "of"},
+                            {"ENT_TYPE": "SECU", "OP": "+"}
+                            ]
+                no_primary_secu_pattern.append(pattern)
+
+        primary_secu_pattern = []
+        for transformative_action in secu_transformative_actions:
+            p1 = part1[1]
+            for p2 in part2:
+                pattern = [
+                            *p1,
+                            {"LOWER": transformative_action},
+                            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                            *p2,
+                            {"LOWER": "of"},
+                            {"ENT_TYPE": "SECU", "OP": "+"}
+                            ]
+                primary_secu_pattern.append(pattern)
+        pattern2 = [
+            [
+            {"ENT_TYPE": "CARDINAL"},
+            {"LOWER": "shares"},
+            {"LOWER": "of"},
+            {"LOWER": "our", "OP": "?"},
+            {"ENT_TYPE": "SECU", "OP": "+"},
+            {"LOWER": "issuable"},
+            {"LOWER": "upon"},
+            {"LOWER": "the", "OP": "?"},
+            {"LOWER": transformative_action},
+            {"LOWER": "of"},
+            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+            {"ENT_TYPE": "SECU", "OP": "+"}
+            ]
+            for transformative_action in secu_transformative_actions
+        ]
+        [primary_secu_pattern.append(x) for x in pattern2]
+        primary_matcher = Matcher(self.nlp.vocab)
+        no_primary_matcher = Matcher(self.nlp.vocab)
+
+        primary_matcher.add("primary_secu", [*primary_secu_pattern])
+        no_primary_matcher.add("no_primary_secu", [*no_primary_secu_pattern])
+        primary_matches = _convert_matches_to_spans(doc, filter_matches(primary_matcher(doc, as_spans=False)))
+        no_primary_matches = _convert_matches_to_spans(doc, filter_matches(no_primary_matcher(doc, as_spans=False)))
+
+
+    def _handle_no_primary_secu_match(self, match):
+        converted_security = CommonShare()
+        base_secu = 
+
+    
+        
     
     def match_issuable_secu(self, text):
         secu_transformative_actions = ["exercise", "conversion"]

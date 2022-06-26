@@ -12,7 +12,7 @@ from main.parser.filings_base import FilingValue
 #     name: str
 
 class CommonShare(BaseModel):
-    name: str
+    name: str = "Common Shares"
     par_value: float = 0.001
 
 class PreferredShare(BaseModel):
@@ -62,7 +62,7 @@ class SecurityRegistration(BaseModel):
 
 
 
-class Securities():
+class Securities:
     def __init__(self):
         self._secus: set[Security] = set()
         self._completed_offerings: set[SecurityCompletedOffering] = set()
@@ -126,13 +126,11 @@ class Securities():
         )
     
     
-
-
-
 class FormValues:
-    def __init__(self, cik: str, accn: str):
+    def __init__(self, cik: str, accn: str, form_type: str):
         self.cik = cik
         self.accession_number = accn
+        self.form_type: str = form_type
         self._form_case: str = None
         self._filing_values: list[FilingValue] = list()
         self._securities = Securities()
