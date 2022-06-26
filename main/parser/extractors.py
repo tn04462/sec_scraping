@@ -41,9 +41,8 @@ class UnhandledClassificationError(Exception):
 
 
 class AbstractFilingExtractor(ABC):
-    def extract_filing_values(self, filing: Filing):
-        """extracts values and returns them as a list[FilingValue] where dict has
-        keys: cik, date_parsed, accession_number, field_name, field_values"""
+    def extract_form_values(self, filing: Filing):
+        """extracts values and returns them as a FormValues object"""
         pass
 
 class BaseExtractor():
@@ -99,7 +98,7 @@ class BaseHTMExtractor(BaseExtractor):
         return self.create_filing_values(values, filing)
 
 class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def extract_filing_values(self, filing: Filing):
+    def extract_form_values(self, filing: Filing):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
@@ -288,7 +287,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 
 class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def extract_filing_values(self, filing: Filing):
+    def extract_form_values(self, filing: Filing):
         return [self.extract_outstanding_shares(filing)]
 
 
