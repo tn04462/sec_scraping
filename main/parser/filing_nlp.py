@@ -127,7 +127,6 @@ class SECUMatcher:
             ]
         ]
         self.matcher.add("SECUATTR_ENT", [*patterns], on_match=_add_SECUATTR_ent)
-    
 
     
     def add_SECU_ent_to_matcher(self):
@@ -239,6 +238,23 @@ class SECUMatcher:
         ]
         self.matcher.add("SECU_ENT", [*patterns, *special_patterns], on_match=_add_SECU_ent)
 
+    def add_SECUQUANTITY_ent_to_matcher(self):
+        regular_patterns = [
+            [
+                {"ENT_TYPE": "CARDINAL"},
+                {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
+                {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
+            ]
+        ]
+        each_pattern = [
+                [
+                    {"LOWER": {"IN": ["each", "every"]}},
+                    {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
+                ]
+            ]
+        self.matcher.add("SECUQUANTITY_ENT", [*regular_patterns, *each_pattern], on_match=_add_SECUQUANTITY_ent_regular_case)
+
+
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if doc[end].lower not in exclude:
         return False
@@ -260,6 +276,26 @@ def _add_SECU_ent(matcher, doc: Doc, i, matches):
 
 def _add_SECUATTR_ent(matcher, doc: Doc, i, matches):
     _add_ent(doc, i, matches, "SECUATTR")
+
+
+def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
+    match_id, start, end = matches[i]
+    entity = Span(doc, start, start+1, label="SECUQUANTITY")
+    try:
+        doc.ents += (entity,)
+    except ValueError as e:
+        if "[E1010]" in str(e):
+            previous_ents = set(doc.ents)
+            conflicting_ents = []
+            for ent in doc.ents:                
+                covered_tokens = range(ent.start, ent.end)
+                if (start in covered_tokens) or (end in covered_tokens):
+                    if (ent.end - ent.start) <= (end - start):
+                        conflicting_ents.append((ent.end - ent.start, ent))
+            if [end-start > k[0] for k in conflicting_ents] is True:
+                [previous_ents.remove(k[1]) for k in conflicting_ents]
+                previous_ents.append(entity)
+            doc.ents = previous_ents
 
 def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
     '''add a custom entity through an on_match callback.'''
@@ -365,7 +401,7 @@ class SpacyFilingTextSearch:
     def _normalize_SECU(self, security: str):
         return security.lower()
     
-    def match_mentioned_secus(self, doc: Doc):
+    def get_mentioned_secus(self, doc: Doc):
         '''get all SECU entities'''
         secus = dict()
         for ent in doc.ents:
@@ -479,9 +515,9 @@ class SpacyFilingTextSearch:
         no_primary_matches = _convert_matches_to_spans(doc, filter_matches(no_primary_matcher(doc, as_spans=False)))
 
 
-    def _handle_no_primary_secu_match(self, match):
-        converted_security = CommonShare()
-        base_secu = 
+    # def _handle_no_primary_secu_match(self, match):
+    #     converted_security = CommonShare()
+    #     base_secu = 
 
     
         

@@ -1,5 +1,5 @@
 from types import NoneType
-from typing import TypeAlias, TypeVar, Union
+from typing import Optional, TypeAlias, TypeVar, Union
 from pydantic import validator, BaseModel, root_validator
 from datetime import datetime, timedelta
 
@@ -12,7 +12,7 @@ from main.parser.filings_base import FilingValue
 #     name: str
 
 class CommonShare(BaseModel):
-    name: str = "Common Shares"
+    name: str = "Common Stock"
     par_value: float = 0.001
 
 class PreferredShare(BaseModel):
@@ -23,25 +23,53 @@ class Option(BaseModel):
     name: str
     right: str
     strike_price: float
-    issue_date: datetime
-    lifetime: timedelta
+    expiry_date: datetime
     multiplier: float = 100
 
 class Warrant(BaseModel):
     name: str
     exercise_price: float
-    issue_date: datetime = ...
-    right: str = "Call"
-    lifetime: timedelta = timedelta(days=1825)
+    expiry: datetime
+    right: str = "Call" 
     multiplier: float = 1.0
+    issue_date: Optional[datetime] = None
 
 class DebtSecurity(BaseModel):
     name: str
     interest_rate: float
-    issue_date: datetime = ...
-    lifetime: timedelta = ...
+    maturity: datetime
+    issue_date: Optional[datetime] = None
+    
 
 Security: TypeAlias =  Union[CommonShare, PreferredShare, Option, Warrant, DebtSecurity, NoneType]
+
+class SecurityTypeFactory:
+    '''get the correct Security Type from a string'''
+    def __init__(self):
+        self.builders = {
+            "common": CommonShare,
+            "preferred": PreferredShare,
+            "option": Option,
+            "warrant": Warrant,
+            "note": DebtSecurity
+        }
+        self.keywords = list(self.builders.keys())
+        self.fallback = DebtSecurity
+    
+    def register_builders(self, keywords: list, security_type: Security):
+        for kw in keywords:
+            if kw in self.keywords:
+                raise AttributeError(f"keyword is already associated with a different Security Type: {kw} associated with {self.builders[kw]}")
+            else:
+                self.builders[kw] = security_type
+                self.keywords.append(kw)
+                self.keywords.sort(key=lambda x: len(x))
+    
+    def get_security_type(self, name: str):
+        for kw in self.keywords:
+            if kw in name:
+                return self.builders[kw]
+        return self.fallback
 
 
 class ConvertibleAttribute(BaseModel):
@@ -139,7 +167,7 @@ class FormValues:
     def form_case(self):
         return self._form_case
     
-    @property.setter
+    @form_case.setter
     def form_case(self, new_case):
         self._form_case = new_case
     
@@ -178,4 +206,4 @@ class FormValues:
 
 
 if __name__ == "__main__":
-    debt_secu = DebtSecurity(name="debt_secu", interest_rate=0.5, issue_date=datetime(2020, 2, 1), lifetime=timedelta(days=1825))
+    debt_secu = DebtSecurity(name="debt_secu", interest_rate=0.5, maturity=datetime(2020, 2, 1))

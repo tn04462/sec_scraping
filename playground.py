@@ -680,7 +680,7 @@ if __name__ == "__main__":
     search = SpacyFilingTextSearch()
     filing = _create_filing("S-3", r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
     # section = filing.get_section("cover page 0")
-    print(search.match_mentioned_secus(search.nlp(filing.get_text_only())))
+    print(search.get_mentioned_secus(search.nlp(filing.get_text_only())))
     # text = section.text_only
     # # print(text)
     # # # doc = search.nlp(text)

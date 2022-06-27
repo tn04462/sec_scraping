@@ -6,37 +6,15 @@ import pandas as pd
 import re
 from spacy.matcher import Matcher
 from spacy.tokens import Doc
+
+from main.security_models.naiv_models import CommonShare, PreferredShare, Securities, SecurityTypeFactory, Warrant
 from .filing_nlp import SpacyFilingTextSearch
 
 logger = logging.getLogger(__name__)
+security_type_factory = SecurityTypeFactory()
 
 class UnhandledClassificationError(Exception):
     pass
-
-# class SecurityCompletedOffering:
-#     def __init__(
-#         self,
-#         secu,
-#         secu_amount,
-#         source_secu
-#     )
-
-# class SecurityRegistration:
-#     def __init__(
-#         self,
-#         registered_secu,
-#         registered_secu_amount: int,
-#         registered_secu_unit: str = "shares",
-#         is_convertible: bool = False,
-#         conversion_from_related: bool = True,
-#         related_secu = None):
-#         self.registered_secu = registered_secu
-#         self.registered_secu_amount = registered_secu_amount
-#         self.registered_secu_unit = registered_secu_unit
-#         self.is_convertible = is_convertible
-#         self.conversion_from_related = conversion_from_related
-#         self.related_secu = related_secu
-
 
 
 
@@ -85,6 +63,67 @@ class BaseExtractor():
 class BaseHTMExtractor(BaseExtractor):
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
+    
+    def _normalize_SECU(self, security: str):
+        return security.lower()
+    
+    def get_mentioned_secus(self, doc: Doc):
+        '''get all SECU entities'''
+        secus = dict()
+        for ent in doc.ents:
+            if ent.label_ == "SECU":
+                normalized_ent = self._normalize_SECU(ent.text)
+                if normalized_ent in secus.keys():
+                    secus[normalized_ent].append(ent)
+                else:
+                    secus[normalized_ent] = [ent]
+        return secus
+    
+    def get_security_attributes(self, security_name: str):
+        security_type = security_type_factory.get_security_type(security_name)
+        if isinstance(security_type, CommonShare):
+            attributes = {"name": security_name}
+        elif isinstance(security_type, PreferredShare):
+            attributes = {"name": security_name}
+        elif isinstance(security_type, Warrant):
+            attributes = {
+                "name": security_name,
+                "exercise_price": 
+                }
+    
+    #try and make below commented functions applicable across securities
+    #so we dont have 50 functions that do the same thing
+    # def get_warrant_exercise_price(self, doc: Doc, security_name: str):
+    #     pass
+    
+    # def get_warrant_expiry(self, doc: Doc, security_name: str):
+    #     pass
+
+    # def get_warrant_multiplier(self, doc: Doc, security_name: str):
+    #     pass
+
+    # def get_warrant_issue_date(self, doc: Doc, security_name: str):
+    #     pass
+
+    def get_secu_conversion(self, doc: Doc, securities: Securities):
+        pass
+    
+    def get_issuable_relation(self, doc: Doc, securities: Securities):
+        # make patterns match on base secu explicitly
+        # if part1[0] matches assume common stock?
+        # then extract relation (and note span of SECU aswell)
+        # normalize secu text to lower so we reduce amount of cases
+        # write function to create secu from secu_type and optional kwargs
+        primary_matches = self.spacy_text_search.match_issuable_secu_primary(doc)
+        no_primary_matches = self.spacy_text_search.match_issuable_secu_no_primary(doc)
+        #WIP
+
+
+    # def _handle_issuable_no_primary_secu_match(self, match):
+    #     converted_security = CommonShare()
+    #     base_secu = 
+
+    # def _handle_issuable_primary_secu_match(self, match):
     
     def doc_from_section(self, section: FilingSection):
         return self.spacy_text_search.nlp(section.text_only)
