@@ -1,5 +1,7 @@
 from abc import ABC
 import logging
+
+from pydantic import ValidationError
 from main.parser.filings_base import Filing, FilingSection, FilingValue
 from datetime import datetime
 import pandas as pd
@@ -7,7 +9,7 @@ import re
 from spacy.matcher import Matcher
 from spacy.tokens import Doc
 
-from main.security_models.naiv_models import CommonShare, PreferredShare, Securities, SecurityTypeFactory, Warrant
+from main.security_models.naiv_models import CommonShare, DebtSecurity, FormValues, PreferredShare, Securities, Security, SecurityTypeFactory, Warrant, Option
 from .filing_nlp import SpacyFilingTextSearch
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,12 @@ class AbstractFilingExtractor(ABC):
         pass
 
 class BaseExtractor():
+    def create_form_values(self, filing: Filing):
+        return FormValues(
+            cik=filing.cik,
+            accn=filing.accession_number,
+            form_type=filing.form_type
+        )
     def create_filing_value(self, filing: Filing, field_name: str, field_values: dict, context:str=None, date_parsed: datetime=datetime.now()):
         '''create a FilingValue'''
         return FilingValue(
@@ -64,6 +72,9 @@ class BaseHTMExtractor(BaseExtractor):
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
     
+    def _create_securities(self):
+        return Securities()
+    
     def _normalize_SECU(self, security: str):
         return security.lower()
     
@@ -79,34 +90,83 @@ class BaseHTMExtractor(BaseExtractor):
                     secus[normalized_ent] = [ent]
         return secus
     
-    def get_security_attributes(self, security_name: str):
+    def get_security(self, doc: Doc, security_name: str):
         security_type = security_type_factory.get_security_type(security_name)
+        security_attributes = self.get_security_attributes(
+            doc=doc,
+            security_name=security_name,
+            security_type=security_type)
+        if security_attributes:
+            try:
+                security = security_type(**security_attributes)
+            except ValidationError as e:# Error when creating model object
+                logger.debug(f"ValidationError in get_security: {e}", exc_info=True)
+                return None
+            return security
+
+    def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security):  
+        attributes = {}
+        _kwargs = {"doc": doc, "security_name": security_name}
         if isinstance(security_type, CommonShare):
-            attributes = {"name": security_name}
+            attributes = {
+                "name": security_name
+                }
         elif isinstance(security_type, PreferredShare):
-            attributes = {"name": security_name}
+            attributes = {
+                "name": security_name
+                }
         elif isinstance(security_type, Warrant):
             attributes = {
                 "name": security_name,
-                "exercise_price": 
+                "exercise_price": self.get_secu_exercise_price(**_kwargs),
+                "expiry": self.get_secu_interest_rate(**_kwargs),
+                "right": self.get_secu_right(**_kwargs),
+                "multiplier": self.get_secu_multiplier(**_kwargs),
+                "issue_date": self.get_secu_latest_issue_date(**_kwargs)
                 }
+        elif isinstance(security_type, Option):
+            attributes = {
+                "name": security_name,
+                "strike_price": self.get_secu_exercise_price(**_kwargs),
+                "expiry": self.get_secu_interest_rate(**_kwargs),
+                "right": self.get_secu_right(**_kwargs),
+                "multiplier": self.get_secu_multiplier(**_kwargs),
+                "issue_date": self.get_secu_latest_issue_date(**_kwargs)
+            }
+        elif isinstance(security_type, DebtSecurity):
+            attributes = {
+                "name": security_name,
+                "interest_rate": self.get_secu_interest_rate(**_kwargs),
+                "maturity": self.get_secu_expiry(**_kwargs),
+                "issue_date": self.get_secu_latest_issue_date(**_kwargs)
+            }
+        if attributes != {}:
+            return attributes
+        else:
+            return None
+            
+    def get_secu_exercise_price(self, doc: Doc, security_name: str):
+        pass
     
-    #try and make below commented functions applicable across securities
-    #so we dont have 50 functions that do the same thing
-    # def get_warrant_exercise_price(self, doc: Doc, security_name: str):
-    #     pass
-    
-    # def get_warrant_expiry(self, doc: Doc, security_name: str):
-    #     pass
+    def get_secu_expiry(self, doc: Doc, security_name: str):
+        pass
 
-    # def get_warrant_multiplier(self, doc: Doc, security_name: str):
-    #     pass
+    def get_secu_multiplier(self, doc: Doc, security_name: str):
+        pass
 
-    # def get_warrant_issue_date(self, doc: Doc, security_name: str):
-    #     pass
+    def get_secu_latest_issue_date(self, doc: Doc, security_name: str):
+        pass
+
+    def get_secu_interest_rate(self, doc: Doc, security_name: str):
+        pass
+
+    def get_secu_right(self, doc: Doc, security_name: str):
+        pass
 
     def get_secu_conversion(self, doc: Doc, securities: Securities):
         pass
+
+    
     
     def get_issuable_relation(self, doc: Doc, securities: Securities):
         # make patterns match on base secu explicitly
@@ -141,7 +201,22 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
-
+    def extract_form_values(self, filing: Filing):
+        form_values = self.create_form_values(filing)
+        form_values.form_case = self.classify_s3(filing)
+        form_values.securities = self.extract_securities(filing)
+        #WIP
+    
+    def extract_securities(self, filing: Filing):
+        '''extract securities and their relation and return a Securities object.'''
+        securities = Securities()
+        cover_page = filing.get_section(re.compile("cover page"))
+        cover_page_doc = #get doc from section
+        raw_secus = self.spacy_text_search.get_mentioned_secus(cover_page_doc)
+        for secu in raw_secus
+        # look in descrption of capital stock and cover page
+        # 
+        #WIP
 
     def classify_s3(self, filing: Filing):
         cover_page = filing.get_section(re.compile("cover page"))

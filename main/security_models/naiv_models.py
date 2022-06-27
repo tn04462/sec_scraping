@@ -3,7 +3,7 @@ from typing import Optional, TypeAlias, TypeVar, Union
 from pydantic import validator, BaseModel, root_validator
 from datetime import datetime, timedelta
 
-from main.parser.filings_base import FilingValue
+# from main.parser.filings_base import FilingValue
 
 
 # implement an __eq__ for each security
@@ -21,10 +21,11 @@ class PreferredShare(BaseModel):
 
 class Option(BaseModel):
     name: str
-    right: str
     strike_price: float
-    expiry_date: datetime
+    expiry: datetime
+    right: str
     multiplier: float = 100
+    issue_date: Optional[datetime] = None
 
 class Warrant(BaseModel):
     name: str
@@ -160,7 +161,7 @@ class FormValues:
         self.accession_number = accn
         self.form_type: str = form_type
         self._form_case: str = None
-        self._filing_values: list[FilingValue] = list()
+        # self._filing_values: list[FilingValue] = list()
         self._securities = Securities()
     
     @property
@@ -206,4 +207,4 @@ class FormValues:
 
 
 if __name__ == "__main__":
-    debt_secu = DebtSecurity(name="debt_secu", interest_rate=0.5, maturity=datetime(2020, 2, 1))
+    debt_secu = DebtSecurity(interest_rate=0.5, maturity=datetime(2020, 2, 1))
