@@ -398,35 +398,9 @@ class SpacyFilingTextSearch:
                 values.append(value)
         return values
     
-    def _normalize_SECU(self, security: str):
-        return security.lower()
-    
-    def get_mentioned_secus(self, doc: Doc):
-        '''get all SECU entities'''
-        secus = dict()
-        for ent in doc.ents:
-            if ent.label_ == "SECU":
-                normalized_ent = self._normalize_SECU(ent.text)
-                if normalized_ent in secus.keys():
-                    secus[normalized_ent].append(ent)
-                else:
-                    secus[normalized_ent] = [ent]
-        return secus
-    
-    def match_issuable_relation(self, doc: Doc, securities: Securities):
-        # make patterns match on base secu explicitly
-        # if part1[0] matches assume common stock?
-        # then extract relation (and note span of SECU aswell)
-        # normalize secu text to lower so we reduce amount of cases
-        # write function to create secu from secu_type and optional kwargs
+    def match_issuable_secu_primary(self, doc: Doc):
         secu_transformative_actions = ["exercise", "conversion"]
         part1 = [
-            [
-                {"ENT_TYPE": "CARDINAL"},
-                {"LOWER": "shares"},
-                {"LOWER": "issuable"},
-                {"LOWER": "upon"}
-            ],
             [
                 {"ENT_TYPE": "CARDINAL"},
                 {"LOWER": "shares"},
@@ -435,7 +409,7 @@ class SpacyFilingTextSearch:
                 {"ENT_TYPE": "SECU", "OP": "+"},
                 {"LOWER": "issuable"},
                 {"LOWER": "upon"},
-                {"LOWER": "the", "OP": "?"}    
+                {"LOWER": "the", "OP": "?"}
             ]
         ]
         part2 = [
@@ -461,20 +435,6 @@ class SpacyFilingTextSearch:
                 {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}}
             ]
         ]
-        no_primary_secu_pattern = []
-        for transformative_action in secu_transformative_actions:
-            p1 = part1[0]
-            for p2 in part2:
-                pattern = [
-                            *p1,
-                            {"LOWER": transformative_action},
-                            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-                            *p2,
-                            {"LOWER": "of"},
-                            {"ENT_TYPE": "SECU", "OP": "+"}
-                            ]
-                no_primary_secu_pattern.append(pattern)
-
         primary_secu_pattern = []
         for transformative_action in secu_transformative_actions:
             p1 = part1[1]
@@ -506,23 +466,11 @@ class SpacyFilingTextSearch:
             for transformative_action in secu_transformative_actions
         ]
         [primary_secu_pattern.append(x) for x in pattern2]
-        primary_matcher = Matcher(self.nlp.vocab)
-        no_primary_matcher = Matcher(self.nlp.vocab)
-
-        primary_matcher.add("primary_secu", [*primary_secu_pattern])
-        no_primary_matcher.add("no_primary_secu", [*no_primary_secu_pattern])
-        primary_matches = _convert_matches_to_spans(doc, filter_matches(primary_matcher(doc, as_spans=False)))
-        no_primary_matches = _convert_matches_to_spans(doc, filter_matches(no_primary_matcher(doc, as_spans=False)))
-
-
-    # def _handle_no_primary_secu_match(self, match):
-    #     converted_security = CommonShare()
-    #     base_secu = 
-
+        matcher = Matcher(self.nlp.vocab)
+        matcher.add("primary_secu", [*primary_secu_pattern])
+        matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
     
-        
-    
-    def match_issuable_secu(self, text):
+    def match_issuable_secu_no_primary(self, doc: Doc):
         secu_transformative_actions = ["exercise", "conversion"]
         part1 = [
             [
@@ -530,16 +478,6 @@ class SpacyFilingTextSearch:
                 {"LOWER": "shares"},
                 {"LOWER": "issuable"},
                 {"LOWER": "upon"}
-            ],
-            [
-                {"ENT_TYPE": "CARDINAL"},
-                {"LOWER": "shares"},
-                {"LOWER": "of"},
-                {"LOWER": "our", "OP": "?"},
-                {"ENT_TYPE": "SECU", "OP": "+"},
-                {"LOWER": "issuable"},
-                {"LOWER": "upon"},
-                {"LOWER": "the", "OP": "?"}    
             ]
         ]
         part2 = [
@@ -565,54 +503,24 @@ class SpacyFilingTextSearch:
                 {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}}
             ]
         ]
-        pattern1 = []
+        no_primary_secu_pattern = []
         for transformative_action in secu_transformative_actions:
-            for p1 in part1:
-                for p2 in part2:
-                    pattern = [
-                                *p1,
-                                {"LOWER": transformative_action},
-                                {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-                                *p2,
-                                {"LOWER": "of"},
-                                {"ENT_TYPE": "SECU", "OP": "+"}
-                              ]
-                    pattern1.append(pattern)
-        
-        pattern2 = [
-            [
-            {"ENT_TYPE": "CARDINAL"},
-            {"LOWER": "shares"},
-            {"LOWER": "of"},
-            {"LOWER": "our", "OP": "?"},
-            {"ENT_TYPE": "SECU", "OP": "+"},
-            {"LOWER": "issuable"},
-            {"LOWER": "upon"},
-            {"LOWER": "the", "OP": "?"},
-            {"LOWER": transformative_action},
-            {"LOWER": "of"},
-            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
-            {"ENT_TYPE": "SECU", "OP": "+"}
-            ]
-            for transformative_action in secu_transformative_actions
-        ]
+            for p2 in part2:
+                pattern = [
+                            *part1,
+                            {"LOWER": transformative_action},
+                            {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
+                            *p2,
+                            {"LOWER": "of"},
+                            {"ENT_TYPE": "SECU", "OP": "+"}
+                            ]
+                no_primary_secu_pattern.append(pattern)
         matcher = Matcher(self.nlp.vocab)
-        matcher.add("sec_relation", [*pattern1, *pattern2])
-        doc = self.nlp(text)
+        matcher.add("no_primary_secu", [*no_primary_secu_pattern])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
-        if matches == []:
-            logger.debug("no matches for secu_relation found")
-            return []
-        values = []
-        for match in matches:
-            value = {"secu_relation": {}}
-            # keys: registered_amount, dilutive (bool), secu, converted_from/issuable_through secu, exercise_prices 
-            # OR
-            # keys: "converted_to": common stock by default, base_secu, converted_amount, exercise_prices, base_amount: None default 
-            print(match)
-            # for ent in match.ents:
-            #     logger.debug((ent, ent.label_))
-
+        return matches
+    
+    
 def filter_matches(matches):
     '''works as spacy.util.filter_spans but for matches'''
     if len(matches) <= 1:

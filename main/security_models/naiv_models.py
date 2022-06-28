@@ -1,7 +1,10 @@
 from types import NoneType
 from typing import Optional, TypeAlias, TypeVar, Union
-from pydantic import validator, BaseModel, root_validator
+from pydantic import ValidationError, validator, BaseModel, root_validator
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 # from main.parser.filings_base import FilingValue
 
@@ -74,20 +77,20 @@ class SecurityTypeFactory:
 
 
 class ConvertibleAttribute(BaseModel):
-    base_secu: Security
-    converted_secu: Security
+    base_secu: str
+    converted_secu: str
     conversion_ratio: float = 1.0
 
 class SecurityCompletedOffering(BaseModel):
-    secu: Security
+    secu: str
     amount: int
     source_secu: Union[CommonShare, PreferredShare, Option, Warrant, DebtSecurity, NoneType]
 
 class SecurityRegistration(BaseModel):
-    secu: Security
+    secu: str
     amount: int
     unit: str 
-    source_secu: Security
+    source_secu: str
 
 
 
@@ -98,6 +101,10 @@ class Securities:
         self._registrations: set[SecurityRegistration] = set()
         self._convertible_attr: set[ConvertibleAttribute] = set()
         self._secus_values = dict[Security] = dict() #unused
+    
+    @property
+    def secus(self):
+        return self._secus
 
     def get_secu(self, secu_type, **kwargs):
         secus_found = []
@@ -114,8 +121,14 @@ class Securities:
         elif secus_found == []:
             return None
     
-    def add_secu(self, secu_type, **kwargs):
-        self._secus.add(secu_type(kwargs))
+    def add_secu(self, secu_type: Security, kwargs: dict):
+        try:
+            security = secu_type(**kwargs)
+        except ValidationError as e:
+            logger.debug(f"ValidationError in get_security: {e}. passed secu_type: {secu_type}; kwargs: {kwargs}", exc_info=True)
+            return None
+        self._secus.add(security)
+        return security
     
     def _assert_secu_in_secus(self, secu: Security):
         if secu is None:
@@ -124,7 +137,7 @@ class Securities:
                 self._secus.add(secu)
         
     
-    def add_conversion_attribute(self, base_secu: Security, converted_secu: Security, conversion_ratio: float):
+    def add_conversion_attribute(self, base_secu: str, converted_secu: str, conversion_ratio: float):
         for s in [base_secu, converted_secu]:
             self._assert_secu_in_secus(s)
         self._convertible_attr.add(
@@ -134,7 +147,7 @@ class Securities:
                 conversion_ratio=conversion_ratio)
         )
     
-    def add_completed_offering(self, secu: Security, amount: int, source_secu: Security=None):
+    def add_completed_offering(self, secu: str, amount: int, source_secu: str=None):
         self._assert_secu_in_secus(secu)
         if source_secu is not None:
             self._assert_secu_in_secus(source_secu)
@@ -144,7 +157,7 @@ class Securities:
                 amount=amount,
                 source_secu=source_secu))
     
-    def add_registration(self, secu: Security, amount: int, unit: str="shares", source_secu: Security=None):
+    def add_registration(self, secu: str, amount: int, unit: str="shares", source_secu: str=None):
         self._assert_secu_in_secus(secu)
         self._registrations.add(
             SecurityRegistration(

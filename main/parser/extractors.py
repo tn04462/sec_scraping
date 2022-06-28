@@ -90,19 +90,19 @@ class BaseHTMExtractor(BaseExtractor):
                     secus[normalized_ent] = [ent]
         return secus
     
-    def get_security(self, doc: Doc, security_name: str):
-        security_type = security_type_factory.get_security_type(security_name)
-        security_attributes = self.get_security_attributes(
-            doc=doc,
-            security_name=security_name,
-            security_type=security_type)
-        if security_attributes:
-            try:
-                security = security_type(**security_attributes)
-            except ValidationError as e:# Error when creating model object
-                logger.debug(f"ValidationError in get_security: {e}", exc_info=True)
-                return None
-            return security
+    def get_security_type(self, security_name: str):
+        return security_type_factory.get_security_type(security_name)
+    
+    
+    def merge_attributes(self, d1: dict, d2: dict):
+        if d1.keys() == d2.keys():
+            for d2key in d2.keys():
+                try:
+                    if (d1[d2key] is None) and (d2[d2key] is not None):
+                        d1[d2key] = d2[d2key]
+                except KeyError:
+                    pass
+            return d1 
 
     def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security):  
         attributes = {}
@@ -163,12 +163,12 @@ class BaseHTMExtractor(BaseExtractor):
     def get_secu_right(self, doc: Doc, security_name: str):
         pass
 
-    def get_secu_conversion(self, doc: Doc, securities: Securities):
+    def get_secu_conversion(self, doc: Doc, security_name: str):
         pass
 
     
     
-    def get_issuable_relation(self, doc: Doc, securities: Securities):
+    def get_issuable_relation(self, doc: Doc, security_name: str):
         # make patterns match on base secu explicitly
         # if part1[0] matches assume common stock?
         # then extract relation (and note span of SECU aswell)
@@ -205,15 +205,39 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         form_values = self.create_form_values(filing)
         form_values.form_case = self.classify_s3(filing)
         form_values.securities = self.extract_securities(filing)
+        
         #WIP
     
     def extract_securities(self, filing: Filing):
         '''extract securities and their relation and return a Securities object.'''
         securities = Securities()
         cover_page = filing.get_section(re.compile("cover page"))
-        cover_page_doc = #get doc from section
-        raw_secus = self.spacy_text_search.get_mentioned_secus(cover_page_doc)
-        for secu in raw_secus
+        cover_page_doc = self.doc_from_section(cover_page)
+        raw_secus = self.get_mentioned_secus(cover_page_doc)
+        description_sections = filing.get_sections(re.compile("description\s*of", re.I))
+        description_docs = [self.doc_from_section(x) for x in description_sections]
+        for secu, _ in raw_secus.items():
+            security_type = self.get_security_type(secu)
+            security_attributes = {}
+            for doc in description_docs:
+                security_attributes = self.merge_attributes(
+                    security_attributes,
+                    self.get_security_attributes(doc, secu, security_type))
+            securities.add_secu(security_type, security_attributes)
+        for security in securities.secus:
+            for doc in description_docs:
+                conversion_attr = self.get_secu_conversion(doc, security.name)
+                if conversion_attr:
+                    # add conversion attribute to Securities
+                    pass # need to write get_secu_conversion first
+        return securities
+
+                
+
+
+            # iter through sections and get attributes then merge attributes
+            # stop as soon as attributes have all None values
+
         # look in descrption of capital stock and cover page
         # 
         #WIP
