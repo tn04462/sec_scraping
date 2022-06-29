@@ -1,1 +1,17 @@
-<diagram program="umletino" version="14.4.0-SNAPSHOT"><zoom_level>10</zoom_level></diagram>
+<diagram program="umletino" version="14.4.0-SNAPSHOT"><zoom_level>10</zoom_level><element><id>UMLClass</id><coordinates><x>208</x><y>330</y><w>160</w><h>80</h></coordinates><panel_attributes>DilutionDB
+-
+Instantiates DB.
+Create, Read Operations
+(based on RAW SQL).</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>68</x><y>430</y><w>160</w><h>80</h></coordinates><panel_attributes>DilutionDBUpdater
+-
+Utiltity for Updates of 
+DB Content
+and local Files</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>240</x><y>430</y><w>160</w><h>90</h></coordinates><panel_attributes>DilutionDBUtill
+-
+Helper functions for
+DilutionDB and 
+DilutionDBUpdater</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLUseCase</id><coordinates><x>0</x><y>190</y><w>110</w><h>40</h></coordinates><panel_attributes>Database
+bg=blue</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLUseCase</id><coordinates><x>0</x><y>100</y><w>110</w><h>40</h></coordinates><panel_attributes>LocalFiles
+bg=blue</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>200</x><y>70</y><w>220</w><h>120</h></coordinates><panel_attributes>Mapper
+-
+</panel_attributes><additional_attributes></additional_attributes></element></diagram>
