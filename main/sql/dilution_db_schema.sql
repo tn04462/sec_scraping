@@ -72,21 +72,7 @@ CREATE TABLE IF NOT EXISTS filing_parse_history(
         UNIQUE(company_id, accession_number)
 );
 
--- not sure if it makes sense to store the values like this after parsing
--- JSON structure has to be enforced application side with value, unit, ect for given field_name
--- reasoning: this way i can add new fields more easily and keep the validation on the parsing side, does it make sense to do it this way?
-CREATE TABLE IF NOT EXISTS filing_values(
-    company_id SERIAL, -- which company filed it
-    accession_number VARCHAR, -- what filing the values come from
-    date_parsed DATE, -- on which date the parse was done
-    field_name VARCHAR NOT NULL, -- the field name
-    field_values JSON,
 
-    CONSTRAINT fk_company_id
-        FOREIGN KEY (company_id)
-            REFERENCES companies(id),
-    CONSTRAINT unique_co_accn_field_name UNIQUE(company_id, accession_number, field_name)
-);
 
 -- maybe add taxonomy, name and accn to know source
 CREATE TABLE IF NOT EXISTS outstanding_shares(
@@ -232,7 +218,7 @@ CREATE TABLE IF NOT EXISTS underwriters(
 
 
 
-CREATE TABLE IF NOT EXISTS shelf_registration(
+CREATE TABLE IF NOT EXISTS shelf_registrations(
     id SERIAL PRIMARY KEY,
     company_id SERIAL NOT NULL,
     accn VARCHAR(30) NOT NULL,
@@ -254,7 +240,7 @@ CREATE TABLE IF NOT EXISTS shelf_registration(
             REFERENCES form_types(form_type)
 );
 
-CREATE TABLE IF NOT EXISTS resale_registration(
+CREATE TABLE IF NOT EXISTS resale_registrations(
     id SERIAL PRIMARY KEY,
     company_id SERIAL NOT NULL,
     accn VARCHAR(30) NOT NULL,
@@ -273,13 +259,13 @@ CREATE TABLE IF NOT EXISTS resale_registration(
             REFERENCES form_types(form_type)
 );
 
-CREATE TABLE IF NOT EXISTS underwriters_shelf_registration(
+CREATE TABLE IF NOT EXISTS underwriters_shelf_registrations(
     shelf_id SERIAL,
     underwriter_id SERIAL,
 
     CONSTRAINT fk_shelf_id
         FOREIGN KEY (shelf_id)
-            REFERENCES shelf_registration(id),
+            REFERENCES shelf_registrations(id),
     CONSTRAINT fk_underwriter_id
         FOREIGN KEY (underwriter_id)
             REFERENCES underwriters(underwriter_id)
@@ -289,12 +275,11 @@ CREATE TABLE IF NOT EXISTS offering_status(
     id SERIAL PRIMARY KEY,
     status_name VARCHAR UNIQUE
     );
--- tables: shelf_registration_offerings, offerings_underwriters, offerings_securities, securities, security as json?
+-- tables: shelf_registrations_shelf_offerings, shelf_offerings_underwriters, shelf_offerings_securities, securities, security as json?
 
-CREATE TABLE IF NOT EXISTS offerings(
+CREATE TABLE IF NOT EXISTS shelf_offerings(
     id SERIAL PRIMARY KEY,
     offering_type VARCHAR,
-    company_id SERIAL,
     shelf_id NOT NULL,
     final_offering_amount_usd BIGINT,
     anticipated_offering_amount_usd BIGINT,
@@ -302,9 +287,6 @@ CREATE TABLE IF NOT EXISTS offerings(
     commencment_date TIMESTAMP,
     end_date TIMESTAMP,
       
-    CONSTRAINT fk_company_id
-        FOREIGN KEY (company_id)
-            REFERENCES companies(id),
     CONSTRAINT fk_offering_status_id
         FOREIGN KEY (offering_status_id)
             REFERENCES offering_status(id)
@@ -331,13 +313,9 @@ CREATE TABLE IF NOT EXISTS securities (
 );
 
 CREATE TABLE IF NOT EXISTS securities_cusip(
-    company_id SERIAL, --issuer
     cusip_number VARCHAR (16) PRIMARY KEY,
     security_id SERIAL,
 
-    CONSTRAINT fk_company_id
-        FOREIGN KEY (company_id)
-            REFERENCES companies(id),
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
             REFERENCES securities(id)
@@ -358,93 +336,90 @@ CREATE TABLE IF NOT EXISTS securities_conversion (
             REFERENCES securities(id)
 );
 
-CREATE TABLE IF NOT EXISTS securities_offerings_completed (
+CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
     security_id SERIAL,
-    offerings_id SERIAL,
-    conversion_id SERIAL NULL,
-    conversion_direction CONVERSION_DIRECTION,
+    shelf_offerings_id SERIAL,
+    source_security_id SERIAL NULL,
     amount BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
-    CONSTRAINT fk_offerings
-        FOREIGN KEY (offerings_id)
-            REFERENCES offerings(id),
-    CONSTRAINT fk_conversion_id
-        FOREIGN KEY (conversion_id)
-            REFERENCES securities_conversion(id),
-
-    CONSTRAINT secucrity_offering_conversion
-        UNIQUE (security_id, offerings_id, conversion_id)
+    CONSTRAINT fk_shelf_offerings
+        FOREIGN KEY (shelf_offerings_id)
+            REFERENCES shelf_offerings(id),
+     CONSTRAINT fk_source_security_id
+        FOREIGN KEY (source_security_id)
+            REFERENCES securities(id),
+    
+    CONSTRAINT secucrity_offering_source_security_amount
+        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount)
 );
 
-CREATE TABLE IF NOT EXISTS securities_offerings_registered (
+CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
     security_id SERIAL,
-    offerings_id SERIAL,
-    conversion_id SERIAL NULL,
-    conversion_direction CONVERSION_DIRECTION,
+    shelf_offerings_id SERIAL,
+    source_security_id SERIAL NULL,
     amount BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
-    CONSTRAINT fk_offerings
-        FOREIGN KEY (offerings_id)
-            REFERENCES offerings(id),
-    CONSTRAINT fk_conversion_id
-        FOREIGN KEY (conversion_id)
-            REFERENCES securities_conversion(id),
+    CONSTRAINT fk_shelf_offerings
+        FOREIGN KEY (shelf_offerings_id)
+            REFERENCES shelf_offerings(id),
+    CONSTRAINT fk_source_security_id
+        FOREIGN KEY (source_security_id)
+            REFERENCES securities(id),
 
-    CONSTRAINT secucrity_offering_conversion
-        UNIQUE (security_id, offerings_id, conversion_id)
+    CONSTRAINT secucrity_offering_source_security_amount
+        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount)
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_completed (
     security_id SERIAL,
     resale_regisration_id SERIAL,
-    conversion_id SERIAL NULL,
-    conversion_direction CONVERSION_DIRECTION,
+    source_security_id SERIAL NULL,
     amount BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
-    CONSTRAINT fk_resale_registration_id
-        FOREIGN KEY (resale_registration_id)
-            REFERENCES resale_registration(id),
-    CONSTRAINT fk_conversion_id
-        FOREIGN KEY (conversion_id)
-            REFERENCES securities_conversion(id),
-
-    CONSTRAINT secucrity_offering_conversion
-        UNIQUE (security_id, offerings_id, conversion_id)
+    CONSTRAINT fk_resale_registrations_id
+        FOREIGN KEY (resale_regisration_id)
+            REFERENCES resale_registrations(id),
+     CONSTRAINT fk_source_security_id
+        FOREIGN KEY (source_security_id)
+            REFERENCES securities(id),
+    
+    CONSTRAINT secucrity_offering_source_security_amount
+        UNIQUE (security_id, resale_registrations_id, source_security_id, amount)
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_registered (
     security_id SERIAL,
-    resale_registration_id SERIAL,
-    conversion_id SERIAL NULL,
-    conversion_direction CONVERSION_DIRECTION,
+    resale_registrations_id SERIAL,
+    source_security_id SERIAL NULL,
     amount BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
-    CONSTRAINT fk_resale_registration_id
-        FOREIGN KEY (resale_registration_id)
-            REFERENCES resale_registration(id),
-    CONSTRAINT fk_conversion_id
-        FOREIGN KEY (conversion_id)
-            REFERENCES securities_conversion(id),
+    CONSTRAINT fk_resale_registrations_id
+        FOREIGN KEY (resale_regisration_id)
+            REFERENCES resale_registrations(id),
+    CONSTRAINT fk_source_security_id
+        FOREIGN KEY (source_security_id)
+            REFERENCES securities(id),
 
-    CONSTRAINT secucrity_resale_conversion
-        UNIQUE (security_id, resale_registration_id, conversion_id)
+    CONSTRAINT secucrity_offering_source_security_amount
+        UNIQUE (security_id, resale_registrations_id, source_security_id, amount)
 );
 
 CREATE TABLE IF NOT EXISTS securities_outstanding (
     security_id SERIAL,
     amount_outstanding BIGINT,
+    instant DATE,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
@@ -455,6 +430,7 @@ CREATE TABLE IF NOT EXISTS securities_authorized (
     company_id SERIAL,
     security_type VARCHAR,
     amount_authorized BIGINT,
+    instant DATE,
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
