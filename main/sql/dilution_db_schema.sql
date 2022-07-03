@@ -259,13 +259,13 @@ CREATE TABLE IF NOT EXISTS resale_registrations(
             REFERENCES form_types(form_type)
 );
 
-CREATE TABLE IF NOT EXISTS underwriters_shelf_registrations(
-    shelf_id SERIAL,
+CREATE TABLE IF NOT EXISTS underwriters_shelf_offerings(
+    offerings_id SERIAL,
     underwriter_id SERIAL,
 
-    CONSTRAINT fk_shelf_id
-        FOREIGN KEY (shelf_id)
-            REFERENCES shelf_registrations(id),
+    CONSTRAINT fk_offerings_id
+        FOREIGN KEY (offerings_id)
+            REFERENCES shelf_offerings(id),
     CONSTRAINT fk_underwriter_id
         FOREIGN KEY (underwriter_id)
             REFERENCES underwriters(underwriter_id)

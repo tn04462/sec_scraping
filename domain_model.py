@@ -1,9 +1,9 @@
 from types import NoneType
-from typing import Optional, TypeAlias, TypeVar, Union
-from pydantic import ValidationError, validator, BaseModel, root_validator
+from typing import Optional, Set, TypeAlias, TypeVar, Union
+from pydantic import Json, ValidationError, validator, BaseModel, root_validator
 from datetime import date, datetime, timedelta
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,18 @@ class SecurityTypeFactory:
             if kw in name:
                 return self.builders[kw]
         return self.fallback
+@dataclass
+class Underwriter:
+    name: str
+
+@dataclass
+class OfferingStatus:
+    status_name: str
+
+@dataclass
+class SecurityCusip:
+    cusip_number: str
+    security_name: str
 
 class Security:
     def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying_name: str=None):
@@ -79,9 +91,37 @@ class Security:
         return str(self.security_attributes)
 
 @dataclass
+class SecurityConversionAttributes:
+    conversion_attributes: Json
+
+'''
+Notes:
+    build test case to relate source_name to source_id
+    in a sibling model class or find alternatives.
+'''
+@dataclass
 class SecurityOutstanding:
-    amount_outstanding: int
+    amount: int
     instant: date
+
+@dataclass
+class SecurityAuthorized:
+    security_type: str
+    amount: int
+    instant: date
+
+@dataclass
+class ShelfOfferingRegistration:
+    security_name: str
+    source_security_name: str
+    amount: int
+
+@dataclass
+class ShelfOfferingComplete:
+    security_name: str
+    source_security_name: str
+    amount: int
+
 
 @dataclass
 class ShelfOffering:
@@ -89,28 +129,61 @@ class ShelfOffering:
     anticipated_offering_amount: float
     commencment_date: datetime
     end_date: datetime
-    final_offering_amount_usd: float = None
+    final_offering_amount_usd: float = 0.0
+    underwriters: Set[Underwriter] = fields(default_factory=set)
+    offering_registrations: Set[ShelfOfferingRegistration] = fields(default_factory=set)
+    offering_completed: Set[ShelfOfferingComplete] = fields(default_factory=set)
 
-    
     def __repr__(self):
-        return str(self)
+        return f"{self}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
 
-class Offering:
-    def __init__(self, designation: str):
-        self.designation = designation
-        self.amounts = list()
-    
-    def __repr__(self):
-        return self.designation
+@dataclass
+class ShelfRegistration:
+    accn: str
+    form_type: str
+    capacity: int
+    filing_date: date
+    effect_date: Optional[date] = fields(default=None)
+    last_update: Optional[date] = fields(default=None)
+    expiry: Optional[date] = fields(default=None)
+    total_amount_raised: Optional[int] = fields(default=None)
+    total_amount_raised_unit: Optional[str] = fields(default="USD")
+    offerings: Set[ShelfOffering] = fields(default_factory=set)
+
+@dataclass
+class ShelfResaleRegistration:
+    security_name: str
+    source_security_name: str
+    amount: int
+
+@dataclass
+class ShelfResaleComplete:
+    security_name: str
+    source_security_name: str
+    amount: int
+
+@dataclass
+class ResaleRegistration:
+    accn: str
+    form_type: str
+    filing_date: date
+    effect_date: Optional[date] = fields(default=None)
+    last_update: Optional[date] = fields(default=None)
+    expiry: Optional[date] = fields(default=None)
+    resale_registration: Set[ShelfResaleRegistration] = fields(default_fatory=set)
+    resale_completed: Set[ShelfResaleRegistration] = fields(default_fatory=set)
+
+
 
 class Company:
-    def __init__(self, _name: str, securities: set[SecurityType], offerings: set[Offering]):
+    def __init__(self, _name: str, securities: set[Security]=None, shelfs: set[ShelfRegistration]=None, resales: set[ResaleRegistration]=None):
         self._name = _name
         self.securities = securities
-        self.offerings = offerings
+        self.shelfs = shelfs
+        self.resales = resales
     
     def change_name(self, new_name):
         self._name = new_name
     
-    def add_security(self, security_type):
-        self.securities.add(SecurityType(security_type=security_type))
+    def add_security(self, security_type: SecurityType, name: str, kwargs: dict):
+        self.securities.add(security_type(name=name, **kwargs))
