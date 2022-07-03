@@ -6,13 +6,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# from main.parser.filings_base import FilingValue
-
-
-# implement an __eq__ for each security
-
-# class Security(BaseModel):
-#     name: str
 
 class CommonShare(BaseModel):
     name: str = "Common Stock"

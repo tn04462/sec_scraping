@@ -1052,6 +1052,7 @@ class DilutionDBUtil:
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
             logger.debug(f"values passed to _parse_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
             filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
+            logger.debug(f"_create_filing created: {len(filings)} out of one file.")
             for filing in filings:
                 filing_values.append(self._parse_filing(filing))
         return filing_values

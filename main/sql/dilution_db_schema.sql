@@ -279,8 +279,10 @@ CREATE TABLE IF NOT EXISTS offering_status(
 
 CREATE TABLE IF NOT EXISTS shelf_offerings(
     id SERIAL PRIMARY KEY,
+    shelf_registrations_id INTEGER NOT NULL,
+    accn VARCHAR(30) NOT NULL,
+    filing_date DATE,
     offering_type VARCHAR,
-    shelf_id NOT NULL,
     final_offering_amount_usd BIGINT,
     anticipated_offering_amount_usd BIGINT,
     offering_status_id SERIAL,
@@ -289,7 +291,10 @@ CREATE TABLE IF NOT EXISTS shelf_offerings(
       
     CONSTRAINT fk_offering_status_id
         FOREIGN KEY (offering_status_id)
-            REFERENCES offering_status(id)
+            REFERENCES offering_status(id),
+    CONSTRAINT fk_shelf_registrations_id
+        FOREIGN KEY (shelf_registrations_id)
+            REFERENCES shelf_registrations(id)
 );
 
 

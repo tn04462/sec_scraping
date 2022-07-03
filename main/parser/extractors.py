@@ -72,9 +72,6 @@ class BaseHTMExtractor(BaseExtractor):
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
     
-    def _create_securities(self):
-        return Securities()
-    
     def _normalize_SECU(self, security: str):
         return security.lower()
     

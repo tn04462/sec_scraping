@@ -1,5 +1,4 @@
 from types import NoneType
-from xmlrpc.client import boolean
 from pydantic import validator, BaseModel, root_validator
 from datetime import datetime
 from typing import Callable
