@@ -111,15 +111,15 @@ class SecurityAuthorized:
     instant: date
 
 @dataclass
-class ShelfOfferingRegistration:
-    security_name: str
-    source_security_name: str
+class ShelfSecurityRegistration:
+    security: str
+    source_security: str
     amount: int
 
 @dataclass
-class ShelfOfferingComplete:
-    security_name: str
-    source_security_name: str
+class ShelfSecurityComplete:
+    security: str
+    source_security: str
     amount: int
 
 
@@ -131,8 +131,8 @@ class ShelfOffering:
     end_date: datetime
     final_offering_amount_usd: float = 0.0
     underwriters: Set[Underwriter] = fields(default_factory=set)
-    offering_registrations: Set[ShelfOfferingRegistration] = fields(default_factory=set)
-    offering_completed: Set[ShelfOfferingComplete] = fields(default_factory=set)
+    offering_registrations: Set[ShelfSecurityRegistration] = fields(default_factory=set)
+    offering_completed: Set[ShelfSecurityComplete] = fields(default_factory=set)
 
     def __repr__(self):
         return f"{self}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
@@ -151,15 +151,15 @@ class ShelfRegistration:
     offerings: Set[ShelfOffering] = fields(default_factory=set)
 
 @dataclass
-class ShelfResaleRegistration:
-    security_name: str
-    source_security_name: str
+class ResaleSecurityRegistration:
+    security: str
+    source_security: str
     amount: int
 
 @dataclass
-class ShelfResaleComplete:
-    security_name: str
-    source_security_name: str
+class ResaleSecurityComplete:
+    security: str
+    source_security: str
     amount: int
 
 @dataclass
@@ -170,8 +170,8 @@ class ResaleRegistration:
     effect_date: Optional[date] = fields(default=None)
     last_update: Optional[date] = fields(default=None)
     expiry: Optional[date] = fields(default=None)
-    resale_registration: Set[ShelfResaleRegistration] = fields(default_fatory=set)
-    resale_completed: Set[ShelfResaleRegistration] = fields(default_fatory=set)
+    resale_registration: Set[ResaleSecurityRegistration] = fields(default_fatory=set)
+    resale_completed: Set[ResaleSecurityComplete] = fields(default_fatory=set)
 
 
 
@@ -187,3 +187,5 @@ class Company:
     
     def add_security(self, security_type: SecurityType, name: str, kwargs: dict):
         self.securities.add(security_type(name=name, **kwargs))
+
+# make company an aggregate and do all the work from there ?
