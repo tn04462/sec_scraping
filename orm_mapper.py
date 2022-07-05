@@ -31,6 +31,14 @@ from domain_model import (
     ResaleSecurityRegistration,
     ResaleSecurityComplete,
     ResaleRegistration,
+
+    Sic,
+    FilingParseHistoryEntry,
+    FilingLink,
+    CashOperating,
+    CashFinancing,
+    CashInvesting,
+    CashNetAndEquivalents,
     Company
 )
 

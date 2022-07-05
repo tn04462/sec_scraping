@@ -1,6 +1,6 @@
 from types import NoneType
 from typing import Optional, Set, TypeAlias, TypeVar, Union
-from pydantic import Json, ValidationError, validator, BaseModel, root_validator
+from pydantic import AnyUrl, Json, ValidationError, validator, BaseModel, root_validator
 from datetime import date, datetime, timedelta
 import logging
 from dataclasses import dataclass, fields
@@ -173,6 +173,8 @@ class ResaleRegistration:
     resale_registration: Set[ResaleSecurityRegistration] = fields(default_fatory=set)
     resale_completed: Set[ResaleSecurityComplete] = fields(default_fatory=set)
 
+
+
 @dataclass
 class Sic:
     sector: str
@@ -184,6 +186,36 @@ class FilingParseHistoryEntry:
     accession_number: str
     date_parsed: date
 
+@dataclass
+class FilingLink:
+    filing_html: AnyUrl
+    form_type: str
+    filing_date: date
+    description_: str
+    file_number: str
+
+@dataclass
+class CashOperating:
+    from_date: date
+    to_date: date
+    amount: int
+
+@dataclass
+class CashFinancing:
+    from_date: date
+    to_date: date
+    amount: int
+
+@dataclass
+class CashInvesting:
+    from_date: date
+    to_date: date
+    amount: int
+
+@dataclass
+class CashNetAndEquivalents:
+    instant: date
+    amount: int
 
 
 class Company:
