@@ -10,12 +10,6 @@ CREATE TYPE SECURITY_TYPES as ENUM (
     'ConvertibleDebtSecurity'
     );
 
-CREATE TYPE CONVERSION_DIRECTION as ENUM (
-    'from',
-    'to',
-    'NULL'
-);
-
 CREATE TABLE IF NOT EXISTS files_last_update(
     submissions_zip_lud TIMESTAMP,
     companyfacts_zip_lud TIMESTAMP
@@ -225,7 +219,6 @@ CREATE TABLE IF NOT EXISTS shelf_registrations(
     form_type VARCHAR NOT NULL,
     capacity BIGINT,
     total_amount_raised BIGINT,
-    total_amount_raised_unit VARCHAR,
     effect_date DATE,
     last_update DATE,
     expiry DATE,
@@ -283,8 +276,8 @@ CREATE TABLE IF NOT EXISTS shelf_offerings(
     accn VARCHAR(30) NOT NULL,
     filing_date DATE,
     offering_type VARCHAR,
-    final_offering_amount_usd BIGINT,
-    anticipated_offering_amount_usd BIGINT,
+    final_offering_amount BIGINT,
+    anticipated_offering_amount BIGINT,
     offering_status_id SERIAL,
     commencment_date TIMESTAMP,
     end_date TIMESTAMP,
@@ -318,7 +311,8 @@ CREATE TABLE IF NOT EXISTS securities (
 );
 
 CREATE TABLE IF NOT EXISTS securities_cusip(
-    cusip_number VARCHAR (16) PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
+    cusip_number VARCHAR (16),
     security_id SERIAL,
 
     CONSTRAINT fk_security_id
@@ -342,6 +336,7 @@ CREATE TABLE IF NOT EXISTS securities_conversion (
 );
 
 CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
+    id INTEGER PRIMARY KEY,
     security_id SERIAL,
     shelf_offerings_id SERIAL,
     source_security_id SERIAL NULL,
@@ -362,6 +357,7 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
 );
 
 CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
+    id INTEGER PRIMARY KEY,
     security_id SERIAL,
     shelf_offerings_id SERIAL,
     source_security_id SERIAL NULL,
@@ -382,8 +378,9 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_completed (
+    id INTEGER PRIMARY KEY,
     security_id SERIAL,
-    resale_regisration_id SERIAL,
+    resale_regisrations_id SERIAL,
     source_security_id SERIAL NULL,
     amount BIGINT,
 
@@ -391,7 +388,7 @@ CREATE TABLE IF NOT EXISTS securities_resale_completed (
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
     CONSTRAINT fk_resale_registrations_id
-        FOREIGN KEY (resale_regisration_id)
+        FOREIGN KEY (resale_regisrations_id)
             REFERENCES resale_registrations(id),
      CONSTRAINT fk_source_security_id
         FOREIGN KEY (source_security_id)
@@ -402,6 +399,7 @@ CREATE TABLE IF NOT EXISTS securities_resale_completed (
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_registered (
+    id INTEGER PRIMARY KEY,
     security_id SERIAL,
     resale_registrations_id SERIAL,
     source_security_id SERIAL NULL,
@@ -422,8 +420,9 @@ CREATE TABLE IF NOT EXISTS securities_resale_registered (
 );
 
 CREATE TABLE IF NOT EXISTS securities_outstanding (
+    id INTEGER PRIMARY KEY,
     security_id SERIAL,
-    amount_outstanding BIGINT,
+    amount BIGINT,
     instant DATE,
 
     CONSTRAINT fk_security_id
@@ -432,9 +431,10 @@ CREATE TABLE IF NOT EXISTS securities_outstanding (
 );
 
 CREATE TABLE IF NOT EXISTS securities_authorized (
+    id INTEGER PRIMARY KEY,
     company_id SERIAL,
-    security_type VARCHAR,
-    amount_authorized BIGINT,
+    security_type SECURITY_TYPES,
+    amount BIGINT,
     instant DATE,
 
     CONSTRAINT fk_company_id

@@ -173,6 +173,17 @@ class ResaleRegistration:
     resale_registration: Set[ResaleSecurityRegistration] = fields(default_fatory=set)
     resale_completed: Set[ResaleSecurityComplete] = fields(default_fatory=set)
 
+@dataclass
+class Sic:
+    sector: str
+    industry: str
+    division: str
+
+@dataclass
+class FilingParseHistoryEntry:
+    accession_number: str
+    date_parsed: date
+
 
 
 class Company:
