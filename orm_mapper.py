@@ -31,7 +31,6 @@ from domain_model import (
     ResaleSecurityRegistration,
     ResaleSecurityComplete,
     ResaleRegistration,
-
     Sic,
     FilingParseHistoryEntry,
     FilingLink,
@@ -53,14 +52,14 @@ underwriters = Table(
     "underwriters",
     reg.metadata,
     Column("id", Integer, primary_key=True),
-    Column("_name", String)
+    Column("name_", String)
 )
 
 offering_status = Table(
     "offering_status",
     reg.metadata,
     Column("id", Integer, primary_key=True),
-    Column("_name", String)
+    Column("name_", String)
 )
 
 securities_cusip = Table(
@@ -195,5 +194,115 @@ resale_registrations = Table(
     Column("is_active", Boolean),
 )
 
+sics = Table(
+    "sics",
+    reg.metadata,
+    Column("sic", Integer, primary_key=True),
+    Column("sector", String),
+    Column("industry", String),
+    Column("division", String)
+)
+
+filing_parse_history = Table(
+    "filing_parse_history",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("company_id", ForeignKey("companies.id")),
+    Column("accession_number", String),
+    Column("date_parsed", Date)
+)
+
+filing_links = Table(
+    "filing_link",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("company_id", ForeignKey("companies.id")),
+    Column("filing_html", String),
+    Column("form_type", ForeignKey("form_types.form_type")),
+    Column("filing_date", Date),
+    Column("description_", String),
+    Column("file_number", String)
+)
+
+cash_operating = Table(
+    "cash_operating",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("company_id", ForeignKey("companies.id")),
+    Column("from_date", Date),
+    Column("to_date", Date),
+    Column("amount", BigInteger)
+)
+
+cash_financing = Table(
+    "cash_financing",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("company_id", ForeignKey("companies.id")),
+    Column("from_date", Date),
+    Column("to_date", Date),
+    Column("amount", BigInteger)
+)
+
+cash_investing = Table(
+    "cash_investing",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("company_id", ForeignKey("companies.id")),
+    Column("from_date", Date),
+    Column("to_date", Date),
+    Column("amount", BigInteger)
+)
+
+net_cash_and_equivalents = Table(
+    "net_cash_and_equivalents",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("company_id", ForeignKey("companies.id")),
+    Column("instant", Date),
+    Column("amount", BigInteger)
+)
+
+companies = Table(
+    "companies",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("cik", String, nullable=False),
+    Column("sic", ForeignKey("sics.sic")),
+    Column("symbol", String, unique=True),
+    Column("name_", String),
+    Column("description_", String)
+)
+
+def start_mappers():
+    underwriters_mapper = reg.map_imperatively(
+        Underwriter,
+        underwriters,
+        properties={
+            "name": underwriters.name_
+        }
+    )
+
+    offering_status_mapper = reg.map_imperatively(
+        OfferingStatus,
+        offering_status,
+        properties={
+            "name": offering_status.name_
+        }
+    )
+
+    securities_cusip_mapper = reg.map_imperatively(
+        SecurityCusip,
+        securities_cusip
+    )
+
+    securities_mapper = reg.map_imperatively(
+        Security,
+        securities,
+        properties={
+            "name": securities.security_name,
+            "underlying_name": 
+        }
+    )
 
 
