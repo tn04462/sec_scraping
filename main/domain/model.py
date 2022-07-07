@@ -4,7 +4,7 @@ from typing_extensions import Self
 from pydantic import AnyUrl, Json, ValidationError, validator, BaseModel, root_validator
 from datetime import date, datetime, timedelta
 import logging
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -115,13 +115,13 @@ class SecurityAuthorized:
 class ShelfSecurityRegistration:
     security: Security
     amount: int
-    source_security: Optional[Security] = fields(default=None)
+    source_security: Optional[Security] = field(default=None)
 
 @dataclass
 class ShelfSecurityComplete:
     security: Security
     amount: int
-    source_security: Optional[Security] = fields(default=None)
+    source_security: Optional[Security] = field(default=None)
 
 
 @dataclass
@@ -131,9 +131,9 @@ class ShelfOffering:
     commencment_date: datetime
     end_date: datetime
     final_offering_amount_usd: float = 0.0
-    underwriters: Set[Underwriter] = fields(default_factory=set)
-    registrations: Set[ShelfSecurityRegistration] = fields(default_factory=set)
-    completed: Set[ShelfSecurityComplete] = fields(default_factory=set)
+    underwriters: Set[Underwriter] = field(default_factory=set)
+    registrations: Set[ShelfSecurityRegistration] = field(default_factory=set)
+    completed: Set[ShelfSecurityComplete] = field(default_factory=set)
 
     def __repr__(self):
         return f"{self}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
@@ -144,35 +144,35 @@ class ShelfRegistration:
     form_type: str
     capacity: int
     filing_date: date
-    effect_date: Optional[date] = fields(default=None)
-    last_update: Optional[date] = fields(default=None)
-    expiry: Optional[date] = fields(default=None)
-    total_amount_raised: Optional[int] = fields(default=None)
-    total_amount_raised_unit: Optional[str] = fields(default="USD")
-    offerings: Set[ShelfOffering] = fields(default_factory=set)
+    effect_date: Optional[date] = field(default=None)
+    last_update: Optional[date] = field(default=None)
+    expiry: Optional[date] = field(default=None)
+    total_amount_raised: Optional[int] = field(default=None)
+    total_amount_raised_unit: Optional[str] = field(default="USD")
+    offerings: Set[ShelfOffering] = field(default_factory=set)
 
 @dataclass
 class ResaleSecurityRegistration:
     security: Security
     amount: int
-    source_security: Optional[Security] = fields(default=None)
+    source_security: Optional[Security] = field(default=None)
 
 @dataclass
 class ResaleSecurityComplete:
     security: Security
     amount: int
-    source_security: Optional[Security] = fields(default=None)
+    source_security: Optional[Security] = field(default=None)
 
 @dataclass
 class ResaleRegistration:
     accn: str
     form_type: str
     filing_date: date
-    effect_date: Optional[date] = fields(default=None)
-    last_update: Optional[date] = fields(default=None)
-    expiry: Optional[date] = fields(default=None)
-    registrations: Set[ResaleSecurityRegistration] = fields(default_fatory=set)
-    completed: Set[ResaleSecurityComplete] = fields(default_fatory=set)
+    effect_date: Optional[date] = field(default=None)
+    last_update: Optional[date] = field(default=None)
+    expiry: Optional[date] = field(default=None)
+    registrations: Set[ResaleSecurityRegistration] = field(default_factory=set)
+    completed: Set[ResaleSecurityComplete] = field(default_factory=set)
 
 
 
