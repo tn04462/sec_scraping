@@ -29,6 +29,10 @@ import main.parser.parsers as parsers
 from main.configs import cnf
 from _constants import FORM_TYPES_INFO, EDGAR_BASE_ARCHIVE_URL
 
+# from main.adapters.repository import AbstractRepository
+# from main.adapters.orm import start_mappers
+from main.services.unit_of_work import AbstractUnitOfWork
+from main.domain import model
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -91,11 +95,12 @@ else:
 
 
 class DilutionDB:
-    def __init__(self, connectionString):
+    def __init__(self, connectionString, company_uow: AbstractUnitOfWork, ):
         self.connectionString = connectionString
         self.pool = ConnectionPool(
             self.connectionString, kwargs={"row_factory": dict_row}
         )
+        self.company_uow = company_uow
         self.conn = self.pool.connection
         self.tracked_tickers = self._get_tracked_tickers_from_config()
         self.tracked_forms = self._get_tracked_forms_from_config()

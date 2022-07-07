@@ -1,5 +1,6 @@
 from types import NoneType
 from typing import Optional, Set, TypeAlias, TypeVar, Union
+from typing_extensions import Self
 from pydantic import AnyUrl, Json, ValidationError, validator, BaseModel, root_validator
 from datetime import date, datetime, timedelta
 import logging
@@ -82,10 +83,10 @@ class SecurityCusip:
     security_name: str
 
 class Security:
-    def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying_name: str=None):
+    def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying: Optional[Self]=None):
         self.name = secu_attributes.name if name is None else name
-        self.underlying_name = underlying_name
         self.security_attributes = secu_attributes.json()
+        self.underlying = underlying
     
     def __repr__(self):
         return str(self.security_attributes)
@@ -112,15 +113,15 @@ class SecurityAuthorized:
 
 @dataclass
 class ShelfSecurityRegistration:
-    security: str
-    source_security: str
+    security: Security
     amount: int
+    source_security: Optional[Security] = fields(default=None)
 
 @dataclass
 class ShelfSecurityComplete:
-    security: str
-    source_security: str
+    security: Security
     amount: int
+    source_security: Optional[Security] = fields(default=None)
 
 
 @dataclass
@@ -131,8 +132,8 @@ class ShelfOffering:
     end_date: datetime
     final_offering_amount_usd: float = 0.0
     underwriters: Set[Underwriter] = fields(default_factory=set)
-    offering_registrations: Set[ShelfSecurityRegistration] = fields(default_factory=set)
-    offering_completed: Set[ShelfSecurityComplete] = fields(default_factory=set)
+    registrations: Set[ShelfSecurityRegistration] = fields(default_factory=set)
+    completed: Set[ShelfSecurityComplete] = fields(default_factory=set)
 
     def __repr__(self):
         return f"{self}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
@@ -152,15 +153,15 @@ class ShelfRegistration:
 
 @dataclass
 class ResaleSecurityRegistration:
-    security: str
-    source_security: str
+    security: Security
     amount: int
+    source_security: Optional[Security] = fields(default=None)
 
 @dataclass
 class ResaleSecurityComplete:
-    security: str
-    source_security: str
+    security: Security
     amount: int
+    source_security: Optional[Security] = fields(default=None)
 
 @dataclass
 class ResaleRegistration:
@@ -170,8 +171,8 @@ class ResaleRegistration:
     effect_date: Optional[date] = fields(default=None)
     last_update: Optional[date] = fields(default=None)
     expiry: Optional[date] = fields(default=None)
-    resale_registration: Set[ResaleSecurityRegistration] = fields(default_fatory=set)
-    resale_completed: Set[ResaleSecurityComplete] = fields(default_fatory=set)
+    registrations: Set[ResaleSecurityRegistration] = fields(default_fatory=set)
+    completed: Set[ResaleSecurityComplete] = fields(default_fatory=set)
 
 
 
@@ -213,18 +214,25 @@ class CashInvesting:
     amount: int
 
 @dataclass
-class CashNetAndEquivalents:
+class NetCashAndEquivalents:
     instant: date
     amount: int
 
 
 class Company:
-    def __init__(self, _name: str, securities: set[Security]=None, shelfs: set[ShelfRegistration]=None, resales: set[ResaleRegistration]=None):
+    def __init__(self, _name: str, securities: set[Security]=None, shelfs: set[ShelfRegistration]=None, resales: set[ResaleRegistration]=None, filing_parse_history: set[FilingParseHistoryEntry]=None):
         self._name = _name
-        self.securities = securities
-        self.shelfs = shelfs
-        self.resales = resales
-    
+        self.securities = set() if securities is None else securities
+        self.shelfs = set() if shelfs is None else shelfs
+        self.resales = set() if resales is None else resales
+        self.filing_parse_history = set() if filing_parse_history is None else filing_parse_history
+        self.filing_links = set()
+        self.cash_operating = set()
+        self.cash_finacing = set()
+        self.cash_investing = set()
+        self.net_cash_and_equivalents = set()
+
+
     def change_name(self, new_name):
         self._name = new_name
     

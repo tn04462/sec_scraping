@@ -37,7 +37,7 @@ from domain_model import (
     CashOperating,
     CashFinancing,
     CashInvesting,
-    CashNetAndEquivalents,
+    NetCashAndEquivalents,
     Company
 )
 
@@ -53,6 +53,13 @@ underwriters = Table(
     reg.metadata,
     Column("id", Integer, primary_key=True),
     Column("name_", String)
+)
+
+underwriters_shelf_offerings = Table(
+    "underwriters_shelf_offerings",
+    reg.metadata,
+    Column("offerings_id", ForeignKey("shelf_offerings.id")),
+    Column("underwriter_id", ForeignKey("underwriters.id"))
 )
 
 offering_status = Table(
@@ -301,8 +308,227 @@ def start_mappers():
         securities,
         properties={
             "name": securities.security_name,
-            "underlying_name": 
+            "underlying": relationship(
+                Security,
+                primaryjoin=securities.c.id==securities.c.underlying_security_id,
+                remote_side=securities.c.id,
+                uselist=False
+            ) 
         }
     )
+
+    securities_conversion_mapper = reg.map_imperatively(
+        SecurityConversionAttributes,
+        securities_conversion
+    )
+
+    securities_outstanding_mapper = reg.map_imperatively(
+        SecurityOutstanding,
+        securities_outstanding
+    )
+
+    securities_authorized_mapper = reg.map_imperatively(
+        SecurityAuthorized,
+        securities_authorized
+    )
+
+    securities_shelf_offerings_registered_mapper = reg.map_imperatively(
+        ShelfSecurityRegistration,
+        securities_shelf_offerings_registered,
+        properties={
+            "security": relationship(
+                securities_mapper,
+                primaryjoin=securities_shelf_offerings_registered.c.id==securities_shelf_offerings_registered.c.id,
+                remote_side=securities_shelf_offerings_registered.c.id,
+                uselist=False),
+            "source_security": relationship(
+                securities_mapper,
+                primaryjoin=securities_shelf_offerings_registered.c.id==securities_shelf_offerings_registered.c.source_security_id,
+                remote_side=securities_shelf_offerings_registered.c.id,
+                uselist=False)
+        }
+    )
+
+    securities_shelf_offerings_completed_mapper = reg.map_imperatively(
+        ShelfSecurityComplete,
+        securities_shelf_offerings_completed,
+        properties={
+            "security": relationship(
+                securities_mapper,
+                primaryjoin=securities_shelf_offerings_completed.c.id==securities_shelf_offerings_completed.c.id,
+                remote_side=securities_shelf_offerings_completed.c.id,
+                uselist=False),
+            "source_security": relationship(
+                securities_mapper,
+                primaryjoin=securities_shelf_offerings_completed.c.id==securities_shelf_offerings_completed.c.source_security_id,
+                remote_side=securities_shelf_offerings_completed.c.id,
+                uselist=False)
+        }
+    )
+
+    securities_resale_registered_mapper = reg.map_imperatively(
+        ResaleSecurityRegistration,
+        securities_resale_registered,
+        properties={
+            "security": relationship(
+                securities_mapper,
+                primaryjoin=securities_resale_registered.c.id==securities_resale_registered.c.id,
+                remote_side=securities_resale_registered.c.id,
+                uselist=False),
+            "source_security": relationship(
+                securities_mapper,
+                primaryjoin=securities_resale_registered.c.id==securities_resale_registered.c.source_security_id,
+                remote_side=securities_resale_registered.c.id,
+                uselist=False)
+        }
+    )
+
+    securities_resale_comnpleted_mapper = reg.map_imperatively(
+        ResaleSecurityComplete,
+        securities_resale_comnpleted,
+        properties={
+            "security": relationship(
+                securities_mapper,
+                primaryjoin=securities_resale_comnpleted.c.id==securities_resale_comnpleted.c.id,
+                remote_side=securities_resale_comnpleted.c.id,
+                uselist=False),
+            "source_security": relationship(
+                securities_mapper,
+                primaryjoin=securities_resale_comnpleted.c.id==securities_resale_comnpleted.c.source_security_id,
+                remote_side=securities_resale_comnpleted.c.id,
+                uselist=False)
+        }
+    )
+
+    shelf_offerings_mapper = reg.map_imperatively(
+        ShelfOffering,
+        shelf_offerings,
+        properties={
+            "underwriters": relationship(
+                underwriters_mapper,
+                secondary=underwriters_shelf_offerings,
+                collection_class=set
+            ),
+            "registrations": relationship(
+                securities_shelf_offerings_registered_mapper,
+                collection_class=set
+            ),
+            "completed": relationship(
+                securities_shelf_offerings_completed_mapper,
+                collection_class=set
+            )
+        }
+    )
+
+    shelf_registrations_mapper = reg.map_imperatively(
+        ShelfRegistration,
+        shelf_registrations,
+        properties={
+            "offerings": relationship(
+                shelf_offerings_mapper,
+                collection_class=set
+            )
+        }
+    )
+
+    resale_registrations_mapper = reg.map_imperatively(
+        ResaleRegistration,
+        resale_registrations,
+        properties={
+            "registrations": relationship(
+                securities_resale_registered_mapper,
+                collection_class=set
+            ),
+            "completed": relationship(
+                securities_resale_comnpleted_mapper,
+                collection_class=set
+            )
+        }
+    )
+
+    sics_mapper = reg.map_imperatively(
+        Sic,
+        sics
+    )
+
+    filing_parse_history_mapper = reg.map_imperatively(
+        FilingParseHistoryEntry,
+        filing_parse_history
+    )
+
+    filing_links_mapper = reg.map_imperatively(
+        FilingLink,
+        filing_links
+    )
+
+    cash_operating_mapper = reg.map_imperatively(
+        CashOperating,
+        cash_operating
+    )
+
+    cash_financing_mapper = reg.map_imperatively(
+        CashFinancing,
+        cash_financing
+    )
+
+    cash_investing_mapper = reg.map_imperatively(
+        CashInvesting,
+        cash_investing
+    )
+
+    net_cash_and_equivalents_mapper = reg.map_imperatively(
+        NetCashAndEquivalents,
+        net_cash_and_equivalents
+    )
+
+    companies_mapper = reg.map_imperatively(
+        Company,
+        companies,
+        properties={
+            "securities": relationship(
+                securities_mapper,
+                collection_class=set
+            ),
+            "shelfs": relationship(
+                shelf_registrations_mapper,
+                collection_class=set
+            ),
+            "resales": relationship(
+                resale_registrations_mapper,
+                collection_class=set
+            ),
+            "filing_parse_history": relationship(
+                filing_parse_history_mapper,
+                collection_class=set
+            ),
+            "filing_links": relationship(
+                filing_links_mapper,
+                collection_class=set
+            ),
+            "cash_operating": relationship(
+                cash_operating_mapper,
+                collection_class=set
+            ),
+            "cash_financing": relationship(
+                cash_financing_mapper,
+                collection_class=set
+            ),
+            "cash_investing": relationship(
+                cash_investing_mapper,
+                collection_class=set
+            ),
+            "net_cash_and_equivalents": relationship(
+                net_cash_and_equivalents_mapper,
+                collection_class=set
+            )
+
+        }
+    )
+
+
+
+
+
+
 
 
