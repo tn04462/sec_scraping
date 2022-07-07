@@ -7,16 +7,14 @@ from sqlalchemy import (
     Column,
     String,
     Table,
-    ForeignKey,
-    Text
+    ForeignKey
 )
 from sqlalchemy.orm import (
     relationship,
     registry
 )
-from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy import types
-from domain_model import (
+from main.domain.model import (
     Underwriter,
     OfferingStatus,
     SecurityCusip,

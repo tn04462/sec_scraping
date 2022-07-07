@@ -1,7 +1,7 @@
 import abc
 from typing import Set
 from . import orm
-from . import domain_model
+from main.domain import model
 
 
 class AbstractRepository(abc.ABC):
@@ -24,4 +24,4 @@ class SqlAlchemyCompanyRepository(AbstractRepository):
         self.session.add(company)
 
     def _get(self, symbol):
-        return self.session.query(domain_model.Company).filter_by(symbol=symbol).first()
+        return self.session.query(model.Company).filter_by(symbol=symbol).first()

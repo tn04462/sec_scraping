@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
 from abc import abstractmethod, ABC
 from main.configs import cnf
-from . import repository
+from main.adapters import repository
 
 
 class AbstractUnitOfWork(ABC):
@@ -38,7 +38,7 @@ DEFAULT_SESSION_FACTORY = sessionmaker(
     )
 )
 
-class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
+class SqlAlchemyCompanyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, symbol: str, session_factory=DEFAULT_SESSION_FACTORY):
         self.session_factory = session_factory
 
