@@ -178,6 +178,7 @@ class ResaleRegistration:
 
 @dataclass
 class Sic:
+    sic: int
     sector: str
     industry: str
     division: str
@@ -220,8 +221,12 @@ class NetCashAndEquivalents:
 
 
 class Company:
-    def __init__(self, _name: str, securities: set[Security]=None, shelfs: set[ShelfRegistration]=None, resales: set[ResaleRegistration]=None, filing_parse_history: set[FilingParseHistoryEntry]=None):
-        self._name = _name
+    def __init__(self, name: str, cik: str, sic: str, symbol: str, description_: Optional[str]=None, securities: set[Security]=None, shelfs: set[ShelfRegistration]=None, resales: set[ResaleRegistration]=None, filing_parse_history: set[FilingParseHistoryEntry]=None):
+        self.name = name
+        self.cik = cik,
+        self.sic = sic,
+        self.symbol = symbol,
+        self.description_ = description_
         self.securities = set() if securities is None else securities
         self.shelfs = set() if shelfs is None else shelfs
         self.resales = set() if resales is None else resales

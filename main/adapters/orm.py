@@ -284,7 +284,7 @@ def start_mappers():
         Underwriter,
         underwriters,
         properties={
-            "name": underwriters.name_
+            "name": underwriters.c.name_
         }
     )
 
@@ -292,7 +292,7 @@ def start_mappers():
         OfferingStatus,
         offering_status,
         properties={
-            "name": offering_status.name_
+            "name": offering_status.c.name_
         }
     )
 
@@ -305,7 +305,7 @@ def start_mappers():
         Security,
         securities,
         properties={
-            "name": securities.security_name,
+            "name": securities.c.security_name,
             "underlying": relationship(
                 Security,
                 primaryjoin=securities.c.id==securities.c.underlying_security_id,
@@ -336,13 +336,13 @@ def start_mappers():
         properties={
             "security": relationship(
                 securities_mapper,
-                primaryjoin=securities_shelf_offerings_registered.c.id==securities_shelf_offerings_registered.c.id,
-                remote_side=securities_shelf_offerings_registered.c.id,
+                primaryjoin=securities_shelf_offerings_registered.c.security_id==securities.c.id,
+                remote_side=securities_shelf_offerings_registered.c.security_id,
                 uselist=False),
             "source_security": relationship(
                 securities_mapper,
-                primaryjoin=securities_shelf_offerings_registered.c.id==securities_shelf_offerings_registered.c.source_security_id,
-                remote_side=securities_shelf_offerings_registered.c.id,
+                primaryjoin=securities_shelf_offerings_registered.c.source_security_id==securities.c.id,
+                remote_side=securities_shelf_offerings_registered.c.source_security_id,
                 uselist=False)
         }
     )
@@ -353,13 +353,13 @@ def start_mappers():
         properties={
             "security": relationship(
                 securities_mapper,
-                primaryjoin=securities_shelf_offerings_completed.c.id==securities_shelf_offerings_completed.c.id,
-                remote_side=securities_shelf_offerings_completed.c.id,
+                primaryjoin=securities_shelf_offerings_completed.c.security_id==securities.c.id,
+                remote_side=securities_shelf_offerings_completed.c.security_id,
                 uselist=False),
             "source_security": relationship(
                 securities_mapper,
-                primaryjoin=securities_shelf_offerings_completed.c.id==securities_shelf_offerings_completed.c.source_security_id,
-                remote_side=securities_shelf_offerings_completed.c.id,
+                primaryjoin=securities_shelf_offerings_completed.c.source_security_id==securities.c.id,
+                remote_side=securities_shelf_offerings_completed.c.source_security_id,
                 uselist=False)
         }
     )
@@ -370,13 +370,13 @@ def start_mappers():
         properties={
             "security": relationship(
                 securities_mapper,
-                primaryjoin=securities_resale_registered.c.id==securities_resale_registered.c.id,
-                remote_side=securities_resale_registered.c.id,
+                primaryjoin=securities_resale_registered.c.security_id==securities.c.id,
+                remote_side=securities_resale_registered.c.security_id,
                 uselist=False),
             "source_security": relationship(
                 securities_mapper,
-                primaryjoin=securities_resale_registered.c.id==securities_resale_registered.c.source_security_id,
-                remote_side=securities_resale_registered.c.id,
+                primaryjoin=securities_resale_registered.c.source_security_id==securities.c.id,
+                remote_side=securities_resale_registered.c.source_security_id,
                 uselist=False)
         }
     )
@@ -387,13 +387,13 @@ def start_mappers():
         properties={
             "security": relationship(
                 securities_mapper,
-                primaryjoin=securities_resale_comnpleted.c.id==securities_resale_comnpleted.c.id,
-                remote_side=securities_resale_comnpleted.c.id,
+                primaryjoin=securities_resale_comnpleted.c.security_id==securities.c.id,
+                remote_side=securities_resale_comnpleted.c.security_id,
                 uselist=False),
             "source_security": relationship(
                 securities_mapper,
-                primaryjoin=securities_resale_comnpleted.c.id==securities_resale_comnpleted.c.source_security_id,
-                remote_side=securities_resale_comnpleted.c.id,
+                primaryjoin=securities_resale_comnpleted.c.source_security_id==securities.c.id,
+                remote_side=securities_resale_comnpleted.c.source_security_id,
                 uselist=False)
         }
     )
@@ -483,6 +483,8 @@ def start_mappers():
         Company,
         companies,
         properties={
+            "name": companies.c.name_,
+    
             "securities": relationship(
                 securities_mapper,
                 collection_class=set

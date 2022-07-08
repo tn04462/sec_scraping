@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS sics (
 );
 
 CREATE TABLE IF NOT EXISTS companies (
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     cik VARCHAR(80) NOT NULL,
     sic INT,
     symbol VARCHAR(10) UNIQUE,
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS company_last_update(
 
 -- so i know which filings have been parsed
 CREATE TABLE IF NOT EXISTS filing_parse_history(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     accession_number VARCHAR,
     date_parsed DATE,
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS outstanding_shares(
 );
 
 CREATE TABLE IF NOT EXISTS market_cap(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     instant DATE,
     amount BIGINT,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS market_cap(
 -- )
 
 CREATE TABLE IF NOT EXISTS cash_operating(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     from_date DATE,
     to_date DATE,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS cash_operating(
 );
 
 CREATE TABLE IF NOT EXISTS cash_financing(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     from_date DATE,
     to_date DATE,
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS cash_financing(
 );
 
 CREATE TABLE IF NOT EXISTS cash_investing(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     from_date DATE,
     to_date DATE,
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS cash_investing(
 );
 
 CREATE TABLE IF NOT EXISTS net_cash_and_equivalents(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     instant DATE,
     amount BIGINT,
@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS net_cash_and_equivalents(
 
 
 CREATE TABLE IF NOT EXISTS cash_burn_rate(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     burn_rate_operating FLOAT,
     burn_rate_financing FLOAT,
@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS form_types(
 );
 
 CREATE TABLE IF NOT EXISTS filing_links(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     filing_html VARCHAR(500),
     form_type VARCHAR(200),
@@ -215,14 +215,14 @@ CREATE TABLE IF NOT EXISTS filing_links(
 
 
 CREATE TABLE IF NOT EXISTS underwriters(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     name_ VARCHAR(255)
 );
 
 
 
 CREATE TABLE IF NOT EXISTS shelf_registrations(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     accn VARCHAR(30) NOT NULL,
     form_type VARCHAR NOT NULL,
@@ -243,7 +243,7 @@ CREATE TABLE IF NOT EXISTS shelf_registrations(
 );
 
 CREATE TABLE IF NOT EXISTS resale_registrations(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     accn VARCHAR(30) NOT NULL,
     form_type VARCHAR NOT NULL,
@@ -261,26 +261,13 @@ CREATE TABLE IF NOT EXISTS resale_registrations(
             REFERENCES form_types(form_type)
 );
 
-CREATE TABLE IF NOT EXISTS underwriters_shelf_offerings(
-    offerings_id INTEGER,
-    underwriter_id INTEGER,
-
-    CONSTRAINT fk_offerings_id
-        FOREIGN KEY (offerings_id)
-            REFERENCES shelf_offerings(id),
-    CONSTRAINT fk_underwriter_id
-        FOREIGN KEY (underwriter_id)
-            REFERENCES underwriters(id)
+CREATE TABLE IF NOT EXISTS offering_status(
+    id SERIAL PRIMARY KEY,
+    name_ VARCHAR UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS offering_status(
-    id INTEGER PRIMARY KEY,
-    name_ VARCHAR UNIQUE
-    );
--- tables: shelf_registrations_shelf_offerings, shelf_offerings_underwriters, shelf_offerings_securities, securities, security as json?
-
 CREATE TABLE IF NOT EXISTS shelf_offerings(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     shelf_registrations_id INTEGER NOT NULL,
     accn VARCHAR(30) NOT NULL,
     filing_date DATE,
@@ -299,9 +286,25 @@ CREATE TABLE IF NOT EXISTS shelf_offerings(
             REFERENCES shelf_registrations(id)
 );
 
+CREATE TABLE IF NOT EXISTS underwriters_shelf_offerings(
+    offerings_id INTEGER,
+    underwriter_id INTEGER,
+
+    CONSTRAINT fk_offerings_id
+        FOREIGN KEY (offerings_id)
+            REFERENCES shelf_offerings(id),
+    CONSTRAINT fk_underwriter_id
+        FOREIGN KEY (underwriter_id)
+            REFERENCES underwriters(id)
+);
+
+
+-- tables: shelf_registrations_shelf_offerings, shelf_offerings_underwriters, shelf_offerings_securities, securities, security as json?
+
+
 
 CREATE TABLE IF NOT EXISTS securities (
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     security_name VARCHAR,
     security_type SECURITY_TYPES,
@@ -320,7 +323,7 @@ CREATE TABLE IF NOT EXISTS securities (
 );
 
 CREATE TABLE IF NOT EXISTS securities_cusip(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     cusip_number VARCHAR (16),
     security_id INTEGER,
 
@@ -331,7 +334,7 @@ CREATE TABLE IF NOT EXISTS securities_cusip(
 
 
 CREATE TABLE IF NOT EXISTS securities_conversion (
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     from_security_id INTEGER,
     to_security_id INTEGER,
     conversion_attributes JSON,
@@ -360,7 +363,7 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
     
-    CONSTRAINT secucrity_offering_source_security_amount
+    CONSTRAINT security_offering_source_security_amount_completed
         UNIQUE (security_id, shelf_offerings_id, source_security_id, amount)
 );
 
@@ -380,13 +383,13 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
 
-    CONSTRAINT secucrity_offering_source_security_amount
+    CONSTRAINT security_offering_source_security_amount_registered
         UNIQUE (security_id, shelf_offerings_id, source_security_id, amount)
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_completed (
     security_id INTEGER,
-    resale_regisrations_id INTEGER,
+    resale_registrations_id INTEGER,
     source_security_id INTEGER NULL,
     amount BIGINT,
 
@@ -394,13 +397,13 @@ CREATE TABLE IF NOT EXISTS securities_resale_completed (
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
     CONSTRAINT fk_resale_registrations_id
-        FOREIGN KEY (resale_regisrations_id)
+        FOREIGN KEY (resale_registrations_id)
             REFERENCES resale_registrations(id),
      CONSTRAINT fk_source_security_id
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
     
-    CONSTRAINT secucrity_offering_source_security_amount
+    CONSTRAINT security_resale_source_security_amount_completed
         UNIQUE (security_id, resale_registrations_id, source_security_id, amount)
 );
 
@@ -414,13 +417,13 @@ CREATE TABLE IF NOT EXISTS securities_resale_registered (
         FOREIGN KEY (security_id)
             REFERENCES securities(id),
     CONSTRAINT fk_resale_registrations_id
-        FOREIGN KEY (resale_regisrations_id)
+        FOREIGN KEY (resale_registrations_id)
             REFERENCES resale_registrations(id),
     CONSTRAINT fk_source_security_id
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
 
-    CONSTRAINT secucrity_offering_source_security_amount
+    CONSTRAINT security_resale_source_security_amount_registered
         UNIQUE (security_id, resale_registrations_id, source_security_id, amount)
 );
 
