@@ -1,11 +1,11 @@
 import pytest
 from dilution_db import DilutionDB
+from main.security_models.naiv_models import CommonShare
+from sqlalchemy import text
 from test_database import get_session
 import datetime
 
-@pytest.fixture
-def company_population_data():
-    data = {
+company_data = {
         "sics": {
             "sic": 9000,
             "sector": "test_sector",
@@ -40,7 +40,28 @@ def company_population_data():
             "security_name": "common stock",
             "security_type": "CommonShares",
             "underlying_security_id": None,
-            "security_attributes": 
+            "security_attributes": CommonShare(name="common stock").json()
         }
     }
+
+@pytest.fixture
+def populate_database(get_session):
+    session = get_session
+    for table, v in company_data.items():
+        columns = ", ".join(list(v.keys()))
+        values = ", ".join([str(value) for value in v.values()])
+        t = text(f"INSERT INTO {table}({columns}) VALUES({values})")
+        session.execute(t)
+        session.commit()
+    yield None
+
+def test_inserts(populate_database, get_session):
+    session = get_session
+    values = []
+    for k, _ in company_data.items():
+        v = session.execute(text(f"SELECT * FROM {k}"))
+        values.append(v.fetchall())
+    print(values)
+    assert 1 == 2
+
 
