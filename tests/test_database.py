@@ -44,6 +44,11 @@ def get_session(postgresql_np):
     session = session_factory()
     yield session
 
+@pytest.fixture
+def get_session_factory(postgresql_np):
+    session_factory = sessionmaker(bind=create_engine(cnf.DILUTION_DB_CONNECTION_STRING))
+    return session_factory
+
 def test_connect(get_session):
     session = get_session
     tables = session.execute(text("Select * from information_schema.tables")).fetchall()

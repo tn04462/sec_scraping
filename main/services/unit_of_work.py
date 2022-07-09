@@ -16,6 +16,9 @@ class AbstractUnitOfWork(ABC):
 
     def commit(self):
         self._commit()
+    
+    def rollback(self):
+        self._rollback()
 
     def collect_new_events(self):
         for product in self.products.seen:
@@ -27,7 +30,7 @@ class AbstractUnitOfWork(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def rollback(self):
+    def _rollback(self):
         raise NotImplementedError
 
 
@@ -54,5 +57,5 @@ class SqlAlchemyCompanyUnitOfWork(AbstractUnitOfWork):
     def _commit(self):
         self.session.commit()
 
-    def rollback(self):
+    def _rollback(self):
         self.session.rollback()
