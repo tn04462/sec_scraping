@@ -7,11 +7,17 @@ from main.domain import model
 class AbstractRepository(abc.ABC):
     def __init__(self):
         pass 
+    
+    def add(self, *args, **kwargs):
+        return self._add(*args, **kwargs)
+    
+    def get(self, *args, **kwargs):
+        return self._get(*args, **kwargs)
 
-    def add(self):
+    def _add(self):
         raise NotImplementedError
 
-    def get(self):
+    def _get(self):
         raise NotImplementedError
 
 

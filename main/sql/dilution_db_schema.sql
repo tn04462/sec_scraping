@@ -1,8 +1,8 @@
 
 
 CREATE TYPE SECURITY_TYPES as ENUM (
-    'CommonShares',
-    'PreferredShares',
+    'CommonShare',
+    'PreferredShare',
     'DebtSecurity',
     'Option',
     'Warrant',

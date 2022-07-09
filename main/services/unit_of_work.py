@@ -42,12 +42,12 @@ DEFAULT_SESSION_FACTORY = sessionmaker(
 )
 
 class SqlAlchemyCompanyUnitOfWork(AbstractUnitOfWork):
-    def __init__(self, symbol: str, session_factory=DEFAULT_SESSION_FACTORY):
+    def __init__(self, session_factory=DEFAULT_SESSION_FACTORY):
         self.session_factory = session_factory
 
-    def __enter__(self, symbol):
+    def __enter__(self):
         self.session = self.session_factory()  # type: Session
-        self.company = repository.SqlAlchemyCompanyRepository(self.session, symbol)
+        self.company = repository.SqlAlchemyCompanyRepository(self.session)
         return super().__enter__()
 
     def __exit__(self, *args):

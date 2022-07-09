@@ -239,9 +239,30 @@ class Company:
 
 
     def change_name(self, new_name):
-        self._name = new_name
+        self.name = new_name
     
-    def add_security(self, security_type: SecurityType, name: str, kwargs: dict):
-        self.securities.add(security_type(name=name, **kwargs))
+    def add_security(self, name: str, secu_type: str, secu: SecurityType, underlying: Optional[Security]=None):
+        self.securities.add(
+            Security(
+                name=name,
+                secu_type=secu_type,
+                secu_attributes=secu,
+                underlying=underlying
+
+            ))
+    
+    def get_security_by_name(self, name):
+        for secu in self.securities:
+            if name == secu.name:
+                return secu
+        return None
+    
+    def get_securities_by_type(self, secu_type: str):
+        securities = []
+        for secu in self.securities:
+            if secu_type == secu.security_type:
+                securities.append(secu)
+        return securities
+
 
 # make company an aggregate and do all the work from there ?
