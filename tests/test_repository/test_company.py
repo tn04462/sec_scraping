@@ -2,7 +2,7 @@ import pytest
 from dilution_db import DilutionDB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
-from test_database import company_data, get_session, get_session_factory, postgresql_my_proc, postgresql_np
+from test_database import company_data, securities_data, get_session, get_session_factory, postgresql_my_proc, postgresql_np
 from main.domain import model
 from main.adapters import orm, repository
 from main.services import unit_of_work
@@ -31,6 +31,25 @@ def create_common_shares_dict():
     }
     return security
 
+def create_preferred_shares_dict():
+    return {
+        "name": "series c preferred stock",
+        "secu_type": "PreferredShare",
+        "secu_attributes": model.PreferredShare(name="series c preferred stock"),
+        }
+
+def create_warrant_dict():
+    return {
+        "name": "pipe warrant",
+        "secu_type": "Warrant",
+        "secu_attributes": model.Warrant(
+            name="pipe warrant",
+            exercise_price=1.05,
+            expiry=datetime.datetime(2027, 1, 1),
+            issue_date=datetime.datetime(2022, 1, 1)
+        )
+    }
+
 def _add_sic(session):
     sic = model.Sic(**company_data["sics"])
     session.add(sic)
@@ -49,6 +68,14 @@ def add_base_company(get_session, get_session_factory):
         u.company.add(new_company)
         u.commit()
         return u.company.get(company_data["companies"]["symbol"])
+
+@pytest.fixture
+def add_base_securities(get_uow, get_base_company):
+    company = get_base_company
+    uow = get_uow
+    company.add_security(model.Security(securities_data[0]))
+
+
     
 @pytest.fixture
 def get_uow(get_session_factory):
@@ -99,11 +126,9 @@ def test_repo_change_company_name(get_uow, add_base_company):
 def test_repo_add_common_shares(get_uow, add_base_company):
     common_dict = create_common_shares_dict()
     posted = model.Security(**common_dict)
-    # common = 
     uow = get_uow
     with uow as u:
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
-        print(common_dict)
         company.add_security(posted)
         u.company.add(company)
         u.commit()
@@ -112,6 +137,8 @@ def test_repo_add_common_shares(get_uow, add_base_company):
         security = company.get_security_by_name(name=company_data["securities"]["security_name"])
         print(security, posted)
         assert security == posted
+
+
         
     
 

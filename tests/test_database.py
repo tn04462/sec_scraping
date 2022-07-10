@@ -13,7 +13,7 @@ import datetime
 
 from main.configs import FactoryConfig, GlobalConfig
 from dilution_db import DilutionDB
-from main.security_models.naiv_models import CommonShare
+from main.domain import model
 
 
 
@@ -58,9 +58,11 @@ company_data = {
             "company_id": 1,
             "security_name": "common stock",
             "security_type": "CommonShare",
-            "security_attributes": CommonShare(name="common stock").json()
+            "security_attributes": model.CommonShare(name="common stock").json()
         }
     }
+
+
 
 def load_schema(user, password, host, port, dbname):
     connectionstring = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
