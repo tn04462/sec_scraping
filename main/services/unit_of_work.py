@@ -37,8 +37,9 @@ class AbstractUnitOfWork(ABC):
 DEFAULT_SESSION_FACTORY = sessionmaker(
     bind=create_engine(
         cnf.DILUTION_DB_CONNECTION_STRING,
-        isolation_level="REPEATABLE READ",
-    )
+        isolation_level="REPEATABLE READ"  
+    ),
+    expire_on_commit=False
 )
 
 class SqlAlchemyCompanyUnitOfWork(AbstractUnitOfWork):

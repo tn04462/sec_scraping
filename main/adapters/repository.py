@@ -2,6 +2,7 @@ import abc
 from typing import Set
 from . import orm
 from main.domain import model
+from sqlalchemy.orm import joinedload
 
 
 class AbstractRepository(abc.ABC):

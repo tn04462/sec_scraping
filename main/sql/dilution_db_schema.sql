@@ -272,8 +272,8 @@ CREATE TABLE IF NOT EXISTS shelf_offerings(
     accn VARCHAR(30) NOT NULL,
     filing_date DATE,
     offering_type VARCHAR,
-    final_offering_amount_usd BIGINT,
-    anticipated_offering_amount_usd BIGINT,
+    final_offering_amount BIGINT,
+    anticipated_offering_amount BIGINT,
     offering_status_id INTEGER,
     commencment_date TIMESTAMP,
     end_date TIMESTAMP,
@@ -348,6 +348,7 @@ CREATE TABLE IF NOT EXISTS securities_conversion (
 );
 
 CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
+    id SERIAL PRIMARY KEY,
     security_id INTEGER,
     shelf_offerings_id INTEGER,
     source_security_id INTEGER NULL,
@@ -368,6 +369,7 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
 );
 
 CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
+    id SERIAL PRIMARY KEY,
     security_id INTEGER,
     shelf_offerings_id INTEGER,
     source_security_id INTEGER NULL,
@@ -388,6 +390,7 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_completed (
+    id SERIAL PRIMARY KEY,
     security_id INTEGER,
     resale_registrations_id INTEGER,
     source_security_id INTEGER NULL,
@@ -408,6 +411,7 @@ CREATE TABLE IF NOT EXISTS securities_resale_completed (
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_registered (
+    id SERIAL PRIMARY KEY,
     security_id INTEGER,
     resale_registrations_id INTEGER,
     source_security_id INTEGER NULL,
@@ -428,6 +432,7 @@ CREATE TABLE IF NOT EXISTS securities_resale_registered (
 );
 
 CREATE TABLE IF NOT EXISTS securities_outstanding (
+    id SERIAL PRIMARY KEY,
     security_id INTEGER,
     amount_outstanding BIGINT,
     instant DATE,
@@ -438,6 +443,7 @@ CREATE TABLE IF NOT EXISTS securities_outstanding (
 );
 
 CREATE TABLE IF NOT EXISTS securities_authorized (
+    id SERIAL PRIMARY KEY,
     company_id INTEGER,
     security_type VARCHAR,
     amount_authorized BIGINT,

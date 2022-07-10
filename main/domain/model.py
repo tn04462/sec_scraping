@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class CommonShare(BaseModel):
-    name: str = "Common Stock"
+    name: str = "common stock"
     par_value: float = 0.001
 
 class PreferredShare(BaseModel):
@@ -69,9 +69,15 @@ class SecurityTypeFactory:
             if kw in name:
                 return self.builders[kw]
         return self.fallback
+
 @dataclass
 class Underwriter:
     name: str
+
+@dataclass
+class FormType:
+    form_type: str
+    category: str
 
 @dataclass
 class OfferingStatus:
@@ -90,16 +96,26 @@ class Security:
     
     def __repr__(self):
         return str(self.security_attributes)
+    
+    def __eq__(self, other):
+        if isinstance(other, Security):
+            if (
+                (self.name == other.name) and
+                (self.security_attributes == other.security_attributes) and
+                (self.underlying == other.underlying)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.name, self.security_attributes, self.underlying))
+
 
 @dataclass
 class SecurityConversionAttributes:
     conversion_attributes: Json
 
-'''
-Notes:
-    build test case to relate source_name to source_id
-    in a sibling model class or find alternatives.
-'''
+
 @dataclass
 class SecurityOutstanding:
     amount: int
@@ -241,15 +257,18 @@ class Company:
     def change_name(self, new_name):
         self.name = new_name
     
-    def add_security(self, name: str, secu_type: str, secu: SecurityType, underlying: Optional[Security]=None):
-        self.securities.add(
-            Security(
-                name=name,
-                secu_type=secu_type,
-                secu_attributes=secu,
-                underlying=underlying
+    def add_security(self, secu: Security):
+        self.securities.add(secu)
+    
+    # def add_security(self, name: str, secu_type: str, secu_attributes: SecurityType, underlying: Optional[Security]=None):
+    #     self.securities.add(
+    #         Security(
+    #             name=name,
+    #             secu_type=secu_type,
+    #             secu_attributes=secu_attributes,
+    #             underlying=underlying
 
-            ))
+    #         ))
     
     def get_security_by_name(self, name):
         for secu in self.securities:

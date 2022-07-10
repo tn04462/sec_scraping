@@ -27,8 +27,7 @@ def create_common_shares_dict():
     security = {
         "name": data["security_name"],
         "secu_type": data["security_type"],
-        "secu": model.CommonShare(name=data["security_name"]),
-        "underlying": data
+        "secu_attributes": model.CommonShare(name=data["security_name"])
     }
     return security
 
@@ -99,18 +98,20 @@ def test_repo_change_company_name(get_uow, add_base_company):
 
 def test_repo_add_common_shares(get_uow, add_base_company):
     common_dict = create_common_shares_dict()
+    posted = model.Security(**common_dict)
     # common = 
     uow = get_uow
     with uow as u:
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
         print(common_dict)
-        company.add_security(name=common_dict["name"], secu_type=common_dict["secu_type"], secu=common_dict["secu"])
+        company.add_security(posted)
+        u.company.add(company)
         u.commit()
     with uow as u:
         company = u.company.get(company_data["companies"]["symbol"])
         security = company.get_security_by_name(name=company_data["securities"]["security_name"])
-        print(security.security_type, common_dict)
-        assert security == common_dict
+        print(security, posted)
+        assert security == posted
         
     
 

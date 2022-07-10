@@ -88,13 +88,17 @@ postgresql_np = factories.postgresql("postgresql_my_proc", dbname="dilution_db_t
 
 @pytest.fixture
 def get_session(postgresql_np):
-    session_factory = sessionmaker(bind=create_engine(cnf.DILUTION_DB_CONNECTION_STRING))
+    session_factory = sessionmaker(
+        bind=create_engine(cnf.DILUTION_DB_CONNECTION_STRING),
+        expire_on_commit=False)
     session = session_factory()
     yield session
 
 @pytest.fixture
 def get_session_factory(postgresql_np):
-    session_factory = sessionmaker(bind=create_engine(cnf.DILUTION_DB_CONNECTION_STRING))
+    session_factory = sessionmaker(
+        bind=create_engine(cnf.DILUTION_DB_CONNECTION_STRING),
+        expire_on_commit=False)
     return session_factory
 
 @pytest.fixture
