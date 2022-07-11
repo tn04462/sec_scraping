@@ -47,7 +47,8 @@ def create_warrant_dict():
             exercise_price=1.05,
             expiry=datetime.datetime(2027, 1, 1),
             issue_date=datetime.datetime(2022, 1, 1)
-        )
+        ),
+        "underlying": "common stock"
     }
 
 def _add_sic(session):
@@ -74,12 +75,20 @@ def add_base_securities(get_uow, get_base_company):
     company = get_base_company
     uow = get_uow
     company.add_security(model.Security(securities_data[0]))
-
-
     
 @pytest.fixture
 def get_uow(get_session_factory):
     return unit_of_work.SqlAlchemyCompanyUnitOfWork(session_factory=get_session_factory)
+
+
+def add_security(secu_args_function, uow):
+    secu_args = secu_args_function()
+    posted = model.Security(**secu_args)
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        company.add_security(posted)
+        u.company.add(company)
+        u.commit()
 
 def test_add_model(get_session, dict_key, model_class):
     session = get_session
@@ -124,8 +133,8 @@ def test_repo_change_company_name(get_uow, add_base_company):
         assert received.name == new_name
 
 def test_repo_add_common_shares(get_uow, add_base_company):
-    common_dict = create_common_shares_dict()
-    posted = model.Security(**common_dict)
+    secu_args = create_common_shares_dict()
+    posted = model.Security(**secu_args)
     uow = get_uow
     with uow as u:
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
@@ -134,9 +143,50 @@ def test_repo_add_common_shares(get_uow, add_base_company):
         u.commit()
     with uow as u:
         company = u.company.get(company_data["companies"]["symbol"])
-        security = company.get_security_by_name(name=company_data["securities"]["security_name"])
+        security = company.get_security_by_name(name=secu_args["name"])
         print(security, posted)
         assert security == posted
+
+def test_repo_add_preferred_shares(get_uow, add_base_company):
+    secu_args = create_preferred_shares_dict()
+    posted = model.Security(**secu_args)
+    uow = get_uow
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        company.add_security(posted)
+        u.company.add(company)
+        u.commit()
+    with uow as u:
+        company = u.company.get(company_data["companies"]["symbol"])
+        security = company.get_security_by_name(name=secu_args["name"])
+        print(security, posted)
+        assert security == posted
+
+def test_repo_add_warrant(get_uow, add_base_company):
+    secu_args = create_warrant_dict()
+    posted = model.Security(**secu_args)
+    uow = get_uow
+    add_security(create_common_shares_dict, uow)
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        company.add_security(posted)
+        u.company.add(company)
+        u.commit()
+    with uow as u:
+        company = u.company.get(company_data["companies"]["symbol"])
+        security = company.get_security_by_name(name=secu_args["name"])
+        print(security, posted)
+        assert security == posted
+
+def test_repo_add_conversion_attribute(get_uow, add_base_company):
+    uow = get_uow
+    add_security(create_common_shares_dict, uow)
+    add_security(create_preferred_shares_dict, uow)
+    with uow as u:
+        company = u.company.get(company_data["companies"]["symbol"])
+        secu1 = company.get_security_by_name(create_common_shares_dict()["name"])
+        secu2 = company.get_security_by_name(create_preferred_shares_dict()["name"])
+        
 
 
         

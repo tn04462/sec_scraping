@@ -8,6 +8,9 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
+class SecurityNotFound(Exception):
+    pass
+
 
 class CommonShare(BaseModel):
     name: str = "common stock"
@@ -38,6 +41,54 @@ class DebtSecurity(BaseModel):
     interest_rate: float
     maturity: datetime
     issue_date: Optional[datetime] = None
+
+class ResetFeature(BaseModel):
+    '''resets feature to a certain value if certain conditions are met. eg: conversion price is adjusted if stock price is below x for y days'''
+    duration: timedelta 
+    min_occurence: float # how many x of min_occurence_frequenzy should evaluate to true of the reset_clause/reset_feature and security_feature during duration 
+    min_occurence_frequency: str 
+    security: str #  security on which the reset_clause is checked over duration
+    security_feature: str # feature of the security to be checked for reset_clause eg: VWAP, close, high, low
+    reset_feature: str #  must be a field of the parent eg: conversion_price
+    reset_clause: float # percent as float eg: 100% == 1.0
+    reset_to: str # value to which the reset_feature is set if the reset_clause is valid over duration in the security_feature
+   
+
+class CallFeature(BaseModel):
+    '''issuer has option of early redemption if condition are met'''
+    duration: timedelta
+    min_occurence: float
+    min_occurence_frequency: str
+    security: str
+    security_feature: str
+    call_feature: str
+    call_clause: float
+   
+    
+class PutFeature(BaseModel):
+    '''holder has option of early repayment of all or part'''
+    start_date: datetime
+    duration: timedelta
+    frequency: timedelta
+    other_conditions: str
+
+
+class ContigentConversionFeature(BaseModel):
+    duration: timedelta
+    min_occurence: float
+    min_occurence_frequency: str
+    security: str
+    security_feature: str
+    conversion_feature: str
+    conversion_clause: float
+    
+
+class ConvertibleFeature(BaseModel):
+    conversion_ratio: float
+    contigent_conversion_features: list[ContigentConversionFeature] = []
+    call_features: list[CallFeature] = []
+    put_features: list[PutFeature] = []
+    reset_features: list[ResetFeature] = []
     
 
 SecurityType: TypeAlias =  Union[CommonShare, PreferredShare, Option, Warrant, DebtSecurity, NoneType]
@@ -89,7 +140,7 @@ class SecurityCusip:
     security_name: str
 
 class Security:
-    def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying: Optional[Self]=None):
+    def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying: Optional[Self|str]=None):
         self.name = secu_attributes.name if name is None else name
         self.security_attributes = secu_attributes.json()
         self.underlying = underlying
@@ -258,6 +309,12 @@ class Company:
         self.name = new_name
     
     def add_security(self, secu: Security):
+        if (secu.underlying is not None) and (isinstance(secu.underlying, str)):
+            underlying = self.get_security_by_name(secu["underlying"])
+            if underlying is None:
+                raise SecurityNotFound(f"Couldnt find underlying Security with name: {secu['underlying']}. Make sure the underlying was added!")
+            else:
+                secu.underlying = underlying
         self.securities.add(secu)
     
     # def add_security(self, name: str, secu_type: str, secu_attributes: SecurityType, underlying: Optional[Security]=None):

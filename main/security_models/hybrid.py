@@ -9,7 +9,6 @@ from main.security_models.equity import PreferredShares
 
 class ResetFeature(BaseModel):
     '''resets feature to a certain value if certain conditions are met. eg: conversion price is adjusted if stock price is below x for y days'''
-    has_feature: bool = False
     duration: timedelta 
     min_occurence: float # how many x of min_occurence_frequenzy should evaluate to true of the reset_clause/reset_feature and security_feature during duration 
     min_occurence_frequency: str 
@@ -19,17 +18,9 @@ class ResetFeature(BaseModel):
     reset_clause: float # percent as float eg: 100% == 1.0
     reset_to: str # value to which the reset_feature is set if the reset_clause is valid over duration in the security_feature
     
-    _validate_required_feature = root_validator(allow_reuse=True)(
-        _requires_fields(
-            boolean_feature="has_feature",
-            required_if_true=["all"]
-        )
-    )
-
 
 class CallFeature(BaseModel):
     '''issuer has option of early redemption if condition are met'''
-    has_feature: bool = False
     duration: timedelta
     min_occurence: float
     min_occurence_frequency: str
@@ -37,33 +28,17 @@ class CallFeature(BaseModel):
     security_feature: str
     call_feature: str
     call_clause: float
-
-    _validate_required_feature = root_validator(allow_reuse=True)(
-        _requires_fields(
-            boolean_feature="has_feature",
-            required_if_true=["all"]
-        )
-    )    
+   
     
-
 class PutFeature(BaseModel):
     '''holder has option of early repayment of all or part'''
-    has_feature: bool = False
     start_date: datetime
     duration: timedelta
     frequency: timedelta
     other_conditions: str
-    
-    _validate_required_feature = root_validator(allow_reuse=True)(
-        _requires_fields(
-            boolean_feature="has_feature",
-            required_if_true=["all"]
-        )
-    )
 
 
 class ContigentConversionFeature(BaseModel):
-    has_feature: bool = False
     duration: timedelta
     min_occurence: float
     min_occurence_frequency: str
@@ -72,16 +47,8 @@ class ContigentConversionFeature(BaseModel):
     conversion_feature: str
     conversion_clause: float
     
-    _validate_required_feature = root_validator(allow_reuse=True)(
-        _requires_fields(
-            boolean_feature="has_feature",
-            required_if_true=["all"]
-        )
-    )
-
 
 class ConvertibleFeature(BaseModel):
-    conversion_to: str
     conversion_ratio: float
     contigent_conversion_features: list[ContigentConversionFeature] = []
     call_features: list[CallFeature] = []
