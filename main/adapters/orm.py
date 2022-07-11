@@ -7,12 +7,14 @@ from sqlalchemy import (
     Column,
     String,
     Table,
-    ForeignKey
+    ForeignKey,
 )
 from sqlalchemy.orm import (
     relationship,
     registry
 )
+from sqlalchemy.sql.expression import Join
+from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy import types
 from main.domain.model import (
     Underwriter,
@@ -20,7 +22,7 @@ from main.domain.model import (
     SecurityCusip,
     FormType,
     Security,
-    SecurityConversionAttributes,
+    SecurityConversion,
     SecurityOutstanding,
     SecurityAuthorized,
     ShelfOffering,
@@ -325,13 +327,29 @@ def start_mappers():
                 remote_side=securities.c.id,
                 uselist=False,
                 lazy="joined"
-            ) 
+            )
         }
     )
 
     securities_conversion_mapper = reg.map_imperatively(
-        SecurityConversionAttributes,
-        securities_conversion
+        SecurityConversion,
+        securities_conversion,
+        properties={
+            "from_security": relationship(
+                securities_mapper,
+                primaryjoin=securities_conversion.c.from_security_id == securities.c.id,
+                foreign_keys=[securities_conversion.c.from_security_id],
+                uselist=False,
+                lazy="joined"
+            ),
+            "to_security": relationship(
+                securities_mapper,
+                primaryjoin=securities_conversion.c.to_security_id == securities.c.id,
+                foreign_keys=[securities_conversion.c.to_security_id],
+                uselist=False,
+                lazy="joined"
+            )
+        }
     )
 
     securities_outstanding_mapper = reg.map_imperatively(
@@ -506,7 +524,6 @@ def start_mappers():
         NetCashAndEquivalents,
         net_cash_and_equivalents
     )
-
     companies_mapper = reg.map_imperatively(
         Company,
         companies,
@@ -537,6 +554,13 @@ def start_mappers():
                 filing_links_mapper,
                 collection_class=set,
                 lazy="joined"
+            ),
+            "security_conversion": relationship(
+                securities_conversion_mapper,
+                secondary="join(companies, securities, companies.c.id==securities.c.company_id)",
+                foreign_keys=[securities_conversion.c.from_security_id, securities.c.company_id],
+                # collection_class=attribute_mapped_collection("from_security")
+                collection_class=set
             ),
             "cash_operating": relationship(
                 cash_operating_mapper,

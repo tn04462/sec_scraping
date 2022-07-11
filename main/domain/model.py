@@ -1,5 +1,5 @@
 from types import NoneType
-from typing import Optional, Set, TypeAlias, TypeVar, Union
+from typing import Dict, Optional, Set, TypeAlias, TypeVar, Union
 from typing_extensions import Self
 from pydantic import AnyUrl, Json, ValidationError, validator, BaseModel, root_validator
 from datetime import date, datetime, timedelta
@@ -16,9 +16,15 @@ class CommonShare(BaseModel):
     name: str = "common stock"
     par_value: float = 0.001
 
+    def __repr__(self):
+        return "CommonShare"
+
 class PreferredShare(BaseModel):
     name: str
     par_value: float = 0.001
+
+    def __repr__(self):
+        return "PreferredShare"
 
 class Option(BaseModel):
     name: str
@@ -28,6 +34,9 @@ class Option(BaseModel):
     multiplier: float = 100
     issue_date: Optional[datetime] = None
 
+    def __repr__(self):
+        return "Option"
+
 class Warrant(BaseModel):
     name: str
     exercise_price: float
@@ -36,11 +45,17 @@ class Warrant(BaseModel):
     multiplier: float = 1.0
     issue_date: Optional[datetime] = None
 
+    def __repr__(self):
+        return "Warrant"
+
 class DebtSecurity(BaseModel):
     name: str
     interest_rate: float
     maturity: datetime
     issue_date: Optional[datetime] = None
+
+    def __repr__(self):
+        return "DebtSecurity"
 
 class ResetFeature(BaseModel):
     '''resets feature to a certain value if certain conditions are met. eg: conversion price is adjusted if stock price is below x for y days'''
@@ -142,8 +157,10 @@ class SecurityCusip:
 class Security:
     def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying: Optional[Self|str]=None):
         self.name = secu_attributes.name if name is None else name
+        self.security_type = repr(secu_attributes)
         self.security_attributes = secu_attributes.json()
         self.underlying = underlying
+        # self.convertible_to = Dict[Security]
     
     def __repr__(self):
         return str(self.security_attributes)
@@ -159,12 +176,27 @@ class Security:
         return False
     
     def __hash__(self):
-        return hash((self.name, self.security_attributes, self.underlying))
+        return hash((self.name, self.underlying))
 
 
 @dataclass
-class SecurityConversionAttributes:
+class SecurityConversion:
     conversion_attributes: Json
+    from_security: Security
+    to_security: Security
+
+    def __eq__(self, other):
+        if isinstance(other, SecurityConversion):
+            if (
+                (self.conversion_attributes == other.conversion_attributes) and
+                (self.from_security == other.from_security) and
+                (self.to_security == other.to_security)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.conversion_attributes, self.from_security, self.to_security))
 
 
 @dataclass
@@ -172,11 +204,36 @@ class SecurityOutstanding:
     amount: int
     instant: date
 
+    def __eq__(self, other):
+        if isinstance(other, SecurityOutstanding):
+            if (
+                (self.amount == other.amount) and
+                (self.instant == other.instant)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.amount, self.instant))
+
 @dataclass
 class SecurityAuthorized:
     security_type: str
     amount: int
     instant: date
+
+    def __eq__(self, other):
+        if isinstance(other, SecurityAuthorized):
+            if (
+                (self.security_type == other.security_type) and
+                (self.amount == other.amount) and
+                (self.instant == other.instant)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.amount, self.instant, self.security_type))
 
 @dataclass
 class ShelfSecurityRegistration:
@@ -184,11 +241,37 @@ class ShelfSecurityRegistration:
     amount: int
     source_security: Optional[Security] = field(default=None)
 
+    def __eq__(self, other):
+        if isinstance(other, ShelfSecurityRegistration):
+            if (
+                (self.security == other.security) and
+                (self.amount == other.amount) and
+                (self.source_security == other.source_security)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.amount, self.source_security, self.security))
+
 @dataclass
 class ShelfSecurityComplete:
     security: Security
     amount: int
     source_security: Optional[Security] = field(default=None)
+
+    def __eq__(self, other):
+        if isinstance(other, ShelfSecurityComplete):
+            if (
+                (self.security == other.security) and
+                (self.amount == other.amount) and
+                (self.source_security == other.source_security)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.amount, self.source_security, self.security))
 
 
 @dataclass
@@ -204,6 +287,31 @@ class ShelfOffering:
 
     def __repr__(self):
         return f"{self}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
+    
+    def __eq__(self, other):
+        if isinstance(other, ShelfOffering):
+            if (
+                (self.offering_type == other.offering_type) and
+                (self.anticipated_offering_amount == other.anticipated_offering_amount) and
+                (self.commencment_date == other.commencment_date) and
+                (self.end_date == self.end_date) and
+                (self.underwriters == self.underwriters) and
+                (self.registrations == self.registrations) and
+                (self.completed == self.completed)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((
+            self.offering_type,
+            self.anticipated_offering_amount,
+            self.commencment_date,
+            self.end_date,
+            self.underwriters,
+            self.registrations,
+            self.completed
+            ))
 
 @dataclass
 class ShelfRegistration:
@@ -218,17 +326,55 @@ class ShelfRegistration:
     total_amount_raised_unit: Optional[str] = field(default="USD")
     offerings: Set[ShelfOffering] = field(default_factory=set)
 
+    def __eq__(self, other):
+        if isinstance(other, ShelfRegistration):
+            if (
+                (self.accn == other.accn)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.accn,))
+
 @dataclass
 class ResaleSecurityRegistration:
     security: Security
     amount: int
     source_security: Optional[Security] = field(default=None)
 
+    def __eq__(self, other):
+        if isinstance(other, ResaleSecurityRegistration):
+            if (
+                (self.security == other.security) and
+                (self.amount == other.amount) and
+                (self.source_security == other.source_security)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.amount, self.source_security, self.security))
+
 @dataclass
 class ResaleSecurityComplete:
     security: Security
     amount: int
     source_security: Optional[Security] = field(default=None)
+
+    def __eq__(self, other):
+        if isinstance(other, ResaleSecurityComplete):
+            if (
+                (self.security == other.security) and
+                (self.amount == other.amount) and
+                (self.source_security == other.source_security)
+            ):
+                return True
+        return False
+
+    def __hash__(self):
+        return hash((self.amount, self.source_security, self.security))
 
 @dataclass
 class ResaleRegistration:
@@ -241,6 +387,18 @@ class ResaleRegistration:
     registrations: Set[ResaleSecurityRegistration] = field(default_factory=set)
     completed: Set[ResaleSecurityComplete] = field(default_factory=set)
 
+    def __eq__(self, other):
+        if isinstance(other, ResaleRegistration):
+            if (
+                (self.accn == other.accn)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.accn, ))
+
 
 
 @dataclass
@@ -250,10 +408,35 @@ class Sic:
     industry: str
     division: str
 
+    def __eq__(self, other):
+        if isinstance(other, Sic):
+            if (
+                (self.sic == other.sic)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.sic,))
+
 @dataclass
 class FilingParseHistoryEntry:
     accession_number: str
     date_parsed: date
+
+    def __eq__(self, other):
+        if isinstance(other, FilingParseHistoryEntry):
+            if (
+                (self.accession_number == other.accession_number) and
+                (self.date_parsed == other.date_parsed)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.accession_number, self.date_parsed))
 
 @dataclass
 class FilingLink:
@@ -263,11 +446,37 @@ class FilingLink:
     description_: str
     file_number: str
 
+    def __eq__(self, other):
+        if isinstance(other, FilingLink):
+            if (
+                (self.filing_html == other.filing_html)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.filing_html,))
+
 @dataclass
 class CashOperating:
     from_date: date
     to_date: date
     amount: int
+
+    def __eq__(self, other):
+        if isinstance(other, CashOperating):
+            if (
+                (self.from_date == other.from_date) and
+                (self.to_date == other.to_date) and
+                (self.amount == other.amount)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.from_date, self.to_date, self.amount))
 
 @dataclass
 class CashFinancing:
@@ -275,16 +484,57 @@ class CashFinancing:
     to_date: date
     amount: int
 
+    def __eq__(self, other):
+        if isinstance(other, CashFinancing):
+            if (
+                (self.from_date == other.from_date) and
+                (self.to_date == other.to_date) and
+                (self.amount == other.amount)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.from_date, self.to_date, self.amount))
+
 @dataclass
 class CashInvesting:
     from_date: date
     to_date: date
     amount: int
 
+    def __eq__(self, other):
+        if isinstance(other, CashInvesting):
+            if (
+                (self.from_date == other.from_date) and
+                (self.to_date == other.to_date) and
+                (self.amount == other.amount)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.from_date, self.to_date, self.amount))
+
 @dataclass
 class NetCashAndEquivalents:
     instant: date
     amount: int
+
+    def __eq__(self, other):
+        if isinstance(other, NetCashAndEquivalents):
+            if (
+                (self.instant == other.instant) and
+                (self.amount == other.amount)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.instant, self.amount))
 
 
 class Company:
@@ -299,10 +549,23 @@ class Company:
         self.resales = set() if resales is None else resales
         self.filing_parse_history = set() if filing_parse_history is None else filing_parse_history
         self.filing_links = set()
+        self.security_conversion = dict()
         self.cash_operating = set()
         self.cash_finacing = set()
         self.cash_investing = set()
         self.net_cash_and_equivalents = set()
+    
+    def __eq__(self, other):
+        if isinstance(other, Company):
+            if (
+                (self.cik == other.cik)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.cik))
 
 
     def change_name(self, new_name):
@@ -316,6 +579,9 @@ class Company:
             else:
                 secu.underlying = underlying
         self.securities.add(secu)
+    
+    # def add_security_conversion(self, secu_conversion: SecurityConversion):
+    #     self.security_conversion[]
     
     # def add_security(self, name: str, secu_type: str, secu_attributes: SecurityType, underlying: Optional[Security]=None):
     #     self.securities.add(
