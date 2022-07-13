@@ -48,14 +48,14 @@ company_data_conversion = {
                 "id": 1,
                 "company_id": 1,
                 "security_name": "common stock",
-                "security_type": "CommonShare",
+                # "security_type": "CommonShare",
                 "security_attributes": model.CommonShare(name="common stock").json()
             },
             {
                 "id": 2,
                 "company_id": 1,
                 "security_name": "preferred stock",
-                "security_type": "PreferredShare",
+                # "security_type": "PreferredShare",
                 "security_attributes": model.PreferredShare(name="preferred stock").json()
             }
         ],
@@ -265,17 +265,24 @@ def test_model_load(get_uow, get_session):
     
     
 
-# def test_repo_add_conversion_attribute(get_uow, add_base_company):
-#     uow = get_uow
-#     add_security(create_common_shares_dict, uow)
-#     add_security(create_preferred_shares_dict, uow)
-#     with uow as u:
-#         company = u.company.get(company_data["companies"]["symbol"])
-#         secu1 = company.get_security_by_name(create_common_shares_dict()["name"])
-#         secu2 = company.get_security_by_name(create_preferred_shares_dict()["name"])
-#         conversion_feature = model.ConvertibleFeature(conversion_ratio=10)
-#         secu_conversion = model.SecurityConversion(conversion_feature.json(), secu1, secu2)
-#         company.add
+def test_repo_add_conversion_attribute(get_uow, add_base_company):
+    uow = get_uow
+    add_security(create_common_shares_dict, uow)
+    add_security(create_preferred_shares_dict, uow)
+    with uow as u:
+        company = u.company.get(company_data["companies"]["symbol"])
+        secu1 = company.get_security_by_name(create_common_shares_dict()["name"])
+        secu2 = company.get_security_by_name(create_preferred_shares_dict()["name"])
+        conversion_feature = model.ConvertibleFeature(conversion_ratio=10)
+        secu_conversion = model.SecurityConversion(conversion_feature.json(), secu1, secu2)
+        company.add_security_conversion(secu_conversion)
+        u.company.add(company)
+        u.commit()
+    with uow as u:
+        company = u.company.get(company_data["companies"]["symbol"])
+        print(company.security_conversion[0], "/n", secu_conversion)
+        assert company.security_conversion[0] == secu_conversion
+
 
         
     

@@ -196,7 +196,7 @@ class SecurityConversion:
         return False
     
     def __hash__(self):
-        return hash((self.conversion_attributes, self.from_security, self.to_security))
+        return hash((self.from_security, self.to_security))
 
 
 @dataclass
@@ -549,7 +549,7 @@ class Company:
         self.resales = set() if resales is None else resales
         self.filing_parse_history = set() if filing_parse_history is None else filing_parse_history
         self.filing_links = set()
-        self.security_conversion = dict()
+        self.security_conversion = set()
         self.cash_operating = set()
         self.cash_finacing = set()
         self.cash_investing = set()
@@ -580,8 +580,8 @@ class Company:
                 secu.underlying = underlying
         self.securities.add(secu)
     
-    # def add_security_conversion(self, secu_conversion: SecurityConversion):
-    #     self.security_conversion[]
+    def add_security_conversion(self, secu_conversion: SecurityConversion):
+        self.security_conversion.add(secu_conversion)
     
     # def add_security(self, name: str, secu_type: str, secu_attributes: SecurityType, underlying: Optional[Security]=None):
     #     self.securities.add(

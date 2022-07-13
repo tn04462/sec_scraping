@@ -557,10 +557,11 @@ def start_mappers():
             ),
             "security_conversion": relationship(
                 securities_conversion_mapper,
-                secondary="join(companies, securities, companies.c.id==securities.c.company_id)",
-                foreign_keys=[securities_conversion.c.from_security_id, securities.c.company_id],
-                # collection_class=attribute_mapped_collection("from_security")
-                collection_class=set
+                primaryjoin="and_(Company.id == foreign(Security.company_id), Security.id == foreign(SecurityConversion.from_security_id))",
+                # secondary="join(companies, securities, companies.c.id==securities.c.company_id)",
+                # # collection_class=attribute_mapped_collection("from_security")
+                collection_class=set,
+                lazy="joined"
             ),
             "cash_operating": relationship(
                 cash_operating_mapper,
