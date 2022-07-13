@@ -524,6 +524,8 @@ def start_mappers():
         NetCashAndEquivalents,
         net_cash_and_equivalents
     )
+
+    j = Join(securities, companies, securities.c.company_id==companies.c.id)
     companies_mapper = reg.map_imperatively(
         Company,
         companies,
@@ -555,12 +557,15 @@ def start_mappers():
                 collection_class=set,
                 lazy="joined"
             ),
+            
             "security_conversion": relationship(
                 securities_conversion_mapper,
-                primaryjoin="and_(SecurityConversion.from_security_id==Security.id, SecurityConversion.to_security_id==Security.id)",
-                secondary=securities,
-                secondaryjoin=companies.c.id==securities.c.company_id,
-                foreign_keys=[securities.c.id, securities.c.company_id, securities_conversion.c.from_security_id, securities_conversion.c.to_security_id],
+                # primaryjoin="and_(SecurityConversion.from_security_id==Security.id, SecurityConversion.to_security_id==Security.id)",
+                # secondary=securities,
+                secondary=j,
+                # secondaryjoin="and_(securities_conversion.c.from_security_id==j.security_id, securities_conversion.c.to_security_id==j.security_id)",
+                # foreign_keys=[securities.c.id, securities.c.company_id],
+                # foreign_keys=[securities_conversion.c.from_security¨ä$¨¨$¨¨_id, securities_conversion.c.to_security_id],
                 # remote_side=[securities_conversion.c.from_security_id, securities_conversion.c.to_security_id],
                 # primaryjoin="and_(Company.id == foreign(Security.company_id), Security.id == foreign(SecurityConversion.from_security_id))",
                 # secondary="join(companies, securities, companies.c.id==securities.c.company_id)",
