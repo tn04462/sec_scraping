@@ -20,10 +20,10 @@ class AbstractUnitOfWork(ABC):
     def rollback(self):
         self._rollback()
 
-    def collect_new_events(self):
-        for product in self.products.seen:
-            while product.events:
-                yield product.events.pop(0)
+    # def collect_new_events(self):
+    #     for product in self.products.seen:
+    #         while product.events:
+    #             yield product.events.pop(0)
 
     @abstractmethod
     def _commit(self):

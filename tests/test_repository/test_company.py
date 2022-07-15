@@ -54,17 +54,32 @@ company_data_conversion = {
             {
                 "id": 2,
                 "company_id": 1,
-                "security_name": "preferred stock",
+                "security_name": "preferred stock 1",
                 # "security_type": "PreferredShare",
-                "security_attributes": model.PreferredShare(name="preferred stock").json()
+                "security_attributes": model.PreferredShare(name="preferred stock 1").json()
+            },
+            {
+                "id": 3,
+                "company_id": 1,
+                "security_name": "preferred stock 2",
+                # "security_type": "PreferredShare",
+                "security_attributes": model.PreferredShare(name="preferred stock 2").json()
             }
         ],
-        "securities_conversion":{
-            "id": 1,
-            "from_security_id": 2,
-            "to_security_id": 1,
-            "conversion_attributes": model.ConvertibleFeature(conversion_ratio=10).json()
-        }
+        "securities_conversion":[
+            {
+                "id": 1,
+                "from_security_id": 2,
+                "to_security_id": 1,
+                "conversion_attributes": model.ConvertibleFeature(conversion_ratio=10).json()
+            },
+            {
+                "id": 2,
+                "from_security_id": 2,
+                "to_security_id": 3,
+                "conversion_attributes": model.ConvertibleFeature(conversion_ratio=50).json()
+            }
+        ],
     }
 
 def create_company():

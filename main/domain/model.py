@@ -70,7 +70,7 @@ class ResetFeature(BaseModel):
    
 
 class CallFeature(BaseModel):
-    '''issuer has option of early redemption if condition are met'''
+    '''issuer has option of early redemption if conditions are met'''
     duration: timedelta
     min_occurence: float
     min_occurence_frequency: str
@@ -549,7 +549,7 @@ class Company:
         self.resales = set() if resales is None else resales
         self.filing_parse_history = set() if filing_parse_history is None else filing_parse_history
         self.filing_links = set()
-        self.security_conversion = set()
+        self.security_conversion = list()
         self.cash_operating = set()
         self.cash_finacing = set()
         self.cash_investing = set()
@@ -571,6 +571,12 @@ class Company:
     def change_name(self, new_name):
         self.name = new_name
     
+    def _get_security(self, secu: Security):
+        for s in self.securities:
+            if s == secu:
+                return s
+        return None
+    
     def add_security(self, secu: Security):
         if (secu.underlying is not None) and (isinstance(secu.underlying, str)):
             underlying = self.get_security_by_name(secu["underlying"])
@@ -581,7 +587,22 @@ class Company:
         self.securities.add(secu)
     
     def add_security_conversion(self, secu_conversion: SecurityConversion):
-        self.security_conversion.add(secu_conversion)
+        if secu_conversion.from_security not in self.securities:
+            raise ValueError
+        if secu_conversion.to_security not in self.securities:
+            raise ValueError
+        
+        from_security = self._get_security(secu_conversion.from_security)
+        if from_security is not None:
+            if secu_conversion not in from_security.conversion_from_self:
+                from_security.conversion_from_self.append(secu_conversion)
+        to_security = self._get_security(secu_conversion.to_security)
+        if to_security is not None:
+            if secu_conversion not in to_security.conversion_to_self:
+                to_security.conversion_to_self.append(secu_conversion)
+        
+        
+        
     
     # def add_security(self, name: str, secu_type: str, secu_attributes: SecurityType, underlying: Optional[Security]=None):
     #     self.securities.add(

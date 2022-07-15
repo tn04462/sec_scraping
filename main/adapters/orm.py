@@ -8,12 +8,14 @@ from sqlalchemy import (
     String,
     Table,
     ForeignKey,
+    join,
 )
 from sqlalchemy.orm import (
     relationship,
-    registry
+    registry,
+    remote,
+    foreign
 )
-from sqlalchemy.sql.expression import Join
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy import types
 from main.domain.model import (
@@ -327,6 +329,14 @@ def start_mappers():
                 remote_side=securities.c.id,
                 uselist=False,
                 lazy="joined"
+            ),
+            "conversion_from_self": relationship(
+                SecurityConversion,
+                primaryjoin=securities.c.id==securities_conversion.c.from_security_id
+            ),
+            "conversion_to_self": relationship(
+                SecurityConversion,
+                primaryjoin=securities.c.id==securities_conversion.c.to_security_id
             )
         }
     )
@@ -337,16 +347,18 @@ def start_mappers():
         properties={
             "from_security": relationship(
                 securities_mapper,
-                primaryjoin=securities_conversion.c.from_security_id == securities.c.id,
-                foreign_keys=[securities_conversion.c.from_security_id],
-                uselist=False,
+                primaryjoin=securities_conversion.c.from_security_id == remote(securities.c.id),
+                # foreign_keys=[securities_conversion.c.from_security_id],
+                back_populates="conversion_from_self",
+                collection_class=list,
                 lazy="joined"
             ),
             "to_security": relationship(
                 securities_mapper,
-                primaryjoin=securities_conversion.c.to_security_id == securities.c.id,
-                foreign_keys=[securities_conversion.c.to_security_id],
-                uselist=False,
+                primaryjoin=securities_conversion.c.to_security_id == remote(securities.c.id),
+                # foreign_keys=[securities_conversion.c.to_security_id],
+                back_populates="conversion_to_self",
+                collection_class=list,
                 lazy="joined"
             )
         }
@@ -525,7 +537,6 @@ def start_mappers():
         net_cash_and_equivalents
     )
 
-    j = Join(securities, companies, securities.c.company_id==companies.c.id)
     companies_mapper = reg.map_imperatively(
         Company,
         companies,
@@ -557,21 +568,14 @@ def start_mappers():
                 collection_class=set,
                 lazy="joined"
             ),
-            
             "security_conversion": relationship(
                 securities_conversion_mapper,
-                # primaryjoin="and_(SecurityConversion.from_security_id==Security.id, SecurityConversion.to_security_id==Security.id)",
-                # secondary=securities,
-                secondary=j,
-                # secondaryjoin="and_(securities_conversion.c.from_security_id==j.security_id, securities_conversion.c.to_security_id==j.security_id)",
-                # foreign_keys=[securities.c.id, securities.c.company_id],
-                # foreign_keys=[securities_conversion.c.from_security¨ä$¨¨$¨¨_id, securities_conversion.c.to_security_id],
-                # remote_side=[securities_conversion.c.from_security_id, securities_conversion.c.to_security_id],
-                # primaryjoin="and_(Company.id == foreign(Security.company_id), Security.id == foreign(SecurityConversion.from_security_id))",
-                # secondary="join(companies, securities, companies.c.id==securities.c.company_id)",
-                # # collection_class=attribute_mapped_collection("from_security")
-                collection_class=set,
-                lazy="joined"
+                secondary=join(companies, securities, companies.c.id==securities.c.company_id).join(securities_conversion, ((securities.c.id==securities_conversion.c.from_security_id)|(securities.c.id==securities_conversion.c.to_security_id))),
+                primaryjoin=companies.c.id==remote(securities.c.company_id),
+                secondaryjoin=(securities_conversion.c.to_security_id==remote(securities.c.id))|(securities_conversion.c.from_security_id==remote(securities.c.id)),
+                lazy="joined",
+                collection_class=list,
+                viewonly=True
             ),
             "cash_operating": relationship(
                 cash_operating_mapper,
