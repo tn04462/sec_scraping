@@ -138,7 +138,8 @@ def add_base_company(get_session, get_session_factory):
         assert u.company.get(company_data["companies"]["symbol"]) is None
         u.company.add(new_company)
         u.commit()
-        return u.company.get(company_data["companies"]["symbol"])
+    with uow as u:
+        yield u.company.get(company_data["companies"]["symbol"])
 
     
 @pytest.fixture
@@ -155,15 +156,7 @@ def add_security(secu_args_function, uow):
         u.company.add(company)
         u.commit()
 
-def test_add_model(get_session, dict_key, model_class):
-    session = get_session
-    new_model = model_class(**company_data[dict_key])
-    session.add(new_model)
-    session.commit()
-    received = session.query(model_class).first()
-    assert new_model == received
-
-def test_add_company(get_session, mappers):
+def test_add_company(get_session):
     session = get_session
     sic = model.Sic(9000, "test_sector", "test_industry", "test_division")
     session.add(sic)
@@ -175,7 +168,7 @@ def test_add_company(get_session, mappers):
     print(received.__dict__, company.__dict__)
     assert company == received
 
-def test_add_sic(get_session, mappers):
+def test_add_sic(get_session):
     session = get_session
     sic = _add_sic(session)
     received = session.query(model.Sic).filter_by(sic=company_data["sics"]["sic"]).first()
@@ -185,6 +178,7 @@ def test_add_sic(get_session, mappers):
 def test_repo_add_company(add_base_company):
     received = add_base_company
     new_company = create_company()
+    print(locals())
     assert new_company == received
 
 def test_repo_change_company_name(get_uow, add_base_company):
@@ -238,7 +232,7 @@ def test_repo_add_warrant(get_uow, add_base_company):
         u.company.add(company)
         u.commit()
     with uow as u:
-        company = u.company.get(company_data["companies"]["symbol"])
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
         security = company.get_security_by_name(name=secu_args["name"])
         print(security, posted)
         assert security == posted
@@ -267,25 +261,14 @@ def populate_database_for_conversion(session):
                 session.rollback()
                 print(e)
             else:
-                session.commit()
-
-def test_model_load(get_uow, get_session):
-    session = get_session
-    populate_database_for_conversion(session)
-    uow = get_uow
-    with uow as u:
-        company = u.company.get(company_data_conversion["companies"]["symbol"])
-        print(company.__dict__)
-        assert 1 == 2
-    
-    
+                session.commit()   
 
 def test_repo_add_conversion_attribute(get_uow, add_base_company):
     uow = get_uow
     add_security(create_common_shares_dict, uow)
     add_security(create_preferred_shares_dict, uow)
     with uow as u:
-        company = u.company.get(company_data["companies"]["symbol"])
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
         secu1 = company.get_security_by_name(create_common_shares_dict()["name"])
         secu2 = company.get_security_by_name(create_preferred_shares_dict()["name"])
         conversion_feature = model.ConvertibleFeature(conversion_ratio=10)
@@ -294,10 +277,36 @@ def test_repo_add_conversion_attribute(get_uow, add_base_company):
         u.company.add(company)
         u.commit()
     with uow as u:
-        company = u.company.get(company_data["companies"]["symbol"])
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
         print(company.security_conversion[0], "/n", secu_conversion)
         assert company.security_conversion[0] == secu_conversion
+    
+def test_repo_add_security_outstanding(get_uow, add_base_company):
+    uow = get_uow
+    add_security(create_common_shares_dict, uow)
+    new_outstanding = model.SecurityOutstanding(5000, datetime.date(2022, 1, 1))
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        secu = company.get_security_by_name(create_common_shares_dict()["name"])
+        secu.add_outstanding(model.SecurityOutstanding(5000, datetime.date(2022, 1, 1)))
+        u.company.add(company)
+        u.commit()
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        secu = company.get_security_by_name(create_common_shares_dict()["name"])
+        assert new_outstanding in secu.outstanding
 
+def test_repo_add_security_authorized(get_uow, add_base_company):
+    uow = get_uow
+    new_authorized = model.SecurityAuthorized("CommonShare", 10000, datetime.date(2022, 1, 1))
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        company.add_security_authorized(model.SecurityAuthorized("CommonShare", 10000, datetime.date(2022, 1, 1)))
+        u.company.add(company)
+        u.commit()
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        assert new_authorized in company.securities_authorized
 
         
     

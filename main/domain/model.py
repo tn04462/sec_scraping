@@ -1,5 +1,5 @@
 from types import NoneType
-from typing import Dict, Optional, Set, TypeAlias, TypeVar, Union
+from typing import Dict, List, Optional, Set, TypeAlias, TypeVar, Union
 from typing_extensions import Self
 from pydantic import AnyUrl, Json, ValidationError, validator, BaseModel, root_validator
 from datetime import date, datetime, timedelta
@@ -154,13 +154,55 @@ class SecurityCusip:
     cusip_number: str
     security_name: str
 
+@dataclass
+class SecurityOutstanding:
+    amount: int
+    instant: date
+
+    def __eq__(self, other):
+        if isinstance(other, SecurityOutstanding):
+            if (
+                (self.amount == other.amount) and
+                (self.instant == other.instant)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.amount, self.instant))
+
+@dataclass
+class SecurityAuthorized:
+    security_type: str
+    amount: int
+    instant: date
+
+    def __eq__(self, other):
+        if isinstance(other, SecurityAuthorized):
+            if (
+                (self.security_type == other.security_type) and
+                (self.amount == other.amount) and
+                (self.instant == other.instant)
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.amount, self.instant, self.security_type))
+
+
 class Security:
     def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying: Optional[Self|str]=None):
         self.name = secu_attributes.name if name is None else name
         self.security_type = repr(secu_attributes)
         self.security_attributes = secu_attributes.json()
         self.underlying = underlying
+        self.outstanding = set()
         # self.convertible_to = Dict[Security]
+    
+    def add_outstanding(self, new_outstanding: SecurityOutstanding):
+        if new_outstanding not in self.outstanding:
+            self.outstanding.add(new_outstanding)
     
     def __repr__(self):
         return str(self.security_attributes)
@@ -199,41 +241,6 @@ class SecurityConversion:
         return hash((self.from_security, self.to_security))
 
 
-@dataclass
-class SecurityOutstanding:
-    amount: int
-    instant: date
-
-    def __eq__(self, other):
-        if isinstance(other, SecurityOutstanding):
-            if (
-                (self.amount == other.amount) and
-                (self.instant == other.instant)
-            ):
-                return True
-        return False
-    
-    def __hash__(self):
-        return hash((self.amount, self.instant))
-
-@dataclass
-class SecurityAuthorized:
-    security_type: str
-    amount: int
-    instant: date
-
-    def __eq__(self, other):
-        if isinstance(other, SecurityAuthorized):
-            if (
-                (self.security_type == other.security_type) and
-                (self.amount == other.amount) and
-                (self.instant == other.instant)
-            ):
-                return True
-        return False
-    
-    def __hash__(self):
-        return hash((self.amount, self.instant, self.security_type))
 
 @dataclass
 class ShelfSecurityRegistration:
@@ -538,11 +545,11 @@ class NetCashAndEquivalents:
 
 
 class Company:
-    def __init__(self, name: str, cik: str, sic: str, symbol: str, description_: Optional[str]=None, securities: set[Security]=None, shelfs: set[ShelfRegistration]=None, resales: set[ResaleRegistration]=None, filing_parse_history: set[FilingParseHistoryEntry]=None):
+    def __init__(self, name: str, cik: str, sic: str, symbol: str, description_: Optional[str]=None, securities: set[Security]=None, shelfs: List[ShelfRegistration]=None, resales: List[ResaleRegistration]=None, filing_parse_history: List[FilingParseHistoryEntry]=None):
         self.name = name
-        self.cik = cik,
-        self.sic = sic,
-        self.symbol = symbol,
+        self.cik = cik
+        self.sic = sic
+        self.symbol = symbol
         self.description_ = description_
         self.securities = set() if securities is None else securities
         self.shelfs = set() if shelfs is None else shelfs
@@ -554,6 +561,10 @@ class Company:
         self.cash_finacing = set()
         self.cash_investing = set()
         self.net_cash_and_equivalents = set()
+        self.securities_authorized = set()
+    
+    def __repr__(self):
+        return str(self.cik)
     
     def __eq__(self, other):
         if isinstance(other, Company):
@@ -565,7 +576,7 @@ class Company:
         return False
     
     def __hash__(self):
-        return hash((self.cik))
+        return hash((self.cik, ))
 
 
     def change_name(self, new_name):
@@ -579,7 +590,7 @@ class Company:
     
     def add_security(self, secu: Security):
         if (secu.underlying is not None) and (isinstance(secu.underlying, str)):
-            underlying = self.get_security_by_name(secu["underlying"])
+            underlying = self.get_security_by_name(secu.underlying)
             if underlying is None:
                 raise SecurityNotFound(f"Couldnt find underlying Security with name: {secu['underlying']}. Make sure the underlying was added!")
             else:
@@ -591,7 +602,6 @@ class Company:
             raise ValueError
         if secu_conversion.to_security not in self.securities:
             raise ValueError
-        
         from_security = self._get_security(secu_conversion.from_security)
         if from_security is not None:
             if secu_conversion not in from_security.conversion_from_self:
@@ -600,20 +610,11 @@ class Company:
         if to_security is not None:
             if secu_conversion not in to_security.conversion_to_self:
                 to_security.conversion_to_self.append(secu_conversion)
-        
-        
-        
     
-    # def add_security(self, name: str, secu_type: str, secu_attributes: SecurityType, underlying: Optional[Security]=None):
-    #     self.securities.add(
-    #         Security(
-    #             name=name,
-    #             secu_type=secu_type,
-    #             secu_attributes=secu_attributes,
-    #             underlying=underlying
-
-    #         ))
-    
+    def add_security_authorized(self, authorized: SecurityAuthorized):
+        if authorized not in self.securities_authorized:
+            self.securities_authorized.add(authorized)
+        
     def get_security_by_name(self, name):
         for secu in self.securities:
             if name == secu.name:

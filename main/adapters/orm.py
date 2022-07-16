@@ -318,6 +318,16 @@ def start_mappers():
         form_types
     )
 
+    securities_outstanding_mapper = reg.map_imperatively(
+        SecurityOutstanding,
+        securities_outstanding
+    )
+
+    securities_authorized_mapper = reg.map_imperatively(
+        SecurityAuthorized,
+        securities_authorized
+    )
+
     securities_mapper = reg.map_imperatively(
         Security,
         securities,
@@ -330,13 +340,20 @@ def start_mappers():
                 uselist=False,
                 lazy="joined"
             ),
+            "outstanding": relationship(
+                securities_outstanding_mapper,
+                collection_class=set,
+                lazy="joined"
+            ),
             "conversion_from_self": relationship(
                 SecurityConversion,
-                primaryjoin=securities.c.id==securities_conversion.c.from_security_id
+                primaryjoin=securities.c.id==securities_conversion.c.from_security_id,
+                lazy="joined"
             ),
             "conversion_to_self": relationship(
                 SecurityConversion,
-                primaryjoin=securities.c.id==securities_conversion.c.to_security_id
+                primaryjoin=securities.c.id==securities_conversion.c.to_security_id,
+                lazy="joined"
             )
         }
     )
@@ -362,16 +379,6 @@ def start_mappers():
                 lazy="joined"
             )
         }
-    )
-
-    securities_outstanding_mapper = reg.map_imperatively(
-        SecurityOutstanding,
-        securities_outstanding
-    )
-
-    securities_authorized_mapper = reg.map_imperatively(
-        SecurityAuthorized,
-        securities_authorized
     )
 
     securities_shelf_offerings_registered_mapper = reg.map_imperatively(
@@ -548,6 +555,20 @@ def start_mappers():
                 collection_class=set,
                 lazy="joined"
             ),
+            "security_conversion": relationship(
+                securities_conversion_mapper,
+                secondary=join(companies, securities, companies.c.id==securities.c.company_id).join(securities_conversion, ((securities.c.id==securities_conversion.c.from_security_id)|(securities.c.id==securities_conversion.c.to_security_id))),
+                primaryjoin=companies.c.id==remote(securities.c.company_id),
+                secondaryjoin=(securities_conversion.c.to_security_id==remote(securities.c.id))|(securities_conversion.c.from_security_id==remote(securities.c.id)),
+                lazy="joined",
+                collection_class=list,
+                viewonly=True
+            ),
+            "securities_authorized": relationship(
+                securities_authorized_mapper,
+                lazy="joined",
+                collection_class=set
+            ),
             "shelfs": relationship(
                 shelf_registrations_mapper,
                 collection_class=set,
@@ -567,15 +588,6 @@ def start_mappers():
                 filing_links_mapper,
                 collection_class=set,
                 lazy="joined"
-            ),
-            "security_conversion": relationship(
-                securities_conversion_mapper,
-                secondary=join(companies, securities, companies.c.id==securities.c.company_id).join(securities_conversion, ((securities.c.id==securities_conversion.c.from_security_id)|(securities.c.id==securities_conversion.c.to_security_id))),
-                primaryjoin=companies.c.id==remote(securities.c.company_id),
-                secondaryjoin=(securities_conversion.c.to_security_id==remote(securities.c.id))|(securities_conversion.c.from_security_id==remote(securities.c.id)),
-                lazy="joined",
-                collection_class=list,
-                viewonly=True
             ),
             "cash_operating": relationship(
                 cash_operating_mapper,
