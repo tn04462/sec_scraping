@@ -1,3 +1,4 @@
+from enum import Enum
 from types import NoneType
 from typing import Dict, List, Optional, Set, TypeAlias, TypeVar, Union
 from typing_extensions import Self
@@ -10,6 +11,13 @@ logger = logging.getLogger(__name__)
 
 class SecurityNotFound(Exception):
     pass
+
+class AllowedSecurityTypes(Enum):
+    CommonShare = 'CommonShare'
+    PreferredShare = 'PreferredShare'
+    DebtSecurity = 'DebtSecurity'
+    Option = 'Option'
+    Warrant = 'Warrant'
 
 
 class CommonShare(BaseModel):
@@ -177,6 +185,10 @@ class SecurityAuthorized:
     amount: int
     instant: date
 
+    def __post_init__(self):
+        if self.security_type not in [member.value for member in AllowedSecurityTypes]:
+            raise TypeError(f"unallowed security_type given: {self.security_type}. Allowed are: {[member.value for member in AllowedSecurityTypes]}")
+
     def __eq__(self, other):
         if isinstance(other, SecurityAuthorized):
             if (
@@ -284,6 +296,7 @@ class ShelfSecurityComplete:
 @dataclass
 class ShelfOffering:
     offering_type: str
+    accn: str
     anticipated_offering_amount: float
     commencment_date: datetime
     end_date: datetime
@@ -291,6 +304,12 @@ class ShelfOffering:
     underwriters: Set[Underwriter] = field(default_factory=set)
     registrations: Set[ShelfSecurityRegistration] = field(default_factory=set)
     completed: Set[ShelfSecurityComplete] = field(default_factory=set)
+
+    def add_registration(self, registered: ShelfSecurityRegistration):
+        self.registrations.add(registered)
+    
+    def add_complete(self, completed: ShelfSecurityComplete):
+        self.completed.add(completed)
 
     def __repr__(self):
         return f"{self}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
@@ -332,6 +351,15 @@ class ShelfRegistration:
     total_amount_raised: Optional[int] = field(default=None)
     total_amount_raised_unit: Optional[str] = field(default="USD")
     offerings: Set[ShelfOffering] = field(default_factory=set)
+
+    def get_offering_by_accn(self, accn: str):
+        for o in self.offerings:
+            if o.accn == accn:
+                return o
+    
+    def add_offering(self, offering: ShelfOffering):
+        self.offerings.add(offering)
+    
 
     def __eq__(self, other):
         if isinstance(other, ShelfRegistration):
@@ -394,6 +422,12 @@ class ResaleRegistration:
     registrations: Set[ResaleSecurityRegistration] = field(default_factory=set)
     completed: Set[ResaleSecurityComplete] = field(default_factory=set)
 
+    def add_registration(self, registered: ResaleSecurityRegistration):
+        self.registrations.add(registered)
+    
+    def add_complete(self, completed: ResaleSecurityComplete):
+        self.completed.add(completed)
+
     def __eq__(self, other):
         if isinstance(other, ResaleRegistration):
             if (
@@ -405,7 +439,6 @@ class ResaleRegistration:
     
     def __hash__(self):
         return hash((self.accn, ))
-
 
 
 @dataclass
@@ -426,6 +459,7 @@ class Sic:
     
     def __hash__(self):
         return hash((self.sic,))
+
 
 @dataclass
 class FilingParseHistoryEntry:
@@ -586,6 +620,18 @@ class Company:
         for s in self.securities:
             if s == secu:
                 return s
+        return None
+    
+    def get_shelf(self, accn: str):
+        for shelf in self.shelfs:
+            if shelf.accn == accn:
+                return shelf
+        return None
+    
+    def get_resale(self, accn: str):
+        for resale in self.resales:
+            if resale.accn == accn:
+                return resale
         return None
     
     def add_security(self, secu: Security):

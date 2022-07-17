@@ -111,7 +111,7 @@ securities_outstanding = Table(
     "securities_outstanding",
     reg.metadata,
     Column("id", Integer, primary_key=True),
-    Column("securities_id", ForeignKey("securities.id")),
+    Column("security_id", ForeignKey("securities.id")),
     Column("amount", BigInteger),
     Column("instant", Date)
 )

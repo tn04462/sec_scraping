@@ -1,5 +1,6 @@
 import pytest
 from main.domain import model
+import datetime
 
 def test_security_is_equal():
     data = {
@@ -24,3 +25,5 @@ def test_security_is_unequal():
     })
     assert secu1 != secu2
 
+def test_security_authorized_wrong_secu_type_failure():
+    pytest.raises(TypeError, model.SecurityAuthorized, "NonExistantSecuType", 10000, datetime.date(2022, 1, 1))

@@ -5,9 +5,7 @@ CREATE TYPE SECURITY_TYPES as ENUM (
     'PreferredShare',
     'DebtSecurity',
     'Option',
-    'Warrant',
-    'ConvertiblePreferredShares',
-    'ConvertibleDebtSecurity'
+    'Warrant'
     );
 
 
@@ -275,8 +273,8 @@ CREATE TABLE IF NOT EXISTS shelf_offerings(
     final_offering_amount BIGINT,
     anticipated_offering_amount BIGINT,
     offering_status_id INTEGER,
-    commencment_date TIMESTAMP,
-    end_date TIMESTAMP,
+    commencment_date DATE,
+    end_date DATE,
       
     CONSTRAINT fk_offering_status_id
         FOREIGN KEY (offering_status_id)
@@ -434,7 +432,7 @@ CREATE TABLE IF NOT EXISTS securities_resale_registered (
 CREATE TABLE IF NOT EXISTS securities_outstanding (
     id SERIAL PRIMARY KEY,
     security_id INTEGER,
-    amount_outstanding BIGINT,
+    amount BIGINT,
     instant DATE,
 
     CONSTRAINT fk_security_id
@@ -445,8 +443,8 @@ CREATE TABLE IF NOT EXISTS securities_outstanding (
 CREATE TABLE IF NOT EXISTS securities_authorized (
     id SERIAL PRIMARY KEY,
     company_id INTEGER,
-    security_type VARCHAR,
-    amount_authorized BIGINT,
+    security_type SECURITY_TYPES,
+    amount BIGINT,
     instant DATE,
 
     CONSTRAINT fk_company_id

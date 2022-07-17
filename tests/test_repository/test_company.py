@@ -22,6 +22,10 @@ company_data_conversion = {
             "form_type": "S-3",
             "category": "prospectus"
         },
+        "offering_status":{
+            "id": 1,
+            "name_": "active"
+        },
         "companies": {
             "id": 1,
             "cik": "0000000001",
@@ -80,6 +84,18 @@ company_data_conversion = {
                 "conversion_attributes": model.ConvertibleFeature(conversion_ratio=50).json()
             }
         ],
+        "shelf_offerings": {
+            "id": 1,
+            "shelf_registrations_id": 1,
+            "accn": "00921310923",
+            "filing_date": datetime.date(2022, 1, 1),
+            "offering_type": "atm",
+            "final_offering_amount": None,
+            "anticipated_offering_ammount": 100000,
+            "offering_status_id": 1,
+            "commencment_date": datetime.date(2022, 2, 1),
+            "end_date": datetime.date(2022, 3, 1)
+        }
     }
 
 def create_company():
@@ -307,6 +323,14 @@ def test_repo_add_security_authorized(get_uow, add_base_company):
     with uow as u:
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
         assert new_authorized in company.securities_authorized
+
+def test_repo_add_shelf_security_registration_with_source_security(get_uow, add_base_company):
+    uow = get_uow
+    add_security(create_common_shares_dict, uow)
+    add_security(create_preferred_shares_dict, uow)
+    with uow as u:
+        company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        # company.add_security_shelf_registration()
 
         
     
