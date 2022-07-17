@@ -2,14 +2,16 @@ from abc import ABC
 import logging
 
 from pydantic import ValidationError
-from main.parser.filings_base import Filing, FilingSection, FilingValue
 from datetime import datetime
 import pandas as pd
 import re
 from spacy.matcher import Matcher
 from spacy.tokens import Doc
 
+from main.parser.filings_base import Filing, FilingSection
+from main.domain import model
 from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityTypeFactory, Warrant, Option
+from main.services.messagebus import MessageBus
 from main.services.unit_of_work import AbstractUnitOfWork
 from .filing_nlp import SpacyFilingTextSearch
 
@@ -22,48 +24,12 @@ class UnhandledClassificationError(Exception):
 
 
 class AbstractFilingExtractor(ABC):
-    def extract_form_values(self, filing: Filing):
-        """extracts values and returns them as a FormValues object"""
+    def extract_form_values(self, filing: Filing, bus: MessageBus):
+        """extracts values and issues commands.Command to MessageBus"""
         pass
 
-class BaseExtractor():
-    def create_filing_value(self, filing: Filing, field_name: str, field_values: dict, context:str=None, date_parsed: datetime=datetime.now()):
-        '''create a FilingValue'''
-        return FilingValue(
-            cik=filing.cik,
-            date_parsed=date_parsed,
-            accession_number=filing.accession_number,
-            form_type=filing.form_type,
-            field_name=field_name,
-            field_values=field_values,
-            context=context
-        )
-    
-    def create_filing_values(self, values_list: list[dict], filing: Filing, date_parsed: datetime=datetime.utcnow()):
-        '''
-        create a list of FilingValues from a values_list
-        
-        Args:
-            values_list: list[dict] with dict of form: 
-                        {field_name: {field_values}, "context": additional 
-                        context for uploader or None}
-            filing: instance of Filing or a sublcass thereof
-            date_parsed: when the parsing happend, defaults to datetime.utcnow()
-        
-        Returns:
-            list[FilingValue] or None
-        '''
-        if values_list == []:
-            return None
-        filing_values = []
-        for value in values_list:
-            for k, v in value.items():
-                if k != "context":
-                    filing_values.append(self.create_filing_value(filing, field_name=k, field_values=v, context=values_list["context"]  if "context" in value.keys() else None))
-        return filing_values
 
-
-class BaseHTMExtractor(BaseExtractor):
+class BaseHTMExtractor():
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
     
@@ -186,22 +152,21 @@ class BaseHTMExtractor(BaseExtractor):
             logger.debug(filing)
             return None
         values = self.spacy_text_search.match_outstanding_shares(text)
-        return self.create_filing_values(values, filing)
+        return [model.SecurityOutstanding(v["amount"], v["date"]) for v in values]
 
 class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def extract_form_values(self, filing: Filing, uow: AbstractUnitOfWork):
-        form_values = self.create_form_values(filing)
-        form_values.form_case = self.classify_s3(filing)
-        form_values.securities = self.extract_securities(filing)
-        
-        #WIP
+    def extract_form_values(self, filing: Filing, bus: AbstractUnitOfWork):
+        form_case = self.classify_s3(filing)
+        securities = self.extract_securities(filing)
+
     
     def extract_securities(self, filing: Filing, uow: AbstractUnitOfWork):
         '''extract securities and their relation and return a modified Company repository.'''
+        securities = []
         cover_page = filing.get_section(re.compile("cover page"))
         cover_page_doc = self.doc_from_section(cover_page)
         raw_secus = self.get_mentioned_secus(cover_page_doc)
@@ -214,8 +179,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 security_attributes = self.merge_attributes(
                     security_attributes,
                     self.get_security_attributes(doc, secu, security_type))
-            securities.add_secu(security_type, security_attributes)
-        for security in securities.secus:
+            securities.append({"seucrity_type": security_type, "securitiy_attributes": security_attributes})
+        for security in securities:
             for doc in description_docs:
                 conversion_attr = self.get_secu_conversion(doc, security.name)
                 if conversion_attr:

@@ -383,13 +383,13 @@ class SpacyFilingTextSearch:
         matches = _convert_matches_to_spans(doc, filter_matches(possible_matches))
         values = []
         for match in matches:
-            value = {"outstanding_shares": {}}
+            value = {}
             for ent in match.ents:
                 print(ent, ent.label_)
                 if ent.label_ == "CARDINAL":
-                    value["outstanding_shares"]["amount"] = int(str(ent).replace(",", ""))
+                    value["amount"] = int(str(ent).replace(",", ""))
                 if ent.label_ == "DATE":
-                    value["outstanding_shares"]["date"] = pd.to_datetime(str(ent))
+                    value["date"] = pd.to_datetime(str(ent))
             try:
                 validate_filing_values(value, "outstanding_shares", ["date", "amount"])
             except AttributeError:
@@ -569,10 +569,8 @@ def _convert_matches_to_spans(doc, matches):
         m.append(doc[match[1]:match[2]])
     return m
 
-def validate_filing_values(values, field_name, attributes):
+def validate_filing_values(values, attributes):
     '''validate a flat filing value'''
-    if field_name not in values.keys():
-        raise AttributeError
     for attr in attributes:
-        if attr not in values[field_name].keys():
+        if attr not in values.keys():
             raise AttributeError
