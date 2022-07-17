@@ -9,7 +9,8 @@ import re
 from spacy.matcher import Matcher
 from spacy.tokens import Doc
 
-from main.security_models.naiv_models import CommonShare, DebtSecurity, FormValues, PreferredShare, Securities, Security, SecurityTypeFactory, Warrant, Option
+from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityTypeFactory, Warrant, Option
+from main.services.unit_of_work import AbstractUnitOfWork
 from .filing_nlp import SpacyFilingTextSearch
 
 logger = logging.getLogger(__name__)
@@ -26,12 +27,6 @@ class AbstractFilingExtractor(ABC):
         pass
 
 class BaseExtractor():
-    def create_form_values(self, filing: Filing):
-        return FormValues(
-            cik=filing.cik,
-            accn=filing.accession_number,
-            form_type=filing.form_type
-        )
     def create_filing_value(self, filing: Filing, field_name: str, field_values: dict, context:str=None, date_parsed: datetime=datetime.now()):
         '''create a FilingValue'''
         return FilingValue(
@@ -198,16 +193,15 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def extract_form_values(self, filing: Filing):
+    def extract_form_values(self, filing: Filing, uow: AbstractUnitOfWork):
         form_values = self.create_form_values(filing)
         form_values.form_case = self.classify_s3(filing)
         form_values.securities = self.extract_securities(filing)
         
         #WIP
     
-    def extract_securities(self, filing: Filing):
-        '''extract securities and their relation and return a Securities object.'''
-        securities = Securities()
+    def extract_securities(self, filing: Filing, uow: AbstractUnitOfWork):
+        '''extract securities and their relation and return a modified Company repository.'''
         cover_page = filing.get_section(re.compile("cover page"))
         cover_page_doc = self.doc_from_section(cover_page)
         raw_secus = self.get_mentioned_secus(cover_page_doc)
