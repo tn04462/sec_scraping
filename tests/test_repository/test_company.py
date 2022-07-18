@@ -324,13 +324,39 @@ def test_repo_add_security_authorized(get_uow, add_base_company):
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
         assert new_authorized in company.securities_authorized
 
-def test_repo_add_shelf_security_registration_with_source_security(get_uow, add_base_company):
+# def test_repo_add_shelf_security_registration_with_source_security(get_uow, add_base_company):
+#     uow = get_uow
+#     add_security(create_common_shares_dict, uow)
+#     add_security(create_preferred_shares_dict, uow)
+#     with uow as u:
+#         company: model.Company = u.company.get(company_data["companies"]["symbol"])
+#         # company.add_security_shelf_registration()
+
+def test_repo_get_company_speed(get_uow, add_base_company):
     uow = get_uow
     add_security(create_common_shares_dict, uow)
     add_security(create_preferred_shares_dict, uow)
+    add_security(create_warrant_dict, uow)
     with uow as u:
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
-        # company.add_security_shelf_registration()
+        secu = company.get_security_by_name(create_common_shares_dict()["name"])
+        for x in range(25):
+            for y in range(12):
+                secu.add_outstanding(model.SecurityOutstanding(5000, datetime.date(2022, y, x)))
+        u.company.add(company)
+        u.commit()
+    durations = []
+    for count in range(100):
+        start = datetime.datetime.now()
+        with uow as u:
+            company: model.Company = u.company.get(company_data["companies"]["symbol"])
+        duration  = datetime.datetime.now() - start
+        durations.append(durations)
+    import pandas as pd
+    s = pd.Series(durations)
+    print(s.describe())
+    assert 1 == 2
+
 
         
     
