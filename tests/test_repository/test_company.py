@@ -306,7 +306,7 @@ def test_repo_add_security_outstanding(get_uow, add_base_company):
         secu = company.get_security_by_name(create_common_shares_dict()["name"])
         secu.add_outstanding(model.SecurityOutstanding(5000, datetime.date(2022, 1, 1)))
         u.company.add(company)
-        u.commit()s
+        u.commit()
     with uow as u:
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
         secu = company.get_security_by_name(create_common_shares_dict()["name"])

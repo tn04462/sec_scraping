@@ -6,3 +6,6 @@ from dataclasses import dataclass
 class Command:
     pass
 
+@dataclass
+class SecurityOutstanding(Command):
+    
