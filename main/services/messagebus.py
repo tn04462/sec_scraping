@@ -1,9 +1,8 @@
 import logging
 from typing import Callable, Dict, List, Union, Type, TYPE_CHECKING
-from domain import commands #, events
+from main.domain import commands
+from main.services import unit_of_work
 
-if TYPE_CHECKING:
-    from . import unit_of_work
 
 logger = logging.getLogger(__name__)
 

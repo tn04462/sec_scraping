@@ -118,8 +118,7 @@ def load_schema(user, password, host, port, dbname):
     with pool.connection() as c:
         with open(dilution_db_schema, "r") as sql:
             c.execute(sql.read())
-
-            
+         
 
 postgresql_my_proc = factories.postgresql_noproc(
     host=cnf.DILUTION_DB_HOST,

@@ -334,27 +334,36 @@ def test_repo_add_security_authorized(get_uow, add_base_company):
 
 def test_repo_get_company_speed(get_uow, add_base_company):
     uow = get_uow
+    import matplotlib.pyplot as plt
     add_security(create_common_shares_dict, uow)
     add_security(create_preferred_shares_dict, uow)
     add_security(create_warrant_dict, uow)
-    with uow as u:
-        company: model.Company = u.company.get(company_data["companies"]["symbol"])
-        secu = company.get_security_by_name(create_common_shares_dict()["name"])
-        for x in range(25):
-            for y in range(12):
-                secu.add_outstanding(model.SecurityOutstanding(5000, datetime.date(2022, y, x)))
-        u.company.add(company)
-        u.commit()
-    durations = []
-    for count in range(100):
+    secus = []
+    for x in range(1, 25):
+        for y in range(1, 10):
+            for i in range(2020, 2021, 1):
+                secus.append(model.SecurityOutstanding(5000, datetime.date(i, y, x)))
+        
+    durations_get = []
+    durations_add = []
+    for secu in secus:
         start = datetime.datetime.now()
         with uow as u:
             company: model.Company = u.company.get(company_data["companies"]["symbol"])
-        duration  = datetime.datetime.now() - start
-        durations.append(durations)
+            duration = datetime.datetime.now() - start
+            durations_get.append(duration)
+            start2 = datetime.datetime.now()
+            child = company.get_security_by_name(create_common_shares_dict()["name"])
+            child.add_outstanding(secu)
+            u.company.add(company)
+            u.commit()
+            durations_add.append(datetime.datetime.now() - start2)
     import pandas as pd
-    s = pd.Series(durations)
-    print(s.describe())
+    data = pd.Series(durations_get)
+    print(data.describe(), data.std(), data.mean())
+    data.plot()
+    pd.Series(durations_add).plot()
+    plt.show()
     assert 1 == 2
 
 

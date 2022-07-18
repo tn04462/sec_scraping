@@ -1,5 +1,6 @@
 from abc import ABC
 import logging
+from typing import List
 
 from pydantic import ValidationError
 from datetime import datetime
@@ -9,9 +10,9 @@ from spacy.matcher import Matcher
 from spacy.tokens import Doc
 
 from main.parser.filings_base import Filing, FilingSection
-from main.domain import model
+from main.domain import model,  commands
 from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityTypeFactory, Warrant, Option
-from main.services.messagebus import MessageBus
+from main.services.messagebus import Message, MessageBus
 from main.services.unit_of_work import AbstractUnitOfWork
 from .filing_nlp import SpacyFilingTextSearch
 
@@ -35,6 +36,10 @@ class BaseHTMExtractor():
     
     def _normalize_SECU(self, security: str):
         return security.lower()
+    
+    def handle_commands(self, commands: List[commands.Command], bus: MessageBus):
+        for command in commands:
+            bus.handle(command)
     
     def get_mentioned_secus(self, doc: Doc):
         '''get all SECU entities'''

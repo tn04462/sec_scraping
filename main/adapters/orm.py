@@ -343,7 +343,7 @@ def start_mappers():
             "outstanding": relationship(
                 securities_outstanding_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "conversion_from_self": relationship(
                 SecurityConversion,
@@ -465,17 +465,17 @@ def start_mappers():
                 underwriters_mapper,
                 secondary=underwriters_shelf_offerings,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "registrations": relationship(
                 securities_shelf_offerings_registered_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "completed": relationship(
                 securities_shelf_offerings_completed_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             )
         }
     )
@@ -487,7 +487,7 @@ def start_mappers():
             "offerings": relationship(
                 shelf_offerings_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             )
         }
     )
@@ -499,12 +499,12 @@ def start_mappers():
             "registrations": relationship(
                 securities_resale_registered_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "completed": relationship(
                 securities_resale_completed_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             )
         }
     )
@@ -553,7 +553,7 @@ def start_mappers():
             "securities": relationship(
                 securities_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "security_conversion": relationship(
                 securities_conversion_mapper,
@@ -566,48 +566,48 @@ def start_mappers():
             ),
             "securities_authorized": relationship(
                 securities_authorized_mapper,
-                lazy="joined",
+                lazy="selectin",
                 collection_class=set
             ),
             "shelfs": relationship(
                 shelf_registrations_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "resales": relationship(
                 resale_registrations_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "filing_parse_history": relationship(
                 filing_parse_history_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "filing_links": relationship(
                 filing_links_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "cash_operating": relationship(
                 cash_operating_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "cash_financing": relationship(
                 cash_financing_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "cash_investing": relationship(
                 cash_investing_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "net_cash_and_equivalents": relationship(
                 net_cash_and_equivalents_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             )
 
         }
