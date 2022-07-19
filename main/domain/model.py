@@ -209,7 +209,7 @@ class Security:
         self.security_type = repr(secu_attributes)
         self.security_attributes = secu_attributes.json()
         self.underlying = underlying
-        self.outstanding = None
+        self.outstanding: Set = set()
         # self.convertible_to = Dict[Security]
     
     def add_outstanding(self, new_outstanding: SecurityOutstanding):
@@ -312,11 +312,12 @@ class ShelfOffering:
         self.completed.add(completed)
 
     def __repr__(self):
-        return f"{self}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
+        return f"{self.__class__}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
     
     def __eq__(self, other):
         if isinstance(other, ShelfOffering):
             if (
+                (self.accn == other.accn) and
                 (self.offering_type == other.offering_type) and
                 (self.anticipated_offering_amount == other.anticipated_offering_amount) and
                 (self.commencment_date == other.commencment_date) and
@@ -330,13 +331,11 @@ class ShelfOffering:
     
     def __hash__(self):
         return hash((
+            self.accn,
             self.offering_type,
             self.anticipated_offering_amount,
             self.commencment_date,
-            self.end_date,
-            self.underwriters,
-            self.registrations,
-            self.completed
+            self.end_date
             ))
 
 @dataclass
@@ -349,7 +348,6 @@ class ShelfRegistration:
     last_update: Optional[date] = field(default=None)
     expiry: Optional[date] = field(default=None)
     total_amount_raised: Optional[int] = field(default=None)
-    total_amount_raised_unit: Optional[str] = field(default="USD")
     offerings: Set[ShelfOffering] = field(default_factory=set)
 
     def get_offering_by_accn(self, accn: str):
@@ -358,7 +356,10 @@ class ShelfRegistration:
                 return o
     
     def add_offering(self, offering: ShelfOffering):
-        self.offerings.add(offering)
+        if offering in self.offerings:
+            logger.debug(f"Tried to add duplicate ShelfOffering into ShelfRegistration.offerings")
+        else:    
+            self.offerings.add(offering)
     
 
     def __eq__(self, other):
@@ -579,7 +580,7 @@ class NetCashAndEquivalents:
 
 
 class Company:
-    def __init__(self, name: str, cik: str, sic: str, symbol: str, description_: Optional[str]=None):
+    def __init__(self, name: str, cik: str, sic: int, symbol: str, description_: Optional[str]=None):
         self.name = name
         self.cik = cik
         self.sic = sic
@@ -635,10 +636,16 @@ class Company:
         return None
     
     def add_shelf(self, shelf: ShelfRegistration):
-        self.shelfs.add(shelf)
+        if shelf in self.shelfs:
+            logger.debug(f"Tried to add duplicate ShelfRegistration into Company.shelfs")
+        else:
+            self.shelfs.add(shelf)
     
     def add_resale(self, resale: ResaleRegistration):
-        self.resales.add(resale)
+        if resale in self.resales:
+            logger.debug(f"Tried to add duplicate ResaleRegistration into Company.resales")
+        else:
+            self.resales.add(resale)
     
     def add_security(self, secu: Security):
         if (secu.underlying is not None) and (isinstance(secu.underlying, str)):
@@ -647,7 +654,10 @@ class Company:
                 raise SecurityNotFound(f"Couldnt find underlying Security with name: {secu['underlying']}. Make sure the underlying was added!")
             else:
                 secu.underlying = underlying
-        self.securities.add(secu)
+        if secu in self.securities:
+            logger.debug(f"Tried to add duplicate Security into Company.securities")
+        else:
+            self.securities.add(secu)
     
     def add_security_conversion(self, secu_conversion: SecurityConversion):
         if secu_conversion.from_security not in self.securities:

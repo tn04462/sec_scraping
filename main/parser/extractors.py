@@ -169,10 +169,26 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         self.extract_securities(filing, company, bus)
         if form_case == "shelf":
             # add shelf_registration
-            pass
+            kwargs = {
+                "accn": filing.accession_number,
+                "form_type": filing.form_type,
+                "capacity": self.extract_shelf_capacity(filing),
+                "filing_date": filing.filing_date
+            }
+            shelf = model.ShelfRegistration(**kwargs)
+            company.add_shelf(shelf)
+            bus.handle(commands.AddShelfRegistration(filing.cik, shelf))
         elif form_case == "resale":
             # add resale_registration
-            pass
+            kwargs =  {
+                "accn": filing.accession_number,
+                "form_type": filing.form_type,
+                "filing_date": filing.filing_date
+            }
+            resale = model.ResaleRegistration(**kwargs)
+            company.add_resale(resale)
+            bus.handle(commands.AddResaleRegistration(filing.cik, resale))
+            
 
     def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus):
         '''extract securities and their relation and return a modified Company repository.'''
@@ -189,9 +205,11 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 security_attributes = self.merge_attributes(
                     security_attributes,
                     self.get_security_attributes(doc, secu, security_type))
-            company.add_security(model.Security(security_type(**security_attributes)))
-        bus.handle(commands.AddCompany(company))
-        return company
+            security = model.Security(security_type(**security_attributes))
+            securities.append(security)
+            company.add_security(security)
+        bus.handle(commands.AddSecurities(securities))
+        return securities
         # bus.handle(commands.AddSecurities())
 
     

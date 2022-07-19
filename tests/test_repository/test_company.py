@@ -112,7 +112,6 @@ def create_common_shares_dict():
     data = company_data["securities"]
     security = {
         "name": data["security_name"],
-        "secu_type": data["security_type"],
         "secu_attributes": model.CommonShare(name=data["security_name"])
     }
     return security
@@ -120,14 +119,12 @@ def create_common_shares_dict():
 def create_preferred_shares_dict():
     return {
         "name": "series c preferred stock",
-        "secu_type": "PreferredShare",
         "secu_attributes": model.PreferredShare(name="series c preferred stock"),
         }
 
 def create_warrant_dict():
     return {
         "name": "pipe warrant",
-        "secu_type": "Warrant",
         "secu_attributes": model.Warrant(
             name="pipe warrant",
             exercise_price=1.05,
@@ -170,6 +167,11 @@ def add_security(secu_args_function, uow):
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
         company.add_security(posted)
         u.company.add(company)
+        u.commit()
+
+def add_form_type(form_type, category, uow):
+    with uow as u:
+        u.session.execute(text(f"INSERT INTO form_types(form_type, category) VALUES('{form_type}', '{category}')"))
         u.commit()
 
 def test_add_company(get_session):
@@ -324,6 +326,7 @@ def test_repo_add_security_authorized(get_uow, add_base_company):
         company: model.Company = u.company.get(company_data["companies"]["symbol"])
         assert new_authorized in company.securities_authorized
 
+        
 # def test_repo_add_shelf_security_registration_with_source_security(get_uow, add_base_company):
 #     uow = get_uow
 #     add_security(create_common_shares_dict, uow)
@@ -332,39 +335,39 @@ def test_repo_add_security_authorized(get_uow, add_base_company):
 #         company: model.Company = u.company.get(company_data["companies"]["symbol"])
 #         # company.add_security_shelf_registration()
 
-def test_repo_get_company_speed(get_uow, add_base_company):
-    uow = get_uow
-    import matplotlib.pyplot as plt
-    add_security(create_common_shares_dict, uow)
-    add_security(create_preferred_shares_dict, uow)
-    add_security(create_warrant_dict, uow)
-    secus = []
-    for x in range(1, 25):
-        for y in range(1, 10):
-            for i in range(2020, 2021, 1):
-                secus.append(model.SecurityOutstanding(5000, datetime.date(i, y, x)))
+# def test_repo_get_company_speed(get_uow, add_base_company):
+#     uow = get_uow
+#     import matplotlib.pyplot as plt
+#     add_security(create_common_shares_dict, uow)
+#     add_security(create_preferred_shares_dict, uow)
+#     add_security(create_warrant_dict, uow)
+#     secus = []
+#     for x in range(1, 25):
+#         for y in range(1, 10):
+#             for i in range(2020, 2021, 1):
+#                 secus.append(model.SecurityOutstanding(5000, datetime.date(i, y, x)))
         
-    durations_get = []
-    durations_add = []
-    for secu in secus:
-        start = datetime.datetime.now()
-        with uow as u:
-            company: model.Company = u.company.get(company_data["companies"]["symbol"])
-            duration = datetime.datetime.now() - start
-            durations_get.append(duration)
-            start2 = datetime.datetime.now()
-            child = company.get_security_by_name(create_common_shares_dict()["name"])
-            child.add_outstanding(secu)
-            u.company.add(company)
-            u.commit()
-            durations_add.append(datetime.datetime.now() - start2)
-    import pandas as pd
-    data = pd.Series(durations_get)
-    print(data.describe(), data.std(), data.mean())
-    data.plot()
-    pd.Series(durations_add).plot()
-    plt.show()
-    assert 1 == 2
+#     durations_get = []
+#     durations_add = []
+#     for secu in secus:
+#         start = datetime.datetime.now()
+#         with uow as u:
+#             company: model.Company = u.company.get(company_data["companies"]["symbol"])
+#             duration = datetime.datetime.now() - start
+#             durations_get.append(duration)
+#             start2 = datetime.datetime.now()
+#             child = company.get_security_by_name(create_common_shares_dict()["name"])
+#             child.add_outstanding(secu)
+#             u.company.add(company)
+#             u.commit()
+#             durations_add.append(datetime.datetime.now() - start2)
+#     import pandas as pd
+#     data = pd.Series(durations_get)
+#     print(data.describe(), data.std(), data.mean())
+#     data.plot()
+#     pd.Series(durations_add).plot()
+#     plt.show()
+#     assert 1 == 2
 
 
         
