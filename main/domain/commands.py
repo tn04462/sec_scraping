@@ -15,7 +15,24 @@ class CompanyCommand(Command):
     cik: str
 
 @dataclass
-class SecuritiesOutstanding(CompanyCommand):
+class SecuritiesCommand(CompanyCommand):
+    name: str
+
+@dataclass
+class AddCompany(Command):
+    company: model.Company
+
+@dataclass
+class AddOutstanding(SecuritiesCommand):
     outstanding: list[model.SecurityOutstanding]
 
-sec = SecuritiesOutstanding("891219229", [model.SecurityOutstanding(1999, datetime.date(2022, 1, 1))])
+@dataclass
+class AddSecurities(CompanyCommand):
+    securities: list[model.Security]
+
+# this commmand and others like it should be events instead eg: AddedShelfRegistration 
+# @dataclass
+# class AddShelfRegistration(CompanyCommand):
+
+
+

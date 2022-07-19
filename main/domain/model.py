@@ -204,12 +204,12 @@ class SecurityAuthorized:
 
 
 class Security:
-    def __init__(self, secu_type: str, secu_attributes: SecurityType, name: str=None, underlying: Optional[Self|str]=None):
+    def __init__(self, secu_attributes: SecurityType, name: str=None, underlying: Optional[Self|str]=None):
         self.name = secu_attributes.name if name is None else name
         self.security_type = repr(secu_attributes)
         self.security_attributes = secu_attributes.json()
         self.underlying = underlying
-        self.outstanding = set()
+        self.outstanding = None
         # self.convertible_to = Dict[Security]
     
     def add_outstanding(self, new_outstanding: SecurityOutstanding):
@@ -579,16 +579,16 @@ class NetCashAndEquivalents:
 
 
 class Company:
-    def __init__(self, name: str, cik: str, sic: str, symbol: str, description_: Optional[str]=None, securities: set[Security]=None, shelfs: List[ShelfRegistration]=None, resales: List[ResaleRegistration]=None, filing_parse_history: List[FilingParseHistoryEntry]=None):
+    def __init__(self, name: str, cik: str, sic: str, symbol: str, description_: Optional[str]=None):
         self.name = name
         self.cik = cik
         self.sic = sic
         self.symbol = symbol
         self.description_ = description_
-        self.securities = set() if securities is None else securities
-        self.shelfs = set() if shelfs is None else shelfs
-        self.resales = set() if resales is None else resales
-        self.filing_parse_history = set() if filing_parse_history is None else filing_parse_history
+        self.securities = set()
+        self.shelfs = set()
+        self.resales = set()
+        self.filing_parse_history = set()
         self.filing_links = set()
         self.security_conversion = list()
         self.cash_operating = set()
@@ -633,6 +633,12 @@ class Company:
             if resale.accn == accn:
                 return resale
         return None
+    
+    def add_shelf(self, shelf: ShelfRegistration):
+        self.shelfs.add(shelf)
+    
+    def add_resale(self, resale: ResaleRegistration):
+        self.resales.add(resale)
     
     def add_security(self, secu: Security):
         if (secu.underlying is not None) and (isinstance(secu.underlying, str)):

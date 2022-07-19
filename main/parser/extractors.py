@@ -164,12 +164,17 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
-    def extract_form_values(self, filing: Filing, bus: AbstractUnitOfWork):
+    def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
         form_case = self.classify_s3(filing)
-        securities = self.extract_securities(filing)
+        self.extract_securities(filing, company, bus)
+        if form_case == "shelf":
+            # add shelf_registration
+            pass
+        elif form_case == "resale":
+            # add resale_registration
+            pass
 
-    
-    def extract_securities(self, filing: Filing, uow: AbstractUnitOfWork):
+    def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus):
         '''extract securities and their relation and return a modified Company repository.'''
         securities = []
         cover_page = filing.get_section(re.compile("cover page"))
@@ -184,8 +189,16 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 security_attributes = self.merge_attributes(
                     security_attributes,
                     self.get_security_attributes(doc, secu, security_type))
-            securities.append({"seucrity_type": security_type, "securitiy_attributes": security_attributes})
-        for security in securities:
+            company.add_security(model.Security(security_type(**security_attributes)))
+        bus.handle(commands.AddCompany(company))
+        return company
+        # bus.handle(commands.AddSecurities())
+
+    
+    def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus):
+        description_sections = filing.get_sections(re.compile("description\s*of", re.I))
+        description_docs = [self.doc_from_section(x) for x in description_sections]
+        for security in company.securities:
             for doc in description_docs:
                 conversion_attr = self.get_secu_conversion(doc, security.name)
                 if conversion_attr:
