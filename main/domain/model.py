@@ -341,6 +341,7 @@ class ShelfOffering:
 @dataclass
 class ShelfRegistration:
     accn: str
+    file_number: str
     form_type: str
     capacity: int
     filing_date: date
@@ -415,6 +416,7 @@ class ResaleSecurityComplete:
 @dataclass
 class ResaleRegistration:
     accn: str
+    file_number: str
     form_type: str
     filing_date: date
     effect_date: Optional[date] = field(default=None)
@@ -623,9 +625,9 @@ class Company:
                 return s
         return None
     
-    def get_shelf(self, accn: str):
+    def get_shelf(self, file_number: str):
         for shelf in self.shelfs:
-            if shelf.accn == accn:
+            if shelf.file_number == file_number:
                 return shelf
         return None
     

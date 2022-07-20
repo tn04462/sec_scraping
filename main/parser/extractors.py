@@ -1,9 +1,10 @@
 from abc import ABC
+from functools import reduce
 import logging
-from typing import List
+from typing import Dict, List, Optional
 
 from pydantic import ValidationError
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import re
 from spacy.matcher import Matcher
@@ -37,13 +38,14 @@ class BaseHTMExtractor():
     def _normalize_SECU(self, security: str):
         return security.lower()
     
-    def handle_commands(self, commands: List[commands.Command], bus: MessageBus):
-        for command in commands:
-            bus.handle(command)
-    
-    def get_mentioned_secus(self, doc: Doc):
-        '''get all SECU entities'''
-        secus = dict()
+    def get_mentioned_secus(self, doc: Doc, secus:Optional[Dict]=None):
+        '''get all SECU entities. 
+        
+        Returns:
+            {secu_name: [spacy entities]}
+        '''
+        if secus is None:
+            secus = dict()
         for ent in doc.ents:
             if ent.label_ == "SECU":
                 normalized_ent = self._normalize_SECU(ent.text)
@@ -107,7 +109,26 @@ class BaseHTMExtractor():
             return attributes
         else:
             return None
-            
+    
+    def get_securities_from_docs(self, docs: List[Doc]) -> List[model.Security]:
+        securities = []
+        mentioned_secus = reduce(lambda doc, secus: self.get_mentioned_secus(doc, secus), docs, dict())
+        for secu, _ in mentioned_secus.items():
+            security_type = self.get_security_type(secu)
+            security_attributes = {}
+            for doc in docs:
+                security_attributes = self.merge_attributes(
+                    security_attributes,
+                    self.get_security_attributes(doc, secu, security_type))
+            try:
+                security = model.Security(security_type(**security_attributes))
+            except TypeError:
+                logger.debug(f"Failed to construct model.Security from args: security_type={security_type}, security_attributes={security_attributes}")
+            else:
+                securities.append(security)
+        return securities
+
+
     def get_secu_exercise_price(self, doc: Doc, security_name: str):
         pass
     
@@ -128,8 +149,6 @@ class BaseHTMExtractor():
 
     def get_secu_conversion(self, doc: Doc, security_name: str):
         pass
-
-    
     
     def get_issuable_relation(self, doc: Doc, security_name: str):
         # make patterns match on base secu explicitly
@@ -188,41 +207,53 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             resale = model.ResaleRegistration(**kwargs)
             company.add_resale(resale)
             bus.handle(commands.AddResaleRegistration(filing.cik, resale))
+        elif form_case == "ATM":
+            # add ShelfOffering to BaseProspectus
+            # check if we have ShelfRegistration added
+            shelf = company.get_shelf(file_number=filing.file_number)
+            if shelf:
+                commencment_date = #write function for this
+                kwargs = {
+                    "offering_type": "ATM",
+                    "accn": filing.accession_number,
+                    "anticipated_offering_amount": ,# write function for this,
+                    "commencment_date": commencment_date,
+                    "end_date": commencment_date + timedelta(timedelta(days=1095))
+                }
+                # add ShelfOffering
+                # get underwriters, registrations and completed then modify
+                # previously added ShelfOffering
             
 
-    def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus):
-        '''extract securities and their relation and return a modified Company repository.'''
-        securities = []
+    def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.Security]:
+        '''extract securities from cover_page and descriptions of securities.'''
         cover_page = filing.get_section(re.compile("cover page"))
         cover_page_doc = self.doc_from_section(cover_page)
         raw_secus = self.get_mentioned_secus(cover_page_doc)
         description_sections = filing.get_sections(re.compile("description\s*of", re.I))
         description_docs = [self.doc_from_section(x) for x in description_sections]
-        for secu, _ in raw_secus.items():
-            security_type = self.get_security_type(secu)
-            security_attributes = {}
-            for doc in description_docs:
-                security_attributes = self.merge_attributes(
-                    security_attributes,
-                    self.get_security_attributes(doc, secu, security_type))
-            security = model.Security(security_type(**security_attributes))
-            securities.append(security)
+        securities = self.get_securities_from_docs(description_docs)
+        for security in securities:
             company.add_security(security)
         bus.handle(commands.AddSecurities(securities))
         return securities
-        # bus.handle(commands.AddSecurities())
+    
+    def extract_offering_amount(self, cover_page: Doc) -> int:
+        matches = self.spacy_text_search.match_aggregate_offering_amount(cover_page)
+        # check how well this works
 
     
-    def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus):
+    def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
         description_sections = filing.get_sections(re.compile("description\s*of", re.I))
         description_docs = [self.doc_from_section(x) for x in description_sections]
+        conversions = []
         for security in company.securities:
             for doc in description_docs:
                 conversion_attr = self.get_secu_conversion(doc, security.name)
                 if conversion_attr:
                     # add conversion attribute to Securities
                     pass # need to write get_secu_conversion first
-        return securities
+        return conversions
 
                 
 

@@ -368,6 +368,20 @@ class SpacyFilingTextSearch:
         doc = self.nlp(text)
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches if matches is not None else []
+    
+    def match_aggregate_offering_amount(self, doc: Doc):
+        pattern = [
+            {"LOWER": "aggregate"},
+            {"LOWER": "offering"},
+            {"OP": "?"},
+            {"LOWER": "up"},
+            {"LOWER": "to"},
+            {"ENT_TYPE": "MONEY", "OP": "+"}
+        ]
+        matcher = Matcher(self.nlp.vocab)
+        matcher.add("offering_amount", [pattern])
+        matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
+        return matches if matches is not None else []
 
     def match_outstanding_shares(self, text):
         pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE"}, {"ENT_TYPE": "DATE", "OP": "*"}]
@@ -391,7 +405,7 @@ class SpacyFilingTextSearch:
                 if ent.label_ == "DATE":
                     value["date"] = pd.to_datetime(str(ent))
             try:
-                validate_filing_values(value, "outstanding_shares", ["date", "amount"])
+                validate_filing_values(value, ["date", "amount"])
             except AttributeError:
                 pass
             else:
