@@ -1,6 +1,7 @@
 from abc import ABC
 from functools import reduce
 import logging
+from types import NotImplementedType
 from typing import Dict, List, Optional
 
 from pydantic import ValidationError
@@ -186,6 +187,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
         form_case = self.classify_s3(filing)
         self.extract_securities(filing, company, bus)
+        cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
         if form_case == "shelf":
             # add shelf_registration
             kwargs = {
@@ -210,16 +212,20 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         elif form_case == "ATM":
             # add ShelfOffering to BaseProspectus
             # check if we have ShelfRegistration added
-            shelf = company.get_shelf(file_number=filing.file_number)
+            shelf: model.ShelfRegistration = company.get_shelf(file_number=filing.file_number)
             if shelf:
-                commencment_date = #write function for this
+                commencment_date = filing.filing_date #write function for this, for now assume filing_date
                 kwargs = {
                     "offering_type": "ATM",
                     "accn": filing.accession_number,
-                    "anticipated_offering_amount": ,# write function for this,
+                    "anticipated_offering_amount": self.extract_offering_amount(cover_page_doc),
                     "commencment_date": commencment_date,
                     "end_date": commencment_date + timedelta(timedelta(days=1095))
                 }
+                offering = model.ShelfOffering(**kwargs)
+                shelf.add_offering(offering)
+                bus.handle(commands.AddShelfOffering(company.cik, offering))
+                
                 # add ShelfOffering
                 # get underwriters, registrations and completed then modify
                 # previously added ShelfOffering
@@ -241,6 +247,13 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_offering_amount(self, cover_page: Doc) -> int:
         matches = self.spacy_text_search.match_aggregate_offering_amount(cover_page)
         # check how well this works
+        if len(matches) > 1:
+            logger.debug(f"Unhandled case for extract_offering_amount: more than one match. matches: {matches}")
+            raise NotImplementedError
+        else:
+            for ent in matches[0].ents:
+                if ent.label_ == "MONEY":
+                    return ent
 
     
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
