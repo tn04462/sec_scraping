@@ -254,6 +254,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             for ent in matches[0].ents:
                 if ent.label_ == "MONEY":
                     return ent
+        return None
 
     
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
