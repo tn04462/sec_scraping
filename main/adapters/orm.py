@@ -148,7 +148,8 @@ securities_shelf_offerings_registered = Table(
     Column("security_id", ForeignKey("securities.id")),
     Column("shelf_offerings_id", ForeignKey("shelf_offerings.id")),
     Column("source_security_id", ForeignKey("securities.id")),
-    Column("amount", BigInteger)
+    Column("amount_dollar", BigInteger, nullable=True),
+    Column("amount_security", BigInteger, nullable=True)
 )
 
 securities_shelf_offerings_completed = Table(
@@ -158,7 +159,8 @@ securities_shelf_offerings_completed = Table(
     Column("security_id", ForeignKey("securities.id")),
     Column("shelf_offerings_id", ForeignKey("shelf_offerings.id")),
     Column("source_security_id", ForeignKey("securities.id")),
-    Column("amount", BigInteger)
+    Column("amount_dollar", BigInteger, nullable=True),
+    Column("amount_security", BigInteger, nullable=True)
 )
 
 securities_resale_registered = Table(
@@ -168,7 +170,8 @@ securities_resale_registered = Table(
     Column("security_id", ForeignKey("securities.id")),
     Column("resale_registrations_id", ForeignKey("resale_registrations.id")),
     Column("source_security_id", ForeignKey("securities.id")),
-    Column("amount", BigInteger)
+    Column("amount_dollar", BigInteger, nullable=True),
+    Column("amount_security", BigInteger, nullable=True)
 )
 
 securities_resale_completed = Table(
@@ -178,7 +181,8 @@ securities_resale_completed = Table(
     Column("security_id", ForeignKey("securities.id")),
     Column("resale_registrations_id", ForeignKey("resale_registrations.id")),
     Column("source_security_id", ForeignKey("securities.id")),
-    Column("amount", BigInteger)
+    Column("amount_dollar", BigInteger, nullable=True),
+    Column("amount_security", BigInteger, nullable=True)
 )
 
 shelf_registrations = Table(

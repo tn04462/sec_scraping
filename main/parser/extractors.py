@@ -190,42 +190,55 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
         if form_case == "shelf":
             # add shelf_registration
+            self.handle_shelf(filing, company, bus)
+        elif form_case == "resale":
+            # add resale_registration
+            self.handle_resale(filing, company, bus)
+        elif form_case == "ATM":
+            # add ShelfOffering to BaseProspectus
+            # check if we have ShelfRegistration added
+            self.handle_ATM(filing, company, bus, cover_page_doc)
+
+    def handle_ATM(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
+        shelf: model.ShelfRegistration = company.get_shelf(file_number=filing.file_number)
+        if shelf:
+            commencment_date = filing.filing_date #write function for this, for now assume filing_date
             kwargs = {
+                    "offering_type": "ATM",
+                    "accn": filing.accession_number,
+                    "anticipated_offering_amount": self.extract_aggregate_offering_amount(cover_page_doc),
+                    "commencment_date": commencment_date,
+                    "end_date": commencment_date + timedelta(timedelta(days=1095))
+                }
+            offering = model.ShelfOffering(**kwargs)
+            shelf.add_offering(offering)
+            bus.handle(commands.AddShelfOffering(company.cik, offering))
+
+            registrations = []
+            
+
+    def handle_resale(self, filing: Filing, company: model.Company, bus: MessageBus):
+        kwargs =  {
+                "accn": filing.accession_number,
+                "form_type": filing.form_type,
+                "filing_date": filing.filing_date
+            }
+        resale = model.ResaleRegistration(**kwargs)
+        company.add_resale(resale)
+        bus.handle(commands.AddResaleRegistration(filing.cik, resale))
+
+
+    def handle_shelf(self, filing: Filing, company: model.Company, bus: MessageBus):
+        kwargs = {
                 "accn": filing.accession_number,
                 "form_type": filing.form_type,
                 "capacity": self.extract_shelf_capacity(filing),
                 "filing_date": filing.filing_date
             }
-            shelf = model.ShelfRegistration(**kwargs)
-            company.add_shelf(shelf)
-            bus.handle(commands.AddShelfRegistration(filing.cik, shelf))
-        elif form_case == "resale":
-            # add resale_registration
-            kwargs =  {
-                "accn": filing.accession_number,
-                "form_type": filing.form_type,
-                "filing_date": filing.filing_date
-            }
-            resale = model.ResaleRegistration(**kwargs)
-            company.add_resale(resale)
-            bus.handle(commands.AddResaleRegistration(filing.cik, resale))
-        elif form_case == "ATM":
-            # add ShelfOffering to BaseProspectus
-            # check if we have ShelfRegistration added
-            shelf: model.ShelfRegistration = company.get_shelf(file_number=filing.file_number)
-            if shelf:
-                commencment_date = filing.filing_date #write function for this, for now assume filing_date
-                kwargs = {
-                    "offering_type": "ATM",
-                    "accn": filing.accession_number,
-                    "anticipated_offering_amount": self.extract_offering_amount(cover_page_doc),
-                    "commencment_date": commencment_date,
-                    "end_date": commencment_date + timedelta(timedelta(days=1095))
-                }
-                offering = model.ShelfOffering(**kwargs)
-                shelf.add_offering(offering)
-                bus.handle(commands.AddShelfOffering(company.cik, offering))
-                
+        shelf = model.ShelfRegistration(**kwargs)
+        company.add_shelf(shelf)
+        bus.handle(commands.AddShelfRegistration(filing.cik, shelf))
+                # if no registrations can be found add whole dollar amount as common
                 # add ShelfOffering
                 # get underwriters, registrations and completed then modify
                 # previously added ShelfOffering
@@ -244,7 +257,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         bus.handle(commands.AddSecurities(securities))
         return securities
     
-    def extract_offering_amount(self, cover_page: Doc) -> int:
+    def extract_aggregate_offering_amount(self, cover_page: Doc) -> int:
         matches = self.spacy_text_search.match_aggregate_offering_amount(cover_page)
         # check how well this works
         if len(matches) > 1:
@@ -255,8 +268,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 if ent.label_ == "MONEY":
                     return ent
         return None
-
-    
+ 
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
         description_sections = filing.get_sections(re.compile("description\s*of", re.I))
         description_docs = [self.doc_from_section(x) for x in description_sections]

@@ -257,7 +257,8 @@ class SecurityConversion:
 @dataclass
 class ShelfSecurityRegistration:
     security: Security
-    amount: int
+    amount_dollar: int
+    amount_security: int
     source_security: Optional[Security] = field(default=None)
 
     def __eq__(self, other):
@@ -276,7 +277,8 @@ class ShelfSecurityRegistration:
 @dataclass
 class ShelfSecurityComplete:
     security: Security
-    amount: int
+    amount_dollar: int
+    amount_security: int
     source_security: Optional[Security] = field(default=None)
 
     def __eq__(self, other):
@@ -378,7 +380,8 @@ class ShelfRegistration:
 @dataclass
 class ResaleSecurityRegistration:
     security: Security
-    amount: int
+    amount_dollar: int
+    amount_security: int
     source_security: Optional[Security] = field(default=None)
 
     def __eq__(self, other):
@@ -397,7 +400,8 @@ class ResaleSecurityRegistration:
 @dataclass
 class ResaleSecurityComplete:
     security: Security
-    amount: int
+    amount_dollar: int
+    amount_security: int
     source_security: Optional[Security] = field(default=None)
 
     def __eq__(self, other):

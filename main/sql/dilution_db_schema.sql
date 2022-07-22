@@ -352,7 +352,8 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
     security_id INTEGER,
     shelf_offerings_id INTEGER,
     source_security_id INTEGER NULL,
-    amount BIGINT,
+    amount_security BIGINT,
+    amount_dollar BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
@@ -364,8 +365,10 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_completed (
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
     
-    CONSTRAINT security_offering_source_security_amount_completed
-        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount)
+    CONSTRAINT security_offering_source_security_amount_security_completed
+        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount_security),
+    CONSTRAINT security_offering_source_security_amount_dollar_completed
+        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount_dollar)
 );
 
 CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
@@ -373,7 +376,8 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
     security_id INTEGER,
     shelf_offerings_id INTEGER,
     source_security_id INTEGER NULL,
-    amount BIGINT,
+    amount_security BIGINT,
+    amount_dollar BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
@@ -385,8 +389,10 @@ CREATE TABLE IF NOT EXISTS securities_shelf_offerings_registered (
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
 
-    CONSTRAINT security_offering_source_security_amount_registered
-        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount)
+    CONSTRAINT security_offering_source_security_amount_security_registered
+        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount_security),
+    CONSTRAINT security_offering_source_security_amount_dollar_registered
+        UNIQUE (security_id, shelf_offerings_id, source_security_id, amount_dollar)
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_completed (
@@ -394,7 +400,8 @@ CREATE TABLE IF NOT EXISTS securities_resale_completed (
     security_id INTEGER,
     resale_registrations_id INTEGER,
     source_security_id INTEGER NULL,
-    amount BIGINT,
+    amount_security BIGINT,
+    amount_dollar BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
@@ -406,8 +413,10 @@ CREATE TABLE IF NOT EXISTS securities_resale_completed (
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
     
-    CONSTRAINT security_resale_source_security_amount_completed
-        UNIQUE (security_id, resale_registrations_id, source_security_id, amount)
+    CONSTRAINT security_resale_source_security_amount_security_completed
+        UNIQUE (security_id, resale_registrations_id, source_security_id, amount_security),
+    CONSTRAINT security_resale_source_security_amount_dollar_completed
+        UNIQUE (security_id, resale_registrations_id, source_security_id, amount_dollar)
 );
 
 CREATE TABLE IF NOT EXISTS securities_resale_registered (
@@ -415,7 +424,8 @@ CREATE TABLE IF NOT EXISTS securities_resale_registered (
     security_id INTEGER,
     resale_registrations_id INTEGER,
     source_security_id INTEGER NULL,
-    amount BIGINT,
+    amount_security BIGINT,
+    amount_dollar BIGINT,
 
     CONSTRAINT fk_security_id
         FOREIGN KEY (security_id)
@@ -427,8 +437,10 @@ CREATE TABLE IF NOT EXISTS securities_resale_registered (
         FOREIGN KEY (source_security_id)
             REFERENCES securities(id),
 
-    CONSTRAINT security_resale_source_security_amount_registered
-        UNIQUE (security_id, resale_registrations_id, source_security_id, amount)
+    CONSTRAINT security_resale_source_security_amount_security_registered
+        UNIQUE (security_id, resale_registrations_id, source_security_id, amount_security),
+    CONSTRAINT security_resale_source_security_amount_dollar_registered
+        UNIQUE (security_id, resale_registrations_id, source_security_id, amount_dollar)
 );
 
 CREATE TABLE IF NOT EXISTS securities_outstanding (
