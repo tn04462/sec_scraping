@@ -37,15 +37,6 @@ class FilingSection:
     title: str
     content: str
 
-@dataclass
-class FilingValue:
-    cik: str
-    date_parsed: datetime
-    accession_number: str
-    form_type: str
-    field_name: str
-    field_values: dict
-    context: str = None
 
 
 
