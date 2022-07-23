@@ -256,6 +256,8 @@ class SECUMatcher:
 
 
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
+    if end == len(doc):
+        end -= 1
     if doc[end].lower not in exclude:
         return False
     return True

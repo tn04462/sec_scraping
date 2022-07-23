@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from datetime import datetime, timedelta
 import pandas as pd
 import re
-from spacy.matcher import Matcher
+from spacy.matcher import Matcher, PhraseMatcher
 from spacy.tokens import Doc
 
 from main.parser.filings_base import Filing, FilingSection
@@ -108,7 +108,7 @@ class BaseHTMExtractor():
                 "maturity": self.get_secu_expiry(**_kwargs),
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
             }
-        logger.info(f"security_attributes: {attributes} of security: {security_name}")
+        logger.info(f"attributes: {attributes} of security: {security_name} with type: {security_type}")
         if attributes != {}:
             return attributes
         else:
@@ -320,8 +320,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         determine if this is a resale of securities by anyone other than the registrar,
         by checking for key phrases in the "cover page".'''
         matcher = Matcher(self.spacy_text_search.nlp.vocab)
+        phrase_matcher = PhraseMatcher(self.spacy_text_search.nlp.vocab)
         # action_verbs = ["sell", "offer", "resell", "disposition"]
-        pattern1 = [
+        m_pattern1 = [
             {"LOWER": "prospectus"},
             {"LEMMA": "relate"},
             {"LOWER": "to"},
@@ -331,10 +332,22 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             {"LOWER": "selling"},
             {"LOWER": {"IN": ["stockholder", "stockholders"]}}
         ]
-        matcher.add("ATM", [pattern1])
+        pm_patterns = [self.spacy_text_search.nlp.make_doc(term) for term in [
+            "“Selling Stockholder”",
+            "“Selling Stockholders”",
+            "Selling Stockholder will receive all of the net proceeds"
+            "Selling Stockholders will receive all of the net proceeds"
+        ]]
+        phrase_matcher.add("selling_stockholder", pm_patterns)
+        matcher.add("ATM", [m_pattern1])
+        possible_phrase_matches = phrase_matcher(doc, as_spans=True)
         possible_matches = matcher(doc, as_spans=True)
         logger.debug(f"possible matches for _is_resale_prospectus: {[m for m in possible_matches]}")
         if len(possible_matches) > 0:
+            logger.debug(f"This is a resale Prospectus, determined by matches: {possible_matches}")
+            return True
+        if len(possible_phrase_matches) > 0:
+            logger.debug(f"This is a resale Prospectus, determined by matches: {possible_phrase_matches}")
             return True
         return False
 

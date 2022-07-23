@@ -23,7 +23,7 @@ from datetime import datetime
 from pysec_downloader.downloader import Downloader
 from main.data_aggregation.polygon_basic import PolygonClient
 from main.data_aggregation.fact_extractor import get_cash_and_equivalents, get_outstanding_shares, get_cash_financing, get_cash_investing, get_cash_operating
-from main.parser.filings_base import FilingValue, Filing
+from main.parser.filings_base import Filing
 import main.parser.extractors as extractors
 import main.parser.parsers as parsers
 from main.configs import cnf, GlobalConfig
