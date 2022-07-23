@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import re
 from spacy.matcher import Matcher, PhraseMatcher
-from spacy.tokens import Doc
+from spacy.tokens import Doc, Span
 
 from main.parser.filings_base import Filing, FilingSection
 from main.domain import model,  commands
@@ -24,7 +24,10 @@ security_type_factory = SecurityTypeFactory()
 class UnhandledClassificationError(Exception):
     pass
 
-
+class MatchFormater:
+    def money_string_to_int(self, money: str):
+        digits = re.findall("[0-9]+", money)
+        return int("".join(digits))
 
 class AbstractFilingExtractor(ABC):
     def extract_form_values(self, filing: Filing, bus: MessageBus):
@@ -35,6 +38,7 @@ class AbstractFilingExtractor(ABC):
 class BaseHTMExtractor():
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
+        self.formater = MatchFormater()
     
     def _normalize_SECU(self, security: str):
         return security.lower()
@@ -194,12 +198,15 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
         self.extract_securities(filing, company, bus, cover_page_doc)
         if form_case == "shelf":
+            logger.info("Handling Filing as a 'shelf'")
             # add shelf_registration
             self.handle_shelf(filing, company, bus)
         elif form_case == "resale":
+            logger.info("Handling Filing as a 'resale'")
             # add resale_registration
             self.handle_resale(filing, company, bus)
         elif form_case == "ATM":
+            logger.info("Handling Filing as an 'ATM'")
             # add ShelfOffering to BaseProspectus
             # check if we have ShelfRegistration added
             self.handle_ATM(filing, company, bus, cover_page_doc)
@@ -207,6 +214,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
     def handle_ATM(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
         shelf: model.ShelfRegistration = company.get_shelf(file_number=filing.file_number)
+        print(f"found base registration 'shelf': {shelf}")
         if shelf:
             commencment_date = filing.filing_date #write function for this, for now assume filing_date
             kwargs = {
@@ -214,10 +222,11 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                     "accn": filing.accession_number,
                     "anticipated_offering_amount": self.extract_aggregate_offering_amount(cover_page_doc),
                     "commencment_date": commencment_date,
-                    "end_date": commencment_date + timedelta(timedelta(days=1095))
+                    "end_date": commencment_date + timedelta(days=1095)
                 }
             offering = model.ShelfOffering(**kwargs)
             shelf.add_offering(offering)
+            logger.info("Added ShelfOffering")
             bus.handle(commands.AddShelfOffering(company.cik, offering))
 
             registrations = []
@@ -227,6 +236,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         kwargs =  {
                 "accn": filing.accession_number,
                 "form_type": filing.form_type,
+                "file_number": filing.file_number,
                 "filing_date": filing.filing_date
             }
         resale = model.ResaleRegistration(**kwargs)
@@ -271,7 +281,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         else:
             for ent in matches[0].ents:
                 if ent.label_ == "MONEY":
-                    return ent
+                    return self.formater.money_string_to_int(ent.text)
         return None
  
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
@@ -342,12 +352,11 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         matcher.add("ATM", [m_pattern1])
         possible_phrase_matches = phrase_matcher(doc, as_spans=True)
         possible_matches = matcher(doc, as_spans=True)
-        logger.debug(f"possible matches for _is_resale_prospectus: {[m for m in possible_matches]}")
         if len(possible_matches) > 0:
-            logger.debug(f"This is a resale Prospectus, determined by matches: {possible_matches}")
+            logger.debug(f"This is a 'resale' Prospectus, determined by matches: {possible_matches}")
             return True
         if len(possible_phrase_matches) > 0:
-            logger.debug(f"This is a resale Prospectus, determined by matches: {possible_phrase_matches}")
+            logger.debug(f"This is a 'resale' Prospectus, determined by phrase_matches: {possible_phrase_matches}")
             return True
         return False
 
@@ -379,6 +388,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             {"LOWER": "deemed"},
             {"LOWER": "to"},
             {"LOWER": "be"},
+            {"LOWER": {"IN": ["an", "a"]}, "OP": "?"},
             {"IS_PUNCT": True, "IS_SENT_START": False},
             *[{"LOWER": x} for x in at_the_market_case],
             {"IS_PUNCT": True, "IS_SENT_START": False},
@@ -394,8 +404,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         ]
         matcher.add("ATM", [*pattern1])
         possible_matches = matcher(doc, as_spans=True)
-        logger.debug(f"possible matches for _is_at_the_market_prospectus: {[m for m in possible_matches]}")
         if len(possible_matches) > 0:
+            logger.debug(f"This is an 'ATM' (at-the-market) Prospectus, determined by matches: {possible_matches}")
             return True
         return False
 
@@ -451,8 +461,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         ]
         matcher.add("base_prospectus", [pattern1, pattern2, pattern3])
         possible_matches = matcher(doc, as_spans=True)
-        logger.debug(f"possible matches for _is_base_prospectus: {[m for m in possible_matches]}")
         if len(possible_matches) > 0:
+            logger.debug(f"This is a 'shelf' Prospectus, determined by matches: {possible_matches}")
             return True
         return False
 
@@ -472,7 +482,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                     pass
                 registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Price Per Unit", "Price Aggregate", "Fee"])
                 # values = []
-                print(registration_df)
+                logger.info(f"registration_df: {registration_df}")
                 row = None
                 if "total" in registration_df["Title"].values:
                     row = registration_df[registration_df["Title"] == "total"]
@@ -491,9 +501,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             return None
         capacity = capacity_dict["total_shelf_capacity"]
         if capacity["unit"] == "$":
-            return int(capacity["amount"].replace("$", "").replace(",", "").replace(" ", ""))
+            return self.formater.money_string_to_int(capacity["amount"])
         if capacity["unit"] == "shares":
-            return (capacity["amount"].replace("$", "").replace(",", "").replace(" ", "")) + " shares"
+            return str(self.formater.money_string_to_int(capacity["amount"])) + " shares"
     
     
 

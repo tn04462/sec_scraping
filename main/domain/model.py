@@ -314,7 +314,7 @@ class ShelfOffering:
         self.completed.add(completed)
 
     def __repr__(self):
-        return f"{self.__class__}: offering_type:{self.offering_type};anticipated_amount:{self.anticipated_offering_amount}"
+        return f"{self.__class__}: offering_type:{self.offering_type}; accn: {self.accn}; anticipated_amount:{self.anticipated_offering_amount}; commencment_date: {self.commencment_date}; end_date: {self.end_date}"
     
     def __eq__(self, other):
         if isinstance(other, ShelfOffering):

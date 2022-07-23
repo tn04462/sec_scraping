@@ -11,7 +11,7 @@ from main.services import unit_of_work, messagebus
 
 s3_shelf = r"test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
 s3_resale = r"test_resources\filings\0000908311\S-3\000110465919045626\a19-16974_2s3.htm"
-
+s3_ATM = r"test_resources\filings\0000831547\S-3\000083154720000018\cleans-3.htm"
 
 def _get_absolute_path(rel_path):
     return str(Path(__file__).parent.parent / rel_path)
@@ -75,6 +75,40 @@ def get_filing_s3_resale():
     filing = filing_factory.create_filing(**info)
     return filing
 
+@pytest.fixture
+def get_filing_s3_ATM():
+    path = _get_absolute_path(s3_ATM)
+    info = {
+            "path": path,
+            "filing_date": datetime.date(2018, 9, 28),
+            "accession_number": Path(path).parents[0].name,
+            "cik": Path(path).parents[2].name,
+            "file_number": "1",
+            "form_type": "S-3",
+            "extension": ".htm"
+            }
+    filing = filing_factory.create_filing(**info)[1]
+    return filing
+
+def test_s3_ATM_creation(get_s3_extractor, get_filing_s3_ATM):
+    extractor = get_s3_extractor
+    filing = get_filing_s3_ATM
+    print([s.title for s in filing.sections])
+    cover_page_doc = extractor.doc_from_section(filing.get_section(re.compile("cover page")))
+    offering_amount = extractor.extract_aggregate_offering_amount(cover_page_doc)
+    print(offering_amount, type(offering_amount))
+    print(offering_amount.text)
+    assert 1 == 2
+
+def test_s3_classification(get_s3_extractor, get_filing_s3_shelf, get_filing_s3_resale, get_filing_s3_ATM):
+    extractor: extractors.HTMS3Extractor = get_s3_extractor
+    shelf_filing = get_filing_s3_shelf
+    assert extractor.classify_s3(shelf_filing) == "shelf"
+    resale_filing = get_filing_s3_resale
+    assert extractor.classify_s3(resale_filing) == "resale"
+    atm_filing = get_filing_s3_ATM
+    assert extractor.classify_s3(atm_filing) == "ATM"
+
 
 def test_security_extraction_s3_shelf(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
     extractor: extractors.HTMS3Extractor = get_s3_extractor
@@ -102,8 +136,33 @@ def test_extract_resale_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_
     company = get_fake_company()
     company = extractor.extract_form_values(filing, company, bus)
     print(company.resales)
-    assert 1 == 2
+    resale = company.get_resale(filing.accession_number)
+    expected_resale = model.ResaleRegistration(**{
+        "accn": filing.accession_number,
+        "form_type": filing.form_type,
+        "file_number": filing.file_number,
+        "filing_date": filing.filing_date
+    })
+    assert resale == expected_resale
 
+def test_extract_ATM_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_ATM, get_filing_s3_shelf):
+    extractor: extractors.HTMS3Extractor = get_s3_extractor
+    bus = get_fake_messagebus
+    company = get_fake_company()
+    shelf_filing = get_filing_s3_shelf
+    company = extractor.extract_form_values(shelf_filing, company, bus)
+    atm_filing = get_filing_s3_ATM
+    company = extractor.extract_form_values(atm_filing, company, bus)
+    shelf = company.get_shelf(shelf_filing.file_number)
+    offering = shelf.get_offering_by_accn(atm_filing.accession_number)
+    expected_offering = model.ShelfOffering(**{
+        "offering_type": "ATM",
+        "accn": atm_filing.accession_number,
+        "anticipated_offering_amount": 75000000,
+        "commencment_date": datetime.date(2018, 9, 28),
+        "end_date": datetime.date(2021, 9, 27)
+    })
+    assert offering == expected_offering
 
 def test_match_outstanding_shares(get_base_extractor):
     base_extractor = get_base_extractor

@@ -376,6 +376,7 @@ class SpacyFilingTextSearch:
             {"LOWER": "aggregate"},
             {"LOWER": "offering"},
             {"OP": "?"},
+            {"OP": "?"},
             {"LOWER": "up"},
             {"LOWER": "to"},
             {"ENT_TYPE": "MONEY", "OP": "+"}
