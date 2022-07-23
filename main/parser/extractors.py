@@ -79,7 +79,8 @@ class BaseHTMExtractor():
     def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security):  
         attributes = {}
         _kwargs = {"doc": doc, "security_name": security_name}
-        if isinstance(security_type, CommonShare):
+        if security_type == CommonShare:
+        # if isinstance(security_type, CommonShare):
             attributes = {
                 "name": security_name
                 }

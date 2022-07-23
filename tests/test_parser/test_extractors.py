@@ -90,15 +90,14 @@ def get_filing_s3_ATM():
     filing = filing_factory.create_filing(**info)[1]
     return filing
 
-def test_s3_ATM_creation(get_s3_extractor, get_filing_s3_ATM):
-    extractor = get_s3_extractor
-    filing = get_filing_s3_ATM
-    print([s.title for s in filing.sections])
-    cover_page_doc = extractor.doc_from_section(filing.get_section(re.compile("cover page")))
-    offering_amount = extractor.extract_aggregate_offering_amount(cover_page_doc)
-    print(offering_amount, type(offering_amount))
-    print(offering_amount.text)
-    assert 1 == 2
+# def test_s3_ATM_creation(get_s3_extractor, get_filing_s3_ATM):
+#     extractor = get_s3_extractor
+#     filing = get_filing_s3_ATM
+#     print([s.title for s in filing.sections])
+#     cover_page_doc = extractor.doc_from_section(filing.get_section(re.compile("cover page")))
+#     offering_amount = extractor.extract_aggregate_offering_amount(cover_page_doc)
+#     print(offering_amount, type(offering_amount))
+#     assert 1 == 2
 
 def test_s3_classification(get_s3_extractor, get_filing_s3_shelf, get_filing_s3_resale, get_filing_s3_ATM):
     extractor: extractors.HTMS3Extractor = get_s3_extractor
@@ -118,7 +117,7 @@ def test_security_extraction_s3_shelf(get_s3_extractor, get_fake_messagebus, get
     cover_page = filing.get_section(re.compile("cover page"))
     cover_page_doc = extractor.doc_from_section(cover_page)
     securities = extractor.extract_securities(filing, company, bus, cover_page_doc)
-    assert securities == [model.CommonShare(name="common stock")]
+    assert securities == [model.Security(model.CommonShare(name="common stock", par_value=0.001))]
 
 def test_extract_shelf_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
     extractor: extractors.HTMS3Extractor = get_s3_extractor
