@@ -1,4 +1,4 @@
-filings/
+resources/test_set
 datasets/
 test_eq.py
 pysec_downloader/dummy_folder
@@ -10,7 +10,6 @@ __pycache__/
 main/__pycache__/
 main/parser/__pycache__/
 main/data_aggregation/__pycache__/
-
 main/__pycache__/configs.cpython-310.pyc
 main/data_aggregation/__pycache__/bulk_files.cpython-310.pyc
 main/data_aggregation/__pycache__/fact_extractor.cpython-310.pyc
