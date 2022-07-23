@@ -21,13 +21,25 @@ class AbstractRepository(abc.ABC):
     def _get(self):
         raise NotImplementedError
 
+class FakeCompanyRepository(AbstractRepository):
+    def __init__(self):
+        self.session = set()
+    
+    def _add(self, company: model.Company):
+        self.session.add(company)
+    
+    def _get(self, symbol: str):
+        for company in self.session:
+            if company.symbol == symbol:
+                return company
+
 
 class SqlAlchemyCompanyRepository(AbstractRepository):
     def __init__(self, session):
         super().__init__()
         self.session = session
 
-    def _add(self, company):
+    def _add(self, company: model.Company):
         self.session.add(company)
 
     def _get(self, symbol):

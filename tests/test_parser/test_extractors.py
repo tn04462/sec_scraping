@@ -2,12 +2,108 @@ import main.parser.extractors as extractors
 import pytest
 import spacy
 import pandas as pd
+from pathlib import Path
+import datetime
+import re
+from main.parser.parsers import filing_factory
+from main.domain import model
+from main.services import unit_of_work, messagebus
+
+s3_shelf = r"test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
+s3_resale = r"test_resources\filings\0000908311\S-3\000110465919045626\a19-16974_2s3.htm"
+
+
+def _get_absolute_path(rel_path):
+    return str(Path(__file__).parent.parent / rel_path)
+
+@pytest.fixture
+def get_fake_messagebus():
+    mb = messagebus.MessageBus(unit_of_work.FakeCompanyUnitOfWork, dict())
+    yield mb
+    del mb
 
 @pytest.fixture
 def get_base_extractor():
     base_extractor = extractors.BaseHTMExtractor()
     yield base_extractor
     del base_extractor
+
+@pytest.fixture
+def get_s3_extractor():
+    base_extractor = extractors.HTMS3Extractor()
+    yield base_extractor
+    del base_extractor
+
+def get_fake_company():
+    return model.Company(
+        **{   
+            "cik": "0000000001",
+            "sic": "9000",
+            "symbol": "RAND",
+            "name": "Rand Inc.",
+            "description_": "Solely a test company meant for usage with pytest"
+        }
+    )
+
+@pytest.fixture
+def get_filing_s3_shelf():
+    path = _get_absolute_path(s3_shelf)
+    info = {
+            "path": path,
+            "filing_date": datetime.date(2018, 9, 28),
+            "accession_number": Path(path).parents[0].name,
+            "cik": Path(path).parents[2].name,
+            "file_number": "1",
+            "form_type": "S-3",
+            "extension": ".htm"
+            }
+    filing = filing_factory.create_filing(**info)
+    return filing
+
+@pytest.fixture
+def get_filing_s3_resale():
+    path = _get_absolute_path(s3_resale)
+    info = {
+            "path": path,
+            "filing_date": datetime.date(2018, 9, 28),
+            "accession_number": Path(path).parents[0].name,
+            "cik": Path(path).parents[2].name,
+            "file_number": "2",
+            "form_type": "S-3",
+            "extension": ".htm"
+            }
+    filing = filing_factory.create_filing(**info)
+    return filing
+
+
+def test_security_extraction_s3_shelf(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
+    extractor: extractors.HTMS3Extractor = get_s3_extractor
+    bus = get_fake_messagebus
+    filing = get_filing_s3_shelf
+    company = get_fake_company()
+    cover_page = filing.get_section(re.compile("cover page"))
+    cover_page_doc = extractor.doc_from_section(cover_page)
+    securities = extractor.extract_securities(filing, company, bus, cover_page_doc)
+    assert securities == [model.CommonShare(name="common stock")]
+
+def test_extract_shelf_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
+    extractor: extractors.HTMS3Extractor = get_s3_extractor
+    bus = get_fake_messagebus
+    filing = get_filing_s3_shelf
+    company = get_fake_company()
+    company = extractor.extract_form_values(filing, company, bus)
+    expected_shelf = model.ShelfRegistration("000143774918017591", "1", "S-3", 75000000, datetime.date(2018, 9, 28))
+    assert expected_shelf == list(company.shelfs)[0]
+
+def test_extract_resale_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_resale):
+    extractor: extractors.HTMS3Extractor = get_s3_extractor
+    bus = get_fake_messagebus
+    filing = get_filing_s3_resale
+    company = get_fake_company()
+    company = extractor.extract_form_values(filing, company, bus)
+    print(company.resales)
+    assert 1 == 2
+
 
 def test_match_outstanding_shares(get_base_extractor):
     base_extractor = get_base_extractor

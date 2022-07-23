@@ -60,3 +60,21 @@ class SqlAlchemyCompanyUnitOfWork(AbstractUnitOfWork):
 
     def _rollback(self):
         self.session.rollback()
+    
+class FakeCompanyUnitOfWork(AbstractUnitOfWork):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        self.company = repository.FakeCompanyRepository()
+    
+    def __exit__(self):
+        pass
+
+    def _commit(self):
+        pass
+    
+    def _rollback(self):
+        pass
+
+    

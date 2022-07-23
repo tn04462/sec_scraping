@@ -252,12 +252,13 @@ class FilingFactory:
         )
         builder = self.builders.get((form_type, extension))
         if builder:
+            logger.debug(f"using builder: {builder} with kwargs: {kwargs}")
             return builder(form_type=form_type, extension=extension, **kwargs)
         else:
             builder = self.builders.get((None, extension))
             if builder:
                 logger.info(
-                    f"Using a fallback value for the builder as the no builder was registered for the given combination ({form_type},{extension}). fallback builder used: {builder}"
+                    f"Using a fallback value for the builder as no builder was registered for the given combination ({form_type},{extension}). fallback builder used: {builder}"
                 )
                 return builder(form_type=form_type, extension=extension, **kwargs)
             else:
@@ -743,10 +744,15 @@ class HTMFilingParser(AbstractFilingParser):
         table = self._clean_parsed_table_columnwise(table)
         table = self._clean_parsed_table_fieldwise(table)
         drop_none_complete = []
+        hrefs_set = set(hrefs)
         for ridx, row in enumerate(table):
             logger.debug(f"toc_row: {row}")
-            if len(row) != 3:
-                drop_none_complete.insert(0, ridx)
+            if (len(hrefs_set) == 1) and (None in hrefs_set):
+                if (len(row) != 2):
+                    drop_none_complete.insert(0, ridx)
+            else:
+                if (len(row) != 3):
+                    drop_none_complete.insert(0, ridx)
         for ridx in drop_none_complete:
             table.pop(ridx)
         if table == []:
@@ -1317,10 +1323,10 @@ class HTMFilingParser(AbstractFilingParser):
     def _get_cover_page_start_ele_from_toc(self, toc_element: element.Tag):
         cover_page_start_ele = None
         cover_page_end_ele = None
-        start_re_term = re.compile("^\s*PROSPECTUS", re.MULTILINE)
+        start_re_term = re.compile("(^\s*PROSPECTUS)|(^\s*PRELIMINARY\s*PROSPECTUS)", re.MULTILINE)
         alternative_start_re_term = re.compile("subject(\s)*to(\s)*completion,", re.I)
         end_re_term = re.compile(
-            "the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}(?:supplement)?(?:\s){,3}is",
+            "(the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}(?:supplement)?(?:\s){,3}is)|(this(?:\s){,3}prospectus(?:\s){,3}is(?:\s){,3}dated)",
             re.I,
         )
         ele = toc_element
@@ -1356,7 +1362,7 @@ class HTMFilingParser(AbstractFilingParser):
                             cover_page_end_ele.sourcepos > cover_page_start_ele.sourcepos
                         )
                 ):
-                    print(
+                    logger.debug(
                         f"found cover page: {cover_page_start_ele}, {cover_page_end_ele}"
                     )
                     # get soup between start, end ele and return it
@@ -1690,7 +1696,7 @@ class HTMFilingParser(AbstractFilingParser):
                 )
                 logger.debug(e, exc_info=True)
                 print("----------------")
-        return sections
+        return sections if sections != [] else None
 
     def _split_by_table_of_content_based_on_headers(self, doc: BeautifulSoup):
         """split the filing by the element strings of the TOC"""
@@ -1969,7 +1975,7 @@ class ParserS3(HTMFilingParser):
             doc_ = doc
         sections = self.split_by_table_of_contents(doc_)
         logger.debug(
-            f"found sections: {len(sections), [sec.title if sec.title else None for sec in sections]}"
+            f"found sections: {len(sections) if sections is not None else None, [sec.title if sec.title else None for sec in sections]}"
         )
         if sections is not None:
             return sections
@@ -2000,6 +2006,7 @@ class ParserS3(HTMFilingParser):
         drop = []
         for idx, toc in enumerate(tocs):
             _toc = self._parse_toc_table_element(toc)
+            print(f"toc after parse: {_toc}")
             if _toc is None:
                 drop.insert(0, idx)
         if drop != []:
@@ -2035,6 +2042,7 @@ class ParserS3(HTMFilingParser):
             href_start_elements = self._get_section_start_elements_from_toc_hrefs(
                 doc, toc
             )
+            logger.debug(f"href_start_elements: {href_start_elements}")
             if (href_start_elements is not None) and (href_start_elements != []):
                 for x in href_start_elements:
                     if x not in section_start_elements:
@@ -2049,6 +2057,7 @@ class ParserS3(HTMFilingParser):
                         doc, toc, stop_ele=stop_ele
                     )
                 )
+                logger.debug(f"header_start_elements: {header_start_elements}")
                 if header_start_elements != []:
                     for x in header_start_elements:
                         if x not in section_start_elements:
@@ -2133,30 +2142,33 @@ class ParserS3(HTMFilingParser):
                 title_matches.append(match[0])
         section_start_elements = []
         for match in title_matches:
-            _title = " ".join(
-                sum(
-                    [
-                        [
-                            match[idx].string
-                            if match[idx].string
-                            else " ".join([s for s in match[idx].strings])
-                            for idx in range(len(match))
-                        ]
-                    ],
-                    [],
-                )
-            )
+            _title = self.get_joined_text_of_tag(match)
             section_title = self._normalize_toc_title(_title)
             if section_title not in HEADERS_TO_DISCARD:
-                # print({"section_title": section_title, "ele": match[0]})
                 section_start_elements.append(
-                    {"section_title": section_title, "ele": match[0]}
+                    {"section_title": section_title, "ele": match}
                 )
             else:
                 logger.info(
                     f"_split_by_table_of_content_based_on_headers: \t Discarded section: {section_title} because it was in HEADERS_TO_DISCARD"
                 )
         return section_start_elements
+
+    def get_joined_text_of_tag(self, match):
+        _title = " ".join(
+            sum(
+                [
+                    [
+                        m.string
+                        if m.string
+                        else " ".join([s for s in m.strings])
+                        for m in match
+                    ]
+                ],
+                [],
+            )
+        )
+        return _title
 
     def _get_section_start_elements_from_toc_hrefs(
         self, doc: BeautifulSoup, toc_table: element.Tag
@@ -2999,6 +3011,7 @@ class BaseHTMFiling(Filing):
         self.parser: AbstractFilingParser = parser_factory.get_parser(
             extension=self.extension, form_type=self.form_type
         )
+        logger.debug(f"BaseHTMFiling is using parser: {self.parser} for ({self.form_type, self.extension})")
         self.doc = self.parser.get_doc(self.path) if doc is None else doc
         self.sections = (
             self.parser.split_into_sections(self.doc) if sections is None else sections
@@ -3108,6 +3121,7 @@ class HTMFilingBuilder:
             cover_pages,
         ) = self._is_multiprospectus_registration_statement(sections)
         if is_multiprospectus_filing is True:
+            logger.debug("This is a multiprospectus filing.")
             filings = []
             start_idx = 0
             # skip first cover page so we include front page in the base prospectus
@@ -3144,6 +3158,7 @@ class HTMFilingBuilder:
             )
             return filings
         else:
+            logger.debug("This is a single prospectus filing.")
             return BaseHTMFiling(
                 path=path,
                 filing_date=filing_date,

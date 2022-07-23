@@ -61,6 +61,8 @@ class BaseHTMExtractor():
     
     
     def merge_attributes(self, d1: dict, d2: dict):
+        if d2 is None:
+            return d1
         if d1.keys() == d2.keys():
             for d2key in d2.keys():
                 try:
@@ -85,7 +87,7 @@ class BaseHTMExtractor():
             attributes = {
                 "name": security_name,
                 "exercise_price": self.get_secu_exercise_price(**_kwargs),
-                "expiry": self.get_secu_interest_rate(**_kwargs),
+                "expiry": self.get_secu_expiry(**_kwargs),
                 "right": self.get_secu_right(**_kwargs),
                 "multiplier": self.get_secu_multiplier(**_kwargs),
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
@@ -94,7 +96,7 @@ class BaseHTMExtractor():
             attributes = {
                 "name": security_name,
                 "strike_price": self.get_secu_exercise_price(**_kwargs),
-                "expiry": self.get_secu_interest_rate(**_kwargs),
+                "expiry": self.get_secu_expiry(**_kwargs),
                 "right": self.get_secu_right(**_kwargs),
                 "multiplier": self.get_secu_multiplier(**_kwargs),
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
@@ -106,6 +108,7 @@ class BaseHTMExtractor():
                 "maturity": self.get_secu_expiry(**_kwargs),
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
             }
+        logger.info(f"security_attributes: {attributes} of security: {security_name}")
         if attributes != {}:
             return attributes
         else:
@@ -113,7 +116,9 @@ class BaseHTMExtractor():
     
     def get_securities_from_docs(self, docs: List[Doc]) -> List[model.Security]:
         securities = []
-        mentioned_secus = reduce(lambda doc, secus: self.get_mentioned_secus(doc, secus), docs, dict())
+        mentioned_secus = {}
+        for doc in docs:
+            mentioned_secus = self.get_mentioned_secus(doc, mentioned_secus)
         for secu, _ in mentioned_secus.items():
             security_type = self.get_security_type(secu)
             security_attributes = {}
@@ -123,7 +128,7 @@ class BaseHTMExtractor():
                     self.get_security_attributes(doc, secu, security_type))
             try:
                 security = model.Security(security_type(**security_attributes))
-            except TypeError:
+            except ValidationError:
                 logger.debug(f"Failed to construct model.Security from args: security_type={security_type}, security_attributes={security_attributes}")
             else:
                 securities.append(security)
@@ -186,8 +191,8 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
         form_case = self.classify_s3(filing)
-        self.extract_securities(filing, company, bus)
         cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
+        self.extract_securities(filing, company, bus, cover_page_doc)
         if form_case == "shelf":
             # add shelf_registration
             self.handle_shelf(filing, company, bus)
@@ -198,6 +203,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             # add ShelfOffering to BaseProspectus
             # check if we have ShelfRegistration added
             self.handle_ATM(filing, company, bus, cover_page_doc)
+        return company
 
     def handle_ATM(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
         shelf: model.ShelfRegistration = company.get_shelf(file_number=filing.file_number)
@@ -232,7 +238,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         kwargs = {
                 "accn": filing.accession_number,
                 "form_type": filing.form_type,
-                "capacity": self.extract_shelf_capacity(filing),
+                "file_number": filing.file_number,
+                "capacity": self.format_total_shelf_capacity(self.extract_shelf_capacity(filing)),
                 "filing_date": filing.filing_date
             }
         shelf = model.ShelfRegistration(**kwargs)
@@ -244,17 +251,15 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 # previously added ShelfOffering
             
 
-    def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.Security]:
+    def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus, security_doc: Doc) -> List[model.Security]:
         '''extract securities from cover_page and descriptions of securities.'''
-        cover_page = filing.get_section(re.compile("cover page"))
-        cover_page_doc = self.doc_from_section(cover_page)
-        raw_secus = self.get_mentioned_secus(cover_page_doc)
+        raw_secus = self.get_mentioned_secus(security_doc)
         description_sections = filing.get_sections(re.compile("description\s*of", re.I))
         description_docs = [self.doc_from_section(x) for x in description_sections]
         securities = self.get_securities_from_docs(description_docs)
         for security in securities:
             company.add_security(security)
-        bus.handle(commands.AddSecurities(securities))
+        bus.handle(commands.AddSecurities(company.cik, securities))
         return securities
     
     def extract_aggregate_offering_amount(self, cover_page: Doc) -> int:
@@ -295,7 +300,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         cover_page = filing.get_section(re.compile("cover page"))
         distribution = filing.get_section(re.compile("distribution", re.I))
         summary = filing.get_section(re.compile("summary", re.I))
-        about = filing.get_section(re.compile("about\s*this"), re.I)
+        about = filing.get_section(re.compile("about\s*this", re.I))
         if cover_page == []:
             raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
         cover_page_doc = self.doc_from_section(cover_page)
@@ -362,7 +367,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             {"LOWER": "to"},
             {"LOWER": "be"},
             {"IS_PUNCT": True, "IS_SENT_START": False},
-            at_the_market_case,
+            *[{"LOWER": x} for x in at_the_market_case],
             {"IS_PUNCT": True, "IS_SENT_START": False},
             {"OP": "*", "IS_SENT_START": False},
             {"LOWER": "as"},
@@ -374,7 +379,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             # add rule 415 cases then create dicts from at_the-market_case list
 
         ]
-        matcher.add("ATM", [pattern1])
+        matcher.add("ATM", [*pattern1])
         possible_matches = matcher(doc, as_spans=True)
         logger.debug(f"possible matches for _is_at_the_market_prospectus: {[m for m in possible_matches]}")
         if len(possible_matches) > 0:
@@ -453,7 +458,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 except IndexError:
                     pass
                 registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Price Per Unit", "Price Aggregate", "Fee"])
-                values = []
+                # values = []
                 print(registration_df)
                 row = None
                 if "total" in registration_df["Title"].values:
@@ -463,11 +468,19 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 if row is None:
                     raise ValueError(f"couldnt determine correct row while extracting from registration table: {registration_df}")
                 if row["Amount"].item() != "":
-                    values.append({"total_shelf_capacity": {"amount": row["Amount"].item(), "unit": "shares"}})
+                    return {"total_shelf_capacity": {"amount": row["Amount"].item(), "unit": "shares"}}
                 elif row["Price Aggregate"].item() != "":
-                    values.append({"total_shelf_capacity": {"amount": row['Price Aggregate'].item(), "unit": "$"}})
-                return self.create_filing_values(values, filing)
+                    return {"total_shelf_capacity": {"amount": row['Price Aggregate'].item(), "unit": "$"}}
         return None
+    
+    def format_total_shelf_capacity(self, capacity_dict: Dict):
+        if "total_shelf_capacity" not in capacity_dict.keys():
+            return None
+        capacity = capacity_dict["total_shelf_capacity"]
+        if capacity["unit"] == "$":
+            return int(capacity["amount"].replace("$", "").replace(",", "").replace(" ", ""))
+        if capacity["unit"] == "shares":
+            return (capacity["amount"].replace("$", "").replace(",", "").replace(" ", "")) + " shares"
     
     
 
