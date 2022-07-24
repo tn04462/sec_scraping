@@ -1,5 +1,5 @@
-from main.parser.extractors import MatchFormater
-from main.parser.filing_nlp import SpacyFilingTextSearch
+
+from main.parser.filing_nlp import SpacyFilingTextSearch, MatchFormater
 from spacy.tokens import Token, Span
 
 text_search = SpacyFilingTextSearch()

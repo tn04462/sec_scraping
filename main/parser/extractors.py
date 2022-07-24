@@ -16,7 +16,7 @@ from main.domain import model,  commands
 from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityTypeFactory, Warrant, Option
 from main.services.messagebus import Message, MessageBus
 from main.services.unit_of_work import AbstractUnitOfWork
-from .filing_nlp import SpacyFilingTextSearch
+from .filing_nlp import SpacyFilingTextSearch, MatchFormater
 
 logger = logging.getLogger(__name__)
 security_type_factory = SecurityTypeFactory()
@@ -24,10 +24,7 @@ security_type_factory = SecurityTypeFactory()
 class UnhandledClassificationError(Exception):
     pass
 
-class MatchFormater:
-    def money_string_to_int(self, money: str):
-        digits = re.findall("[0-9]+", money)
-        return int("".join(digits))
+
 
 class AbstractFilingExtractor(ABC):
     def extract_form_values(self, filing: Filing, bus: MessageBus):

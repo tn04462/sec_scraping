@@ -1,6 +1,6 @@
 from typing import Set
 import spacy
-from spacy.matcher import Matcher, DependencyMatcher
+from spacy.matcher import Matcher, PhraseMatcher
 from spacy.tokens import Span, Doc, Token
 from spacy import Language
 from spacy.util import filter_spans
@@ -12,6 +12,14 @@ import  pandas as pd
 from main.security_models.naiv_models import CommonShare, Securities
 
 logger = logging.getLogger(__name__)
+
+class MatchFormater:
+    def money_string_to_int(self, money: str):
+        digits = re.findall("[0-9]+", money)
+        return int("".join(digits))
+
+formater = MatchFormater()
+
 
 def int_to_roman(input):
     """ Convert an integer to a Roman numeral. """
@@ -40,7 +48,6 @@ def numeric_list():
     return ["(" + str(number) + ")" for number in range(150)]
 
 class FilingsSecurityLawRetokenizer:
-
     def __init__(self,  vocab):
         pass
     
@@ -67,7 +74,6 @@ class FilingsSecurityLawRetokenizer:
                     retokenizer.merge(span)
         return doc
         
-
 
 class SecurityActMatcher:
     def __init__(self, vocab):
@@ -106,22 +112,46 @@ class SecurityActMatcher:
         ]
         self.matcher.add("sec_act", patterns, greedy="LONGEST")
 
+def get_secuquantity(span):
+    if span.label_ == "SECUQUANTITY":
+        return formater.money_string_to_int(span.text)
+    else:
+        raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
+
 
 class SECUMatcher:
     _instance = None
     def __init__(self, vocab):
         self.matcher = Matcher(vocab)
         self.second_matcher = Matcher(vocab)
-        Span.set_extension("secuquantity", default=None)
+
+        Span.set_extension("secuquantity", getter=get_secuquantity)
+        Span.set_extension("secuquantity_unit", default=None)
+        # Span.set_extension("is_alias", default=False)
 
         self.add_SECU_ent_to_matcher()
         self.add_SECUATTR_ent_to_matcher()
         self.add_SECUQUANTITY_ent_to_matcher(self.second_matcher)
     
-    def __call__(self, doc):
+
+    def __call__(self, doc: Doc):
+        self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
         self.matcher(doc)
         self.second_matcher(doc)
-        return doc 
+        return doc
+    
+    def get_chars_to_tokens_map(self, doc: Doc):
+        chars_to_tokens = {}
+        for token in doc:
+            for i in range(token.idx, token.idx + len(token.text)):
+                chars_to_tokens[i] = token.i
+        return chars_to_tokens
+    
+    def mark_possible_alias(self, doc: Doc):
+        possible_alias_pattern = re.compile(
+            '(?:\(?")([a-zA-Z\s]*)(?:"\))'
+        )
+        for match in re.finditer(doc.text)
     
     def add_SECUATTR_ent_to_matcher(self):
         patterns = [
@@ -250,8 +280,8 @@ class SECUMatcher:
                 {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
             ],
             [   
-                {"ENT_TYPE": "CARDINAL"},
-                # # {"ENT_TYPE": "MONEY", "OP": "*"},
+                {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
+                {"LOWER": "of", "OP": "?"},
                 {"ENT_TYPE": "SECU"}
                 # # {"ENT_TYPE": "SECU", "OP": "*"},
             ]
@@ -289,17 +319,25 @@ def _add_SECU_ent(matcher, doc: Doc, i, matches):
 def _add_SECUATTR_ent(matcher, doc: Doc, i, matches):
     _add_ent(doc, i, matches, "SECUATTR")
 
+            
 
 def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     logger.debug(f"Adding ent_label: SECUQUANTITY")
+    _, match_start, match_end = matches[i]
     match_id, start, _ = matches[i]
     end = start + 1
     entity = Span(doc, start, end, label="SECUQUANTITY")
-    print(entity)
+    match_tokens = [t for t in doc[match_start:match_end]]
+    if "MONEY" in [t.ent_type_ for t in match_tokens]:
+        entity._.secuquantity_unit = "MONEY"
+    elif ("each" in entity.text) or ("every" in entity.text):
+        entity._.secuquantity_unit = "ALL"
+    else:
+        entity._.secuquantity_unit = "COUNT"
+    print(entity._.secuquantity_unit)
     try:
         doc.ents += (entity,)
     except ValueError as e:
-        print("got value error")
         if "[E1010]" in str(e):
             previous_ents = set(doc.ents)
             conflicting_ents = []
@@ -308,10 +346,7 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
                 if (start in covered_tokens) or (end in covered_tokens):
                     if (ent.end - ent.start) <= (end - start):
                         conflicting_ents.append((ent.end - ent.start, ent))
-                        print(f"found conflicting ent: {(ent.end - ent.start, ent)}")
-            print([end-start >= k[0] for k in conflicting_ents] is True)
             if False not in [end-start >= k[0] for k in conflicting_ents]:
-                print([k[1] for k in conflicting_ents])
                 [previous_ents.remove(k[1]) for k in conflicting_ents]
                 previous_ents.add(entity)
             doc.ents = previous_ents
@@ -326,6 +361,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
     if (not _is_match_followed_by(doc, start, end, exclude_after)) and (
         not _is_match_preceeded_by(doc, start, end, exclude_before)):
         entity = Span(doc, start, end, label=ent_label)
+        # logger.debug(f"entity: {entity}")
         try:
             doc.ents += (entity,)
         except ValueError as e:
@@ -334,16 +370,24 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
                 previous_ents = set(doc.ents)
                 conflicting_ents = []
                 for ent in doc.ents:                
-                    covered_tokens = range(ent.start, ent.end)
+                    covered_tokens = range(ent.start, ent.end + 1)
+                    # print([x for x in covered_tokens], (ent.start, start), (ent.end, end))
                     if (start in covered_tokens) or (end in covered_tokens):
+                        print(start, end)
                         if (ent.end - ent.start) <= (end - start):
+                            print(start, end)
                             # logger.debug(covered_tokens)
                             # logger.debug(("ent: ", ent, ent.text, ent.label_, ent.start, ent.end))
                             # logger.debug(("entity which replaces ent: ",entity, entity.text, entity.label_, entity.start, entity.end))
                             conflicting_ents.append((ent.end - ent.start, ent))
-                if False not in [end-start > k[0] for k in conflicting_ents]:
+                # logger.debug(f"conflicting_ents: {conflicting_ents}")
+                if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
                     [previous_ents.remove(k[1]) for k in conflicting_ents]
+                    # logger.debug(f"removed conflicting_ents: {[k[1] for k in conflicting_ents]}")
+                    # logger.debug(f"Added entity: {entity}")
                     previous_ents.add(entity)
+                    
+                # logger.debug(f"new_ents: {previous_ents}")
                 doc.ents = previous_ents
                     
 @Language.factory("secu_matcher")
