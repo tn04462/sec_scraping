@@ -700,7 +700,6 @@ if __name__ == "__main__":
     # m.add("1", [*regular_patterns])
     # matches = m(doc, as_spans=True)
     # print(matches)
-    
     print([(t.text, t.ent_type_) for t in doc])
     # print(search.get_secus_and_secuquantity(doc))
     # section = filing.get_section("cover page 0")

@@ -112,6 +112,7 @@ class SECUMatcher:
     def __init__(self, vocab):
         self.matcher = Matcher(vocab)
         self.second_matcher = Matcher(vocab)
+        Span.set_extension("secuquantity")
 
         self.add_SECU_ent_to_matcher()
         self.add_SECUATTR_ent_to_matcher()
@@ -308,10 +309,11 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
                     if (ent.end - ent.start) <= (end - start):
                         conflicting_ents.append((ent.end - ent.start, ent))
                         print(f"found conflicting ent: {(ent.end - ent.start, ent)}")
-            print([end-start >= k[0] for k in conflicting_ents])
-            if [end-start >= k[0] for k in conflicting_ents] is True:
+            print([end-start >= k[0] for k in conflicting_ents] is True)
+            if False not in [end-start >= k[0] for k in conflicting_ents]:
+                print([k[1] for k in conflicting_ents])
                 [previous_ents.remove(k[1]) for k in conflicting_ents]
-                previous_ents.append(entity)
+                previous_ents.add(entity)
             doc.ents = previous_ents
 
 def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
@@ -339,9 +341,9 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
                             # logger.debug(("ent: ", ent, ent.text, ent.label_, ent.start, ent.end))
                             # logger.debug(("entity which replaces ent: ",entity, entity.text, entity.label_, entity.start, entity.end))
                             conflicting_ents.append((ent.end - ent.start, ent))
-                if [end-start > k[0] for k in conflicting_ents] is True:
+                if False not in [end-start > k[0] for k in conflicting_ents]:
                     [previous_ents.remove(k[1]) for k in conflicting_ents]
-                    previous_ents.append(entity)
+                    previous_ents.add(entity)
                 doc.ents = previous_ents
                     
 @Language.factory("secu_matcher")

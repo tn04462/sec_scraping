@@ -225,7 +225,6 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             shelf.add_offering(offering)
             logger.info("Added ShelfOffering")
             bus.handle(commands.AddShelfOffering(company.cik, offering))
-
             registrations = []
             
 
