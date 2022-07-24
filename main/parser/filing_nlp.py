@@ -112,7 +112,7 @@ class SECUMatcher:
     def __init__(self, vocab):
         self.matcher = Matcher(vocab)
         self.second_matcher = Matcher(vocab)
-        Span.set_extension("secuquantity")
+        Span.set_extension("secuquantity", default=None)
 
         self.add_SECU_ent_to_matcher()
         self.add_SECUATTR_ent_to_matcher()
