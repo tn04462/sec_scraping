@@ -65,30 +65,29 @@ class BaseHTMExtractor():
     
     
     def merge_attributes(self, d1: dict, d2: dict):
-        if d2 is None:
+        print(d1, d2)
+        if (d2 is None) or (d2 == {}):
             return d1
-        if d1.keys() == d2.keys():
-            for d2key in d2.keys():
-                try:
-                    if (d1[d2key] is None) and (d2[d2key] is not None):
-                        d1[d2key] = d2[d2key]
-                except KeyError:
-                    pass
-            return d1 
+        for d2key in d2.keys():
+            try:
+                if (d1[d2key] is None) and (d2[d2key] is not None):
+                    d1[d2key] = d2[d2key]
+            except KeyError:
+                d1[d2key] = d2[d2key]
+        return d1 
 
     def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security):  
         attributes = {}
         _kwargs = {"doc": doc, "security_name": security_name}
         if security_type == CommonShare:
-        # if isinstance(security_type, CommonShare):
             attributes = {
                 "name": security_name
                 }
-        elif isinstance(security_type, PreferredShare):
+        elif security_type == PreferredShare:
             attributes = {
                 "name": security_name
                 }
-        elif isinstance(security_type, Warrant):
+        elif security_type == Warrant:
             attributes = {
                 "name": security_name,
                 "exercise_price": self.get_secu_exercise_price(**_kwargs),
@@ -97,7 +96,7 @@ class BaseHTMExtractor():
                 "multiplier": self.get_secu_multiplier(**_kwargs),
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
                 }
-        elif isinstance(security_type, Option):
+        elif security_type == Option:
             attributes = {
                 "name": security_name,
                 "strike_price": self.get_secu_exercise_price(**_kwargs),
@@ -106,7 +105,7 @@ class BaseHTMExtractor():
                 "multiplier": self.get_secu_multiplier(**_kwargs),
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
             }
-        elif isinstance(security_type, DebtSecurity):
+        elif security_type == DebtSecurity:
             attributes = {
                 "name": security_name,
                 "interest_rate": self.get_secu_interest_rate(**_kwargs),
@@ -114,10 +113,7 @@ class BaseHTMExtractor():
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
             }
         logger.info(f"attributes: {attributes} of security: {security_name} with type: {security_type}")
-        if attributes != {}:
-            return attributes
-        else:
-            return None
+        return attributes
     
     def get_securities_from_docs(self, docs: List[Doc]) -> List[model.Security]:
         securities = []

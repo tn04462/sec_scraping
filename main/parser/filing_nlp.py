@@ -70,7 +70,6 @@ class FilingsSecurityLawRetokenizer:
 
 
 class SecurityActMatcher:
-
     def __init__(self, vocab):
         Token.set_extension("sec_act", default=False)
         self.matcher = Matcher(vocab)
@@ -112,11 +111,15 @@ class SECUMatcher:
     _instance = None
     def __init__(self, vocab):
         self.matcher = Matcher(vocab)
+        self.second_matcher = Matcher(vocab)
+
         self.add_SECU_ent_to_matcher()
         self.add_SECUATTR_ent_to_matcher()
+        self.add_SECUQUANTITY_ent_to_matcher(self.second_matcher)
     
     def __call__(self, doc):
         self.matcher(doc)
+        self.second_matcher(doc)
         return doc 
     
     def add_SECUATTR_ent_to_matcher(self):
@@ -238,12 +241,18 @@ class SECUMatcher:
         ]
         self.matcher.add("SECU_ENT", [*patterns, *special_patterns], on_match=_add_SECU_ent)
 
-    def add_SECUQUANTITY_ent_to_matcher(self):
+    def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
         regular_patterns = [
             [
                 {"ENT_TYPE": "CARDINAL"},
                 {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
                 {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
+            ],
+            [   
+                {"ENT_TYPE": "CARDINAL"},
+                # # {"ENT_TYPE": "MONEY", "OP": "*"},
+                {"ENT_TYPE": "SECU"}
+                # # {"ENT_TYPE": "SECU", "OP": "*"},
             ]
         ]
         each_pattern = [
@@ -252,7 +261,7 @@ class SECUMatcher:
                     {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
                 ]
             ]
-        self.matcher.add("SECUQUANTITY_ENT", [*regular_patterns, *each_pattern], on_match=_add_SECUQUANTITY_ent_regular_case)
+        matcher.add("SECUQUANTITY_ENT", [*regular_patterns, *each_pattern], on_match=_add_SECUQUANTITY_ent_regular_case)
 
 
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
@@ -281,11 +290,15 @@ def _add_SECUATTR_ent(matcher, doc: Doc, i, matches):
 
 
 def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
-    match_id, start, end = matches[i]
-    entity = Span(doc, start, start+1, label="SECUQUANTITY")
+    logger.debug(f"Adding ent_label: SECUQUANTITY")
+    match_id, start, _ = matches[i]
+    end = start + 1
+    entity = Span(doc, start, end, label="SECUQUANTITY")
+    print(entity)
     try:
         doc.ents += (entity,)
     except ValueError as e:
+        print("got value error")
         if "[E1010]" in str(e):
             previous_ents = set(doc.ents)
             conflicting_ents = []
@@ -294,13 +307,16 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
                 if (start in covered_tokens) or (end in covered_tokens):
                     if (ent.end - ent.start) <= (end - start):
                         conflicting_ents.append((ent.end - ent.start, ent))
-            if [end-start > k[0] for k in conflicting_ents] is True:
+                        print(f"found conflicting ent: {(ent.end - ent.start, ent)}")
+            print([end-start >= k[0] for k in conflicting_ents])
+            if [end-start >= k[0] for k in conflicting_ents] is True:
                 [previous_ents.remove(k[1]) for k in conflicting_ents]
                 previous_ents.append(entity)
             doc.ents = previous_ents
 
 def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
     '''add a custom entity through an on_match callback.'''
+    logger.debug(f"Adding ent_label: {ent_label}")
     match_id, start, end = matches[i]
     # print(doc[start:end])
     # print(f"followed_by: {_is_match_followed_by(doc, start, end, exclude_after)}")
@@ -385,6 +401,16 @@ class SpacyFilingTextSearch:
         matcher.add("offering_amount", [pattern])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches if matches is not None else []
+    
+    def get_secus_and_secuquantity(self,  doc: Doc):
+        found = []
+        for ent in doc.ents:
+            print(ent.text, ent.label_)
+            if ent.label_ == "SECUQUANTITY":
+                found.append({"amount": ent.text})
+            if ent.label_ == "SECU":
+                found.append({"security": ent.text})
+        return found
 
     def match_outstanding_shares(self, text):
         pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]

@@ -117,7 +117,23 @@ def test_security_extraction_s3_shelf(get_s3_extractor, get_fake_messagebus, get
     cover_page = filing.get_section(re.compile("cover page"))
     cover_page_doc = extractor.doc_from_section(cover_page)
     securities = extractor.extract_securities(filing, company, bus, cover_page_doc)
-    assert securities == [model.Security(model.CommonShare(name="common stock", par_value=0.001))]
+    expected_securities = [
+        model.Security(model.CommonShare(name="common stock", par_value=0.001)),
+        model.Security(model.PreferredShare(name="preferred stock", par_value=0.001))
+        ]
+    assert securities == expected_securities
+
+def test_security_extraction_s3_ATM(get_s3_extractor, get_fake_messagebus, get_filing_s3_ATM):
+    extractor: extractors.HTMS3Extractor = get_s3_extractor
+    bus = get_fake_messagebus
+    filing = get_filing_s3_ATM
+    company = get_fake_company()
+    cover_page = filing.get_section(re.compile("cover page"))
+    cover_page_doc = extractor.doc_from_section(cover_page)
+    securities = extractor.spacy_text_search.get_secus_and_secuquantity(cover_page_doc)
+    print(securities)
+    assert 1 == 2
+
 
 def test_extract_shelf_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
     extractor: extractors.HTMS3Extractor = get_s3_extractor
