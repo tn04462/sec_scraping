@@ -704,12 +704,25 @@ if __name__ == "__main__":
     # for ent in doc.ents:
     #     if ent.label_ == "SECUQUANTITY":
     #         print(ent._.secuquantity)
-    print([(t.text, t.ent_type_) for t in doc])
-    print(search.get_secus_and_secuquantity(doc))
+
+
+
+    # print([(t.text, t.ent_type_) for t in doc])
+    # test = search.get_secus_and_secuquantity(doc)
+    # for entry in test:
+    #     if "security" in entry.keys():
+    #         secu = entry["security"]
+    #         for sent in doc.sents:
+                
+    #         is_alias = doc._.is_alias(secu)
+    #         if is_alias:
+    #             print(secu)
+
+
     # print(doc.spans)
     # section = filing.get_section("cover page 0")
     # print(search.get_mentioned_secus(search.nlp(filing.get_text_only())))
-    # displacy.serve(doc, style="dep")
+    displacy.serve(doc.sents, style="dep", options={"fine_grained": False, "compact": True})
     # print(search.get_mentioned_secus(search.nlp(text)))ä
     # text = section.text_only
     # # print(text)

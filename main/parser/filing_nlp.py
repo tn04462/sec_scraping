@@ -1,4 +1,4 @@
-from typing import Set
+from typing import Dict, Set
 import spacy
 from spacy.matcher import Matcher, PhraseMatcher
 from spacy.tokens import Span, Doc, Token
@@ -118,6 +118,31 @@ def get_secuquantity(span):
     else:
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
+def get_alias(doc: Doc, secu: Span):
+    if doc._.is_alias(secu) is True:
+        return None
+    else:
+        secu_first_token = secu.__getitem__(0)
+        secu_last_token = secu.__getitem__(-1)
+        for sent in doc.sents:
+            if secu_first_token in sent:
+                for token in sent[secu_last_token.i:]:
+                    if (token.ent_type_ == "SECU"):
+
+                
+'''
+how to get the alias of secu?
+1) create map of spans to token idx, so we can query from token idx to span
+2) get sentence containing original secu
+3) iter through tokens after original secu and see if we have an
+alias before we encounter the next secu
+'''
+
+
+def is_alias(doc: Doc, secu: Span):
+    if secu.text in doc._.alias_set:
+        return True
+    return False
 
 class SECUMatcher:
     _instance = None
@@ -127,8 +152,13 @@ class SECUMatcher:
 
         Span.set_extension("secuquantity", getter=get_secuquantity)
         Span.set_extension("secuquantity_unit", default=None)
-        # Span.set_extension("is_alias", default=False)
-
+        Doc.set_extension("get_alias", method=get_alias)
+        Doc.set_extension("alias_set", default=set())
+        Doc.set_extension("is_alias", method=is_alias)
+        Doc.set_extension("base_alias_map", default=dict())
+        # need a:
+        #   get alias method on doc which takes the Span of origin as arg
+        
         self.add_SECU_ent_to_matcher()
         self.add_SECUATTR_ent_to_matcher()
         self.add_SECUQUANTITY_ent_to_matcher(self.second_matcher)
@@ -138,6 +168,7 @@ class SECUMatcher:
         self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
         self.matcher(doc)
         self.second_matcher(doc)
+        self.add_possible_alias_spans(doc)
         return doc
     
     def get_chars_to_tokens_map(self, doc: Doc):
@@ -147,11 +178,45 @@ class SECUMatcher:
                 chars_to_tokens[i] = token.i
         return chars_to_tokens
     
-    def mark_possible_alias(self, doc: Doc):
+    def get_possible_alias_spans(self, doc: Doc, chars_to_tokens: Dict):
+        spans = []
+        parenthesis_pattern = re.compile(r"\([^(]*\)")
         possible_alias_pattern = re.compile(
-            '(?:\(?")([a-zA-Z\s]*)(?:"\))'
+            r'(?:\"|“)[a-zA-Z\s-]*(?:\"|”)'
         )
-        for match in re.finditer(doc.text)
+        for match in re.finditer(parenthesis_pattern, doc.text):
+            if match:
+                start_idx = match.start()
+                for possible_alias in re.finditer(possible_alias_pattern, match.group()):
+                    if possible_alias:
+                        start_token = chars_to_tokens.get(start_idx + possible_alias.start())
+                        end_token = chars_to_tokens.get(start_idx + possible_alias.end()-1)
+                        if (start_token is not None) and (end_token is not None):
+                            spans.append(doc[start_token+1:end_token])
+                        else:
+                            logger.debug(f"couldnt find start/end token for alias: {possible_alias}; start/end token: {start_token}/{end_token}")
+        return spans
+    
+    # def mark_possible_alias_spans(self, doc: Doc, spans: list[Span]):
+    #     for span in spans:
+    #         span._.is_alias = True
+    #     return spans
+    
+    def set_possible_alias_spans(self, doc: Doc, spans: list[Span]):
+        doc.spans["alias"] = spans
+    
+    def add_possible_alias_spans(self, doc: Doc):
+        self.set_possible_alias_spans(
+            doc,
+            self.get_possible_alias_spans(doc, self.chars_to_token_map)
+        )
+        logger.debug(f"set alias spans: {doc.spans['alias']}")
+        for span in doc.spans["alias"]:
+            doc._.alias_set.add(span.text)
+        logger.debug(f"alias_set extension on doc: {doc._.alias_set}")
+        
+
+
     
     def add_SECUATTR_ent_to_matcher(self):
         patterns = [
@@ -455,7 +520,7 @@ class SpacyFilingTextSearch:
             if ent.label_ == "SECUQUANTITY":
                 found.append({"amount": ent.text})
             if ent.label_ == "SECU":
-                found.append({"security": ent.text})
+                found.append({"security": ent})
         return found
 
     def match_outstanding_shares(self, text):
