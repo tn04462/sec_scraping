@@ -680,6 +680,7 @@ if __name__ == "__main__":
     search = SpacyFilingTextSearch()
     # filing = _create_filing("S-3", r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
     text = 'The selling shareholders named in this prospectus may use this prospectus to offer and resell from time to time up to 22,093,822 shares of our common stock, par value $0.0001 per share, which are comprised of (i) 6,772,000 shares (the “Shares”) of our common stock issued in a private placement on November 22, 2021 (the “Private Placement”), pursuant to that certain Securities Purchase Agreement by and among us and certain investors (the “Purchasers”), dated as of November 17, 2021 (the “Securities Purchase Agreement”), (ii) 4,058,305 shares (the “Pre-funded Warrant Shares”) of our common stock issuable upon the exercise of the pre-funded warrants (the “Pre-funded Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement, (iii) 10,830,305 shares (the “Common Stock Warrant Shares” and together with the Pre-funded Warrant Shares, the “Warrant Shares”) of our common stock issuable upon the exercise of the warrants (the “Common Stock Warrants” and together with the Pre-funded Warrants, the “Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement we issued to such investor and (iv) 433,212 shares (the “Placement Agent Warrant Shares”) of our common stock issuable upon the exercise of the placement agent warrants (the “Placement Agent Warrants”) issued in connection with the Private Placement.'
+    # text = "4,058,305 shares (the “Pre-funded Warrant Shares”) of our common stock issuable upon the exercise of the pre-funded warrants (the “Pre-funded Warrants”)"
     # text = "up to $ 75,000,000 of Common Stock  issued with exercise price of 1$."
     doc = search.nlp(text)
     # from spacy.matcher import Matcher
@@ -700,6 +701,7 @@ if __name__ == "__main__":
     # m.add("1", [*regular_patterns])
     # matches = m(doc, as_spans=True)
     # print(matches)
+    # print([token.text for token in doc])
     # print([(ent.text, ent.label_) for ent in doc.ents])
     # for ent in doc.ents:
     #     if ent.label_ == "SECUQUANTITY":
@@ -708,21 +710,23 @@ if __name__ == "__main__":
 
 
     # print([(t.text, t.ent_type_) for t in doc])
-    # test = search.get_secus_and_secuquantity(doc)
-    # for entry in test:
-    #     if "security" in entry.keys():
-    #         secu = entry["security"]
-    #         for sent in doc.sents:
-                
-    #         is_alias = doc._.is_alias(secu)
-    #         if is_alias:
-    #             print(secu)
+    test = search.get_secus_and_secuquantity(doc)
+    for entry in test:
+        if "security" in entry.keys():
+            secu = entry["security"]
+            is_alias = doc._.is_alias(secu)
+            if not is_alias:
+                print(doc._.get_alias(secu))
 
 
     # print(doc.spans)
     # section = filing.get_section("cover page 0")
     # print(search.get_mentioned_secus(search.nlp(filing.get_text_only())))
-    displacy.serve(doc.sents, style="dep", options={"fine_grained": False, "compact": True})
+    # displacy.serve(doc.sents, style="dep", options={"fine_grained": False, "compact": True})
+    # displacy.serve(doc.sents, style="ent", options={
+    #     "ents": ["SECU", "SECUQUANTITY", "SECUATR"],
+    #     "colors": {"SECU": "red", "SECUQUANTITY": "blue"}
+    # })
     # print(search.get_mentioned_secus(search.nlp(text)))ä
     # text = section.text_only
     # # print(text)

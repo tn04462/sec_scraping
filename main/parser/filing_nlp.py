@@ -119,6 +119,7 @@ def get_secuquantity(span):
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
 def get_alias(doc: Doc, secu: Span):
+    logger.debug(f"getting alias for: {secu}")
     if doc._.is_alias(secu) is True:
         return None
     else:
@@ -126,8 +127,35 @@ def get_alias(doc: Doc, secu: Span):
         secu_last_token = secu.__getitem__(-1)
         for sent in doc.sents:
             if secu_first_token in sent:
-                for token in sent[secu_last_token.i:]:
-                    if (token.ent_type_ == "SECU"):
+                # possible_alias = []
+                for token in sent[secu_last_token.i+1:]:
+                    alias = doc._.tokens_to_alias_map.get(token.i)
+                    if token.ent_type_ == "SECU":
+                        if alias is None:
+                            return None
+                    if alias:
+                        if alias.similarity(secu) > 0.6:
+                            return alias
+                        else:
+                            logger.debug(f"similarity score was to low for alias to be considered correct (< 0.6)")
+                            logger.debug(f"similarity score: {alias.similarity(secu)} for base:{secu} and alias:{alias}")
+                            return None
+                    # if token.ent_type_ == "SECU":
+                    #     possible_alias.append(token)
+                    # else:
+                    #     if possible_alias != []:
+                    #         print(f"possible_alias: {possible_alias[0]}, {possible_alias[-1]}")
+                    #         span = doc[possible_alias[0].i:possible_alias[-1].i+1]
+                    #         print(f"span: {span}")
+                    #         if doc._.is_alias(span):
+                    #             alias.append(span)
+                    #             print(span.similarity(secu), f"secu: {secu}, possible_alias: {span}")
+                    #             possible_alias = []
+                    #         else:
+                    #             return alias
+
+                    
+
 
                 
 '''
@@ -154,6 +182,16 @@ class SECUMatcher:
         Span.set_extension("secuquantity_unit", default=None)
         Doc.set_extension("get_alias", method=get_alias)
         Doc.set_extension("alias_set", default=set())
+        Doc.set_extension("tokens_to_alias_map", default=dict())
+        '''
+        0) add SECU ent to doc.spans["SECU"] list
+        1) populate alias to tokens map
+        1.5) for each secu get
+        2) to get alias:
+            *) look for tokens after subject
+            *) get next alias in same sent
+            *) ?
+        '''
         Doc.set_extension("is_alias", method=is_alias)
         Doc.set_extension("base_alias_map", default=dict())
         # need a:
@@ -169,6 +207,7 @@ class SECUMatcher:
         self.matcher(doc)
         self.second_matcher(doc)
         self.add_possible_alias_spans(doc)
+        self.add_tokens_to_alias_map(doc)
         return doc
     
     def get_chars_to_tokens_map(self, doc: Doc):
@@ -177,6 +216,13 @@ class SECUMatcher:
             for i in range(token.idx, token.idx + len(token.text)):
                 chars_to_tokens[i] = token.i
         return chars_to_tokens
+    
+    def get_tokens_to_alias_map(self, doc: Doc, alias_spans: list[Span]):
+        tokens_to_alias_map = {}
+        for span in alias_spans:
+            for token in span:
+                tokens_to_alias_map[token.i] = span
+        return tokens_to_alias_map
     
     def get_possible_alias_spans(self, doc: Doc, chars_to_tokens: Dict):
         spans = []
@@ -204,7 +250,7 @@ class SECUMatcher:
     
     def set_possible_alias_spans(self, doc: Doc, spans: list[Span]):
         doc.spans["alias"] = spans
-    
+        
     def add_possible_alias_spans(self, doc: Doc):
         self.set_possible_alias_spans(
             doc,
@@ -214,6 +260,9 @@ class SECUMatcher:
         for span in doc.spans["alias"]:
             doc._.alias_set.add(span.text)
         logger.debug(f"alias_set extension on doc: {doc._.alias_set}")
+    
+    def add_tokens_to_alias_map(self, doc: Doc):
+        doc._.tokens_to_alias_map = self.get_tokens_to_alias_map(doc, doc.spans["alias"])
         
 
 
@@ -250,8 +299,19 @@ class SECUMatcher:
         ]
 
         general_pre_sec_modifiers = [
-            "convertible",
-            "non-convertible"
+            "convertible"
+        ]
+        general_pre_sec_compound_modifiers = [
+            [
+                {"LOWER": "non"},
+                {"LOWER": "-"},
+                {"LOWER": "convertible"}
+            ],
+            [
+                {"LOWER": "pre"},
+                {"LOWER": "-"},
+                {"LOWER": "funded"}
+            ],
         ]
         general_affixes = [
             "series",
@@ -272,7 +332,6 @@ class SECUMatcher:
         special_patterns = [
             [{"LOWER": "common"}, {"LOWER": "units"}, {"LOWER": "of"}, {"LOWER": "beneficial"}, {"LOWER": "interest"}],
             [{"TEXT": "Subsciption"}, {"TEXT": "Rights"}],
-
         ]
         # exclude particles, conjunctions from regex match 
         patterns = [
@@ -286,6 +345,14 @@ class SECUMatcher:
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
                 {"LOWER": {"IN": ["stock", "shares"]}}
+            ]
+                ,
+            *[  
+                [
+                    *general_pre_sec_compound_modifier,
+                    {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                    {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}
+                ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
             ]
                 ,
             
@@ -373,6 +440,7 @@ def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if doc[start-1] not in exclude:
         return False
     return True
+
     
 def _add_SECU_ent(matcher, doc: Doc, i, matches):
     _add_ent(doc, i, matches, "SECU", exclude_after=[
