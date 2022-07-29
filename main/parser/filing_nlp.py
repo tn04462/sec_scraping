@@ -176,29 +176,44 @@ class SECUMatcher:
         #   get alias method on doc which takes the Span of origin as arg
         
         self.add_SECU_ent_to_matcher()
+        self.add_SECUREF_ent_to_matcher()
         self.add_SECUATTR_ent_to_matcher()
         self.add_SECUQUANTITY_ent_to_matcher(self.second_matcher)
     
 
     def __call__(self, doc: Doc):
+        self._init_span_labels(doc)
         self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
         self.add_possible_alias_spans(doc)
         self.add_tokens_to_alias_map(doc)
         self.matcher(doc)
         self.second_matcher(doc)
-        self.get_secu_alias_map(doc)
+        self.get_single_secu_alias_map(doc)
         return doc
     
-    def get_secu_alias_map(self, doc: Doc):
-        if not doc.spans.get("SECU") or not doc.spans.get("alias"):
+    def _init_span_labels(self, doc: Doc):
+        doc.spans["SECU"] = []
+        doc.spans["alias"] = []
+
+    
+    def get_single_secu_alias_map(self, doc: Doc):
+        if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
+            print(doc.spans.get("SECU"), doc.spans.get("alias"))
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         for secu in doc.spans["SECU"]:
-            if secu.text not in doc._.single_secu_alias.keys():
-                doc._.single_secu_alias[secu.text] = []
+            secu_key = self.get_secu_key(secu)
+            if secu_key not in doc._.single_secu_alias.keys():
+                doc._.single_secu_alias[secu_key] = {"base": secu, "alias": []}
             alias = doc._.get_alias(secu)
             if alias:
-                doc._.single_secu_alias[secu.text].append(alias)
-        
+                doc._.single_secu_alias[secu_key]["alias"].append(alias)ä$ö-ä$-öä
+    
+    def get_secu_key(self, secu: Span):
+        core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
+        body = [token.text_with_ws.lower() for token in core_tokens[:-1]]
+        tail = core_tokens[-1].lemma_.lower()
+        body.append(tail)
+        return "".join(body)        
     
     def get_chars_to_tokens_map(self, doc: Doc):
         chars_to_tokens = {}
@@ -249,8 +264,6 @@ class SECUMatcher:
     def add_tokens_to_alias_map(self, doc: Doc):
         doc._.tokens_to_alias_map = self.get_tokens_to_alias_map(doc, doc.spans["alias"])
         
-
-
     
     def add_SECUATTR_ent_to_matcher(self):
         patterns = [
@@ -260,6 +273,61 @@ class SECUMatcher:
             ]
         ]
         self.matcher.add("SECUATTR_ENT", [*patterns], on_match=_add_SECUATTR_ent)
+    
+    def add_SECUREF_ent_to_matcher(self):
+        general_pre_sec_modifiers = [
+            "convertible"
+        ]
+        general_pre_sec_compound_modifiers = [
+            [
+                {"LOWER": "non"},
+                {"LOWER": "-"},
+                {"LOWER": "convertible"}
+            ],
+            [
+                {"LOWER": "pre"},
+                {"LOWER": "-"},
+                {"LOWER": "funded"}
+            ],
+        ]
+        general_affixes = [
+            "series",
+            "tranche",
+            "class"
+        ]
+        # exclude particles, conjunctions from regex match 
+        patterns = [
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["shares"]}}
+            ]
+                ,
+            [
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["shares"]}}
+            ]
+                ,
+            *[  
+                [
+                    *general_pre_sec_compound_modifier,
+                    {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                    {"LOWER": {"IN": ["shares"]}}
+                ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
+            ]
+                ,
+
+            
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["warrant", "warrants"]}},
+                {"LOWER": {"IN": ["shares"]}}
+            ]
+  
+        ]
+
+        self.matcher.add("SECUREF_ENT", [*patterns], on_match=_add_SECUREF_ent)
 
     
     def add_SECU_ent_to_matcher(self):
@@ -323,20 +391,20 @@ class SECUMatcher:
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}}
+                {"LOWER": {"IN": ["stock"]}}
             ]
                 ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}}
+                {"LOWER": {"IN": ["stock"]}}
             ]
                 ,
             *[  
                 [
                     *general_pre_sec_compound_modifier,
                     {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
-                    {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}
+                    {"LOWER": {"IN": ["stock"]}, "OP": "?"}
                 ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
             ]
                 ,
@@ -360,13 +428,13 @@ class SECUMatcher:
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["warrant", "warrants"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}
+                {"LOWER": {"IN": ["stock"]}, "OP": "?"}
             ]
                 ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
                 {"LOWER": {"IN": ["warrant", "warrants"]}},
-                {"LOWER": {"IN": ["stock", "shares"]}, "OP": "?"}
+                {"LOWER": {"IN": ["stock"]}, "OP": "?"}
             ]
                 ,
 
@@ -384,9 +452,10 @@ class SECUMatcher:
                 ,
 
             [   {"LOWER": {"IN": purchase_affixes}, "OP": "?"}, {"TEXT": "Purchase"}, {"LOWER": {"IN": purchase_suffixes}}
-        ],
-            
+            ]
+                ,            
         ]
+
         self.matcher.add("SECU_ENT", [*patterns, *special_patterns], on_match=_add_SECU_ent)
 
     def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
@@ -399,7 +468,7 @@ class SECUMatcher:
             [   
                 {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
                 {"LOWER": "of", "OP": "?"},
-                {"ENT_TYPE": "SECU"}
+                {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
                 # # {"ENT_TYPE": "SECU", "OP": "*"},
             ]
         ]
@@ -415,14 +484,14 @@ class SECUMatcher:
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if end == len(doc):
         end -= 1
-    if doc[end].lower not in exclude:
+    if doc[end].lower_ not in exclude:
         return False
     return True
 
 def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if (start == 0) or (exclude == []):
         return False
-    if doc[start-1] not in exclude:
+    if doc[start-1].lower_ not in exclude:
         return False
     return True
 
@@ -437,17 +506,27 @@ def add_entity_to_spans(doc: Doc, entity: Span, span_label: str):
         doc.spans[span_label] = []
     doc.spans[span_label].append(entity)
 
-    
-def _add_SECU_ent(matcher, doc: Doc, i, matches):
-    _add_ent(doc, i, matches, "SECU", exclude_after=[
-            "agreement"
+def _add_SECUREF_ent(matcher, doc: Doc, i: int, matches):
+    _add_ent(doc, i, matches, "SECUREF", exclude_after=[
+            "agreement",
             "agent",
             "indebenture",
-            "rights"],
+            "rights"
+            ])
+
+
+    
+def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
+    _add_ent(doc, i, matches, "SECU", exclude_after=[
+            "agreement",
+            "agent",
+            "indebenture",
+            "rights",
+            "shares"],
             ent_callback=add_SECU_to_spans
             )
 
-def _add_SECUATTR_ent(matcher, doc: Doc, i, matches):
+def _add_SECUATTR_ent(matcher, doc: Doc, i: int, matches):
     _add_ent(doc, i, matches, "SECUATTR")
 
             
@@ -482,48 +561,49 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
                 previous_ents.add(entity)
             doc.ents = previous_ents
 
-def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None):
-    '''add a custom entity through an on_match callback.'''
+def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None, ent_exclude_condition: Callable=None):
+    '''add a custom entity through an on_match callback.
+    
+    Args:
+        ent_callback: function which will be called if entity was added with the entity and doc as args.
+        ent_exclude_condition: function which returns bool and takes entity and doc as args.'''
     logger.debug(f"Adding ent_label: {ent_label}")
     match_id, start, end = matches[i]
-    # print(doc[start:end])
-    # print(f"followed_by: {_is_match_followed_by(doc, start, end, exclude_after)}")
-    # print(f"preceeded_by: {_is_match_preceeded_by(doc, start, end, exclude_before)}")
+    print(doc[start:end])
+    print(f"followed_by: {_is_match_followed_by(doc, start, end, exclude_after)}")
+    print(f"preceeded_by: {_is_match_preceeded_by(doc, start, end, exclude_before)}")
     if (not _is_match_followed_by(doc, start, end, exclude_after)) and (
         not _is_match_preceeded_by(doc, start, end, exclude_before)):
         entity = Span(doc, start, end, label=ent_label)
+        if ent_exclude_condition is not None:
+            if ent_exclude_condition(doc, entity) is True:
+                logger.debug(f"ent_exclude_condition: {ent_exclude_condition} was True; not adding: {entity}")
+                return
         # logger.debug(f"entity: {entity}")
         try:
             doc.ents += (entity,)
-            if ent_callback:
-                ent_callback(doc, entity)
         except ValueError as e:
             if "[E1010]" in str(e):
-                # logger.debug(f"---NEW ENT--- {entity}")
-                previous_ents = set(doc.ents)
-                conflicting_ents = []
-                for ent in doc.ents:                
-                    covered_tokens = range(ent.start, ent.end + 1)
-                    # print([x for x in covered_tokens], (ent.start, start), (ent.end, end))
-                    if (start in covered_tokens) or (end in covered_tokens):
-                        print(start, end)
-                        if (ent.end - ent.start) <= (end - start):
-                            print(start, end)
-                            # logger.debug(covered_tokens)
-                            # logger.debug(("ent: ", ent, ent.text, ent.label_, ent.start, ent.end))
-                            # logger.debug(("entity which replaces ent: ",entity, entity.text, entity.label_, entity.start, entity.end))
-                            conflicting_ents.append((ent.end - ent.start, ent))
-                # logger.debug(f"conflicting_ents: {conflicting_ents}")
-                if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
-                    [previous_ents.remove(k[1]) for k in conflicting_ents]
-                    # logger.debug(f"removed conflicting_ents: {[k[1] for k in conflicting_ents]}")
-                    # logger.debug(f"Added entity: {entity}")
-                    previous_ents.add(entity)
-                    if ent_callback:
-                        ent_callback(doc, entity)
-                    
-                # logger.debug(f"new_ents: {previous_ents}")
-                doc.ents = previous_ents
+                handle_overlapping_ents(doc, start, end, entity)
+        if (ent_callback) and (entity in doc.ents):
+            ent_callback(doc, entity)
+
+def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span):
+    previous_ents = set(doc.ents)
+    conflicting_ents = get_conflicting_ents(doc, start, end)
+    if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
+        [previous_ents.remove(k[1]) for k in conflicting_ents]
+        previous_ents.add(entity)
+        doc.ents = previous_ents
+
+def get_conflicting_ents(doc: Doc, start: int, end: int):
+    conflicting_ents = []
+    for ent in doc.ents:                
+        covered_tokens = range(ent.start, ent.end + 1)
+        if (start in covered_tokens) or (end in covered_tokens):
+            if (ent.end - ent.start) <= (end - start):
+                conflicting_ents.append((ent.end - ent.start, ent))
+    return conflicting_ents
                     
 @Language.factory("secu_matcher")
 def create_secu_matcher(nlp, name):
