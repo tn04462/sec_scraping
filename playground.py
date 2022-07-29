@@ -710,13 +710,15 @@ if __name__ == "__main__":
 
 
     # print([(t.text, t.ent_type_) for t in doc])
-    test = search.get_secus_and_secuquantity(doc)
-    for entry in test:
-        if "security" in entry.keys():
-            secu = entry["security"]
-            is_alias = doc._.is_alias(secu)
-            if not is_alias:
-                print(doc._.get_alias(secu))
+    # test = search.get_secus_and_secuquantity(doc)
+    # for entry in test:
+    #     if "security" in entry.keys():
+    #         secu = entry["security"]
+    #         is_alias = doc._.is_alias(secu)
+    #         if not is_alias:
+    #             print(doc._.get_alias(secu))
+    print(doc.spans)
+    print(doc._.single_secu_alias)
 
 
     # print(doc.spans)
@@ -724,9 +726,10 @@ if __name__ == "__main__":
     # print(search.get_mentioned_secus(search.nlp(filing.get_text_only())))
     # displacy.serve(doc.sents, style="dep", options={"fine_grained": False, "compact": True})
     # displacy.serve(doc.sents, style="ent", options={
-    #     "ents": ["SECU", "SECUQUANTITY", "SECUATR"],
-    #     "colors": {"SECU": "red", "SECUQUANTITY": "blue"}
+    #     "ents": ["SECU", "SECUQUANTITY"],
+    #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
     # })
+    # displacy.serve(doc, style="span", options={"spans_key":"alias"})
     # print(search.get_mentioned_secus(search.nlp(text)))ä
     # text = section.text_only
     # # print(text)

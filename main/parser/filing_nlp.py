@@ -1,4 +1,5 @@
-from typing import Dict, Set
+from functools import partial
+from typing import Callable, Dict, Set
 import spacy
 from spacy.matcher import Matcher, PhraseMatcher
 from spacy.tokens import Span, Doc, Token
@@ -140,32 +141,8 @@ def get_alias(doc: Doc, secu: Span):
                             logger.debug(f"similarity score was to low for alias to be considered correct (< 0.6)")
                             logger.debug(f"similarity score: {alias.similarity(secu)} for base:{secu} and alias:{alias}")
                             return None
-                    # if token.ent_type_ == "SECU":
-                    #     possible_alias.append(token)
-                    # else:
-                    #     if possible_alias != []:
-                    #         print(f"possible_alias: {possible_alias[0]}, {possible_alias[-1]}")
-                    #         span = doc[possible_alias[0].i:possible_alias[-1].i+1]
-                    #         print(f"span: {span}")
-                    #         if doc._.is_alias(span):
-                    #             alias.append(span)
-                    #             print(span.similarity(secu), f"secu: {secu}, possible_alias: {span}")
-                    #             possible_alias = []
-                    #         else:
-                    #             return alias
-
-                    
-
 
                 
-'''
-how to get the alias of secu?
-1) create map of spans to token idx, so we can query from token idx to span
-2) get sentence containing original secu
-3) iter through tokens after original secu and see if we have an
-alias before we encounter the next secu
-'''
-
 
 def is_alias(doc: Doc, secu: Span):
     if secu.text in doc._.alias_set:
@@ -193,7 +170,8 @@ class SECUMatcher:
             *) ?
         '''
         Doc.set_extension("is_alias", method=is_alias)
-        Doc.set_extension("base_alias_map", default=dict())
+        Doc.set_extension("single_secu_alias", default=dict())
+        Doc.set_extension("multiple_secu_alias", default=dict())
         # need a:
         #   get alias method on doc which takes the Span of origin as arg
         
@@ -204,11 +182,23 @@ class SECUMatcher:
 
     def __call__(self, doc: Doc):
         self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
-        self.matcher(doc)
-        self.second_matcher(doc)
         self.add_possible_alias_spans(doc)
         self.add_tokens_to_alias_map(doc)
+        self.matcher(doc)
+        self.second_matcher(doc)
+        self.get_secu_alias_map(doc)
         return doc
+    
+    def get_secu_alias_map(self, doc: Doc):
+        if not doc.spans.get("SECU") or not doc.spans.get("alias"):
+            raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
+        for secu in doc.spans["SECU"]:
+            if secu.text not in doc._.single_secu_alias.keys():
+                doc._.single_secu_alias[secu.text] = []
+            alias = doc._.get_alias(secu)
+            if alias:
+                doc._.single_secu_alias[secu.text].append(alias)
+        
     
     def get_chars_to_tokens_map(self, doc: Doc):
         chars_to_tokens = {}
@@ -242,12 +232,7 @@ class SECUMatcher:
                         else:
                             logger.debug(f"couldnt find start/end token for alias: {possible_alias}; start/end token: {start_token}/{end_token}")
         return spans
-    
-    # def mark_possible_alias_spans(self, doc: Doc, spans: list[Span]):
-    #     for span in spans:
-    #         span._.is_alias = True
-    #     return spans
-    
+
     def set_possible_alias_spans(self, doc: Doc, spans: list[Span]):
         doc.spans["alias"] = spans
         
@@ -441,13 +426,26 @@ def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
         return False
     return True
 
+def add_SECU_to_spans(doc: Doc, entity:  Span):
+    if doc._.is_alias(entity):
+        return
+    else:
+        add_entity_to_spans(doc, entity, "SECU")
+
+def add_entity_to_spans(doc: Doc, entity: Span, span_label: str):
+    if not doc.spans.get(span_label):
+        doc.spans[span_label] = []
+    doc.spans[span_label].append(entity)
+
     
 def _add_SECU_ent(matcher, doc: Doc, i, matches):
     _add_ent(doc, i, matches, "SECU", exclude_after=[
             "agreement"
             "agent",
             "indebenture",
-            "rights"])
+            "rights"],
+            ent_callback=add_SECU_to_spans
+            )
 
 def _add_SECUATTR_ent(matcher, doc: Doc, i, matches):
     _add_ent(doc, i, matches, "SECUATTR")
@@ -484,7 +482,7 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
                 previous_ents.add(entity)
             doc.ents = previous_ents
 
-def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[]):
+def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None):
     '''add a custom entity through an on_match callback.'''
     logger.debug(f"Adding ent_label: {ent_label}")
     match_id, start, end = matches[i]
@@ -497,6 +495,8 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
         # logger.debug(f"entity: {entity}")
         try:
             doc.ents += (entity,)
+            if ent_callback:
+                ent_callback(doc, entity)
         except ValueError as e:
             if "[E1010]" in str(e):
                 # logger.debug(f"---NEW ENT--- {entity}")
@@ -519,6 +519,8 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
                     # logger.debug(f"removed conflicting_ents: {[k[1] for k in conflicting_ents]}")
                     # logger.debug(f"Added entity: {entity}")
                     previous_ents.add(entity)
+                    if ent_callback:
+                        ent_callback(doc, entity)
                     
                 # logger.debug(f"new_ents: {previous_ents}")
                 doc.ents = previous_ents
