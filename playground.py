@@ -677,13 +677,25 @@ if __name__ == "__main__":
 
 
     from main.parser.filing_nlp import SpacyFilingTextSearch
+    from main.parser.extractors import BaseHTMExtractor
     search = SpacyFilingTextSearch()
     # filing = _create_filing("S-3", r"C:\Users\Olivi\Desktop\test_set\set_s3/filings/0001175680/S-3/000119312520128998/d921147ds3a.htm")
-    text = 'The selling shareholders named in this prospectus may use this prospectus to offer and resell from time to time up to 22,093,822 shares of our common stock, par value $0.0001 per share, which are comprised of (i) 6,772,000 shares (the “Shares”) of our common stock issued in a private placement on November 22, 2021 (the “Private Placement”), pursuant to that certain Securities Purchase Agreement by and among us and certain investors (the “Purchasers”), dated as of November 17, 2021 (the “Securities Purchase Agreement”), (ii) 4,058,305 shares (the “Pre-funded Warrant Shares”) of our common stock issuable upon the exercise of the pre-funded warrants (the “Pre-funded Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement, (iii) 10,830,305 shares (the “Common Stock Warrant Shares” and together with the Pre-funded Warrant Shares, the “Warrant Shares”) of our common stock issuable upon the exercise of the warrants (the “Common Stock Warrants” and together with the Pre-funded Warrants, the “Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement we issued to such investor and (iv) 433,212 shares (the “Placement Agent Warrant Shares”) of our common stock issuable upon the exercise of the placement agent warrants (the “Placement Agent Warrants”) issued in connection with the Private Placement.'
-    # text = "(“Pre-funded Warrant Shares”)"
+    # text = 'The selling shareholders named in this prospectus may use this prospectus to offer and resell from time to time up to 22,093,822 shares of our common stock, par value $0.0001 per share, which are comprised of (i) 6,772,000 shares (the “Shares”) of our common stock issued in a private placement on November 22, 2021 (the “Private Placement”), pursuant to that certain Securities Purchase Agreement by and among us and certain investors (the “Purchasers”), dated as of November 17, 2021 (the “Securities Purchase Agreement”), (ii) 4,058,305 shares (the “Pre-funded Warrant Shares”) of our common stock issuable upon the exercise of the pre-funded warrants (the “Pre-funded Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement, (iii) 10,830,305 shares (the “Common Stock Warrant Shares” and together with the Pre-funded Warrant Shares, the “Warrant Shares”) of our common stock issuable upon the exercise of the warrants (the “Common Stock Warrants” and together with the Pre-funded Warrants, the “Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement we issued to such investor and (iv) 433,212 shares (the “Placement Agent Warrant Shares”) of our common stock issuable upon the exercise of the placement agent warrants (the “Placement Agent Warrants”) issued in connection with the Private Placement.'
+
+    texts = ["This prospectus relates to the offer and sale by the selling stockholders identified in this prospectus of up to 79,752,367 shares of our common stock, par value $0.001 per share, issued and outstanding or issuable upon exercise of warrants. The shares of common stock being offered include: 1)	35,286,904 shares issued to the selling stockholders in certain private transactions occurring between November 2, 2017 and February 16, 2018 (the “February 2018 Placement”); 2)	35,286,904 shares issuable upon exercise, at an exercise price of $0.75 per share, of warrants issued to the selling stockholders in the February 2018 Placement; 3)	2,813,490 shares issuable upon exercise, at an exercise price of $0.55 per share, of warrants issued to our placement agent and its employees in the February 2018 Placement;", "This prospectus relates to the sale from time to time by the selling stockholders identified in this prospectus for their own account of up to a total of 12,558,795 shares of our common stock, including up to an aggregate of 3,588,221 shares of our common stock issuable upon the exercise of warrants. The selling stockholders acquired their shares in a private placement of shares of common stock and warrants to purchase shares of common stock completed on August 29, 2008."]
+
+
     
     # text = "up to $ 75,000,000 of Common Stock  issued with exercise price of 1$."
-    doc = search.nlp(text)
+    for text in texts:
+        doc = search.nlp(text)
+        for token in doc:
+            print(token.lower_, token.ent_type_)
+        extractor = BaseHTMExtractor()
+        extractor.get_issuable_relation(doc, "")
+        # for secu, values in doc._.single_secu_alias.items():
+        #     print(secu)
+        #     print(values)
     # from spacy.matcher import Matcher
     # m = Matcher(search.nlp.vocab)
     # regular_patterns = [
@@ -720,9 +732,7 @@ if __name__ == "__main__":
     #             print(doc._.get_alias(secu))
     # print(doc.spans)
     # print(doc._.single_secu_alias)
-    for secu, values in doc._.single_secu_alias.items():
-        print(secu)
-        print(values)
+    
     
     # print(doc.spans)
     # section = filing.get_section("cover page 0")

@@ -161,7 +161,11 @@ class BaseHTMExtractor():
         # normalize secu text to lower so we reduce amount of cases
         # write function to create secu from secu_type and optional kwargs
         primary_matches = self.spacy_text_search.match_issuable_secu_primary(doc)
+        print(f"primary_matches: {primary_matches}")
         no_primary_matches = self.spacy_text_search.match_issuable_secu_no_primary(doc)
+        print(f"no_primary_matches: {no_primary_matches}")
+        no_exercise_price = self.spacy_text_search.match_issuable_secu_no_exercise_price(doc)
+        print(f"no_exercise_price_matches: {no_primary_matches}")
         #WIP
 
 

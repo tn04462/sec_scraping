@@ -317,8 +317,8 @@ CREATE TABLE IF NOT EXISTS securities (
     CONSTRAINT fk_underlying_security_id
         FOREIGN KEY (underlying_security_id)
             REFERENCES securities(id),
-    CONSTRAINT unique_name_company
-        UNIQUE(company_id, security_name)
+    CONSTRAINT unique_name_company_attributes
+        UNIQUE(company_id, security_name, security_attributes)
 
 );
 

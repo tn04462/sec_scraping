@@ -206,7 +206,7 @@ class SECUMatcher:
                 doc._.single_secu_alias[secu_key] = {"base": secu, "alias": []}
             alias = doc._.get_alias(secu)
             if alias:
-                doc._.single_secu_alias[secu_key]["alias"].append(alias)ä$ö-ä$-öä
+                doc._.single_secu_alias[secu_key]["alias"].append(alias)
     
     def get_secu_key(self, secu: Span):
         core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
@@ -544,22 +544,11 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
         entity._.secuquantity_unit = "ALL"
     else:
         entity._.secuquantity_unit = "COUNT"
-    print(entity._.secuquantity_unit)
     try:
         doc.ents += (entity,)
     except ValueError as e:
         if "[E1010]" in str(e):
-            previous_ents = set(doc.ents)
-            conflicting_ents = []
-            for ent in doc.ents:                
-                covered_tokens = range(ent.start, ent.end)
-                if (start in covered_tokens) or (end in covered_tokens):
-                    if (ent.end - ent.start) <= (end - start):
-                        conflicting_ents.append((ent.end - ent.start, ent))
-            if False not in [end-start >= k[0] for k in conflicting_ents]:
-                [previous_ents.remove(k[1]) for k in conflicting_ents]
-                previous_ents.add(entity)
-            doc.ents = previous_ents
+            handle_overlapping_ents(doc, start, end, entity)
 
 def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None, ent_exclude_condition: Callable=None):
     '''add a custom entity through an on_match callback.
@@ -569,9 +558,6 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
         ent_exclude_condition: function which returns bool and takes entity and doc as args.'''
     logger.debug(f"Adding ent_label: {ent_label}")
     match_id, start, end = matches[i]
-    print(doc[start:end])
-    print(f"followed_by: {_is_match_followed_by(doc, start, end, exclude_after)}")
-    print(f"preceeded_by: {_is_match_preceeded_by(doc, start, end, exclude_before)}")
     if (not _is_match_followed_by(doc, start, end, exclude_after)) and (
         not _is_match_preceeded_by(doc, start, end, exclude_before)):
         entity = Span(doc, start, end, label=ent_label)
@@ -707,8 +693,8 @@ class SpacyFilingTextSearch:
         secu_transformative_actions = ["exercise", "conversion"]
         part1 = [
             [
-                {"ENT_TYPE": "CARDINAL"},
-                {"LOWER": "shares"},
+                {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},
+                {"OP": "?"},
                 {"LOWER": "of"},
                 {"LOWER": "our", "OP": "?"},
                 {"ENT_TYPE": "SECU", "OP": "+"},
@@ -742,7 +728,7 @@ class SpacyFilingTextSearch:
         ]
         primary_secu_pattern = []
         for transformative_action in secu_transformative_actions:
-            p1 = part1[1]
+            p1 = part1[0]
             for p2 in part2:
                 pattern = [
                             *p1,
@@ -755,8 +741,8 @@ class SpacyFilingTextSearch:
                 primary_secu_pattern.append(pattern)
         pattern2 = [
             [
-            {"ENT_TYPE": "CARDINAL"},
-            {"LOWER": "shares"},
+            {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},
+            {"OP": "?"},
             {"LOWER": "of"},
             {"LOWER": "our", "OP": "?"},
             {"ENT_TYPE": "SECU", "OP": "+"},
@@ -779,8 +765,8 @@ class SpacyFilingTextSearch:
         secu_transformative_actions = ["exercise", "conversion"]
         part1 = [
             [
-                {"ENT_TYPE": "CARDINAL"},
-                {"LOWER": "shares"},
+                {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},
+                {"OP": "?"},
                 {"LOWER": "issuable"},
                 {"LOWER": "upon"}
             ]
@@ -812,7 +798,7 @@ class SpacyFilingTextSearch:
         for transformative_action in secu_transformative_actions:
             for p2 in part2:
                 pattern = [
-                            *part1,
+                            *part1[0],
                             {"LOWER": transformative_action},
                             {"OP": "*", "IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}},
                             *p2,
@@ -822,6 +808,42 @@ class SpacyFilingTextSearch:
                 no_primary_secu_pattern.append(pattern)
         matcher = Matcher(self.nlp.vocab)
         matcher.add("no_primary_secu", [*no_primary_secu_pattern])
+        matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
+        return matches
+    
+    def match_issuable_secu_no_exercise_price(self, doc: Doc):
+        secu_transformative_actions = ["exercise", "conversion"]
+        part1 = [
+            [
+                {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},
+                {"OP": "?"},
+                {"LOWER": "issuable"},
+                {"LOWER": "upon"}
+            ],
+            [
+                {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},
+                {"OP": "?"},
+                {"LOWER": "of"},
+                {"LOWER": "our", "OP": "?"},
+                {"ENT_TYPE": "SECU", "OP": "+"},
+                {"LOWER": "issuable"},
+                {"LOWER": "upon"},
+                {"LOWER": "the", "OP": "?"}
+            ]
+        ]
+        patterns = []
+        for transformative_action in secu_transformative_actions:
+            for p1 in part1:
+                pattern = [
+                            *p1,
+                            {"LOWER": transformative_action},
+                            {"IS_SENT_START": False, "LOWER": {"NOT_IN": [";", ".", "exercise"]}, "OP": "*"},
+                            {"LOWER": "of"},
+                            {"ENT_TYPE": "SECU", "OP": "+"}
+                            ]
+                patterns.append(pattern)
+        matcher = Matcher(self.nlp.vocab)
+        matcher.add("secu_issuable_relation_no_exercise_price", [*patterns])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches
     
