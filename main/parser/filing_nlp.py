@@ -216,7 +216,9 @@ class SECUMatcher:
         for secu in doc.spans["SECU"]:
             secu_key = self.get_secu_key(secu)
             if secu_key not in doc._.single_secu_alias.keys():
-                doc._.single_secu_alias[secu_key] = {"base": secu, "alias": []}
+                doc._.single_secu_alias[secu_key] = {"base": [secu], "alias": []}
+            else:
+                doc._.single_secu_alias[secu_key]["base"].append(secu)
             alias = doc._.get_alias(secu)
             if alias:
                 doc._.single_secu_alias[secu_key]["alias"].append(alias)
@@ -516,24 +518,13 @@ class SECUMatcher:
             ],
             [   
                 {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-                # {"LOWER": "shares", "OP": "?"},
                 {"LOWER": "of", "OP": "?"},
                 {"LOWER": "our", "OP": "?"},
                 {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
-                # # {"ENT_TYPE": "SECU", "OP": "*"},
-            ],
-            # [
-            #     {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-            #     {"LOWER": "shares"}
-            # ]
-        ]
-        each_pattern = [
-                [
-                    {"LOWER": {"IN": ["each", "every"]}},
-                    {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
-                ]
             ]
-        matcher.add("SECUQUANTITY_ENT", [*regular_patterns, *each_pattern], on_match=_add_SECUQUANTITY_ent_regular_case)
+        ]
+
+        matcher.add("SECUQUANTITY_ENT", [*regular_patterns], on_match=_add_SECUQUANTITY_ent_regular_case)
 
 
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
@@ -587,23 +578,32 @@ def _add_SECUATTR_ent(matcher, doc: Doc, i: int, matches):
             
 
 def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
-    logger.debug(f"Adding ent_label: SECUQUANTITY")
     _, match_start, match_end = matches[i]
-    match_id, start, _ = matches[i]
-    end = start + 1
-    entity = Span(doc, start, end, label="SECUQUANTITY")
     match_tokens = [t for t in doc[match_start:match_end]]
-    if "MONEY" in [t.ent_type_ for t in match_tokens]:
-        entity._.secuquantity_unit = "MONEY"
-    elif ("each" in entity.text) or ("every" in entity.text):
-        entity._.secuquantity_unit = "ALL"
-    else:
-        entity._.secuquantity_unit = "COUNT"
+    match_id, start, _ = matches[i]
+    end = None
+    for token in match_tokens:
+        if token.ent_type not in ["MONEY", "CARDINAL"]:
+            end = token.i
+    if end is None:
+        raise AttributeError(f"_add_SECUQUANTITY_ent_regular_case couldnt determine the end token of the entity, match_tokens: {match_tokens}")
+    entity = Span(doc, start, end, label="SECUQUANTITY")
+    logger.debug(f"Adding ent_label: SECUQUANTITY. Entity: {entity}, original_match: {doc[match_start:match_end]}")
+    _set_secuquantity_unit_on_span(match_tokens, entity)
     try:
         doc.ents += (entity,)
     except ValueError as e:
         if "[E1010]" in str(e):
+            logger.debug("handling overlapping ents")
             handle_overlapping_ents(doc, start, end, entity)
+
+def _set_secuquantity_unit_on_span(match_tokens: Span, span: Span):
+    if span.label_ != "SECUQUANTITY":
+        raise TypeError(f"can only set secuquantity_unit on spans of label: SECUQUANTITY. got span: {span}")
+    if "MONEY" in [t.ent_type_ for t in match_tokens]:
+        span._.secuquantity_unit = "MONEY"
+    else:
+        span._.secuquantity_unit = "COUNT"
 
 def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None, ent_exclude_condition: Callable=None):
     '''add a custom entity through an on_match callback.
@@ -632,8 +632,10 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
 def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span):
     previous_ents = set(doc.ents)
     conflicting_ents = get_conflicting_ents(doc, start, end)
+    logger.debug(f"conflicting_ents: {conflicting_ents}")
     if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
         [previous_ents.remove(k[1]) for k in conflicting_ents]
+        logger.debug(f"removed conflicting ents: {[k[1] for k in conflicting_ents]}")
         previous_ents.add(entity)
         doc.ents = previous_ents
 
@@ -748,7 +750,7 @@ class SpacyFilingTextSearch:
     # def match_issuabel_secu_primary(self, doc: Doc, primary_secu: Span)
     
     def match_issuable_secu_primary(self, doc: Doc):
-        secu_transformative_actions = ["exercise", "conversion"]
+        secu_transformative_actions = ["exercise", "conversion", "redemption"]
         part1 = [
             [
                 {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},
@@ -820,7 +822,7 @@ class SpacyFilingTextSearch:
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
     
     def match_issuable_secu_no_primary(self, doc: Doc):
-        secu_transformative_actions = ["exercise", "conversion"]
+        secu_transformative_actions = ["exercise", "conversion", "redemption"]
         part1 = [
             [
                 {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},
@@ -870,7 +872,7 @@ class SpacyFilingTextSearch:
         return matches
     
     def match_issuable_secu_no_exercise_price(self, doc: Doc):
-        secu_transformative_actions = ["exercise", "conversion"]
+        secu_transformative_actions = ["exercise", "conversion", "redemption"]
         part1 = [
             [
                 {"ENT_TYPE": "SECUQUANTITY", "OP": "+"},

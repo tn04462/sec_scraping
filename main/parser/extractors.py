@@ -33,6 +33,7 @@ class AbstractFilingExtractor(ABC):
 
 
 class BaseHTMExtractor():
+    # maybe add get_doc(text_search) to FilingSection with a doc instance variable, so i dont make a doc more than once during extraction? 
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
         self.formater = MatchFormater()
@@ -48,13 +49,12 @@ class BaseHTMExtractor():
         '''
         if secus is None:
             secus = dict()
-        for ent in doc.ents:
-            if ent.label_ == "SECU":
-                normalized_ent = self._normalize_SECU(ent.text)
-                if normalized_ent in secus.keys():
-                    secus[normalized_ent].append(ent)
-                else:
-                    secus[normalized_ent] = [ent]
+        for key in doc._.single_secu_alias.keys():
+            if key not in secus.keys():
+                secus[key] = doc._.single_secu_alias[key]
+            else:
+                secus[key]["base"] += doc._.single_secu_alias[key]["base"]
+                secus[key]["alias"] += doc._.single_secu_alias[key]["alias"]
         return secus
     
     def get_security_type(self, security_name: str):
@@ -227,7 +227,10 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             shelf.add_offering(offering)
             logger.info("Added ShelfOffering")
             bus.handle(commands.AddShelfOffering(company.cik, offering))
-            registrations = []
+            security_registrations = self.get_security_registrations()
+            for security_registration in security_registrations:
+                # self.handle_shelf_security_registrations()
+                pass
             
 
     def handle_resale(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):
@@ -257,7 +260,18 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 # add ShelfOffering
                 # get underwriters, registrations and completed then modify
                 # previously added ShelfOffering
-            
+    
+    def handle_shelf_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus, security_registration: model.ShelfSecurityRegistration):
+        cmd = commands.AddShelfSecurityRegistration(filing.cik, filing.accession_number, security_registration=security_registration)
+        pass
+    
+    def get_security_registrations(self, filing: Filing, docs: list[Doc]):
+        registrations = []
+        for doc in docs:
+            pass
+
+
+        
 
     def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus, security_doc: Doc) -> List[model.Security]:
         '''extract securities from cover_page and descriptions of securities.'''
@@ -334,7 +348,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         return form_case
     
     def _is_preliminary_prospectus(self, doc: Doc):
-        phrase_matcher = PhraseMatcher(self.spacy_text_search.nlp.vocab)
+        phrase_matcher = PhraseMatcher(self.spacy_text_search.nlp.vocab, attr="LOWER")
         pm_patterns = [self.spacy_text_search.nlp.make_doc(term) for term in [
             "SUBJECT TO COMPLETION,",
             "The information in this prospectus is not complete and may be changed.",
@@ -352,7 +366,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         determine if this is a resale of securities by anyone other than the registrar,
         by checking for key phrases in the "cover page".'''
         matcher = Matcher(self.spacy_text_search.nlp.vocab)
-        phrase_matcher = PhraseMatcher(self.spacy_text_search.nlp.vocab)
+        phrase_matcher = PhraseMatcher(self.spacy_text_search.nlp.vocab, attr="LOWER")
         # action_verbs = ["sell", "offer", "resell", "disposition"]
         m_pattern1 = [
             {"LOWER": "prospectus"},

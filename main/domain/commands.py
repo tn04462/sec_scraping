@@ -42,6 +42,11 @@ class AddResaleRegistration(CompanyCommand):
 class AddShelfOffering(CompanyCommand):
     shelf_offering:  model.ShelfOffering
 
+@dataclass
+class AddShelfSecurityRegistration(CompanyCommand):
+    offering_accn: str
+    security_registration: model.ShelfSecurityRegistration
+
 
 # this commmand and others like it should be events instead eg: AddedShelfRegistration 
 # @dataclass

@@ -635,6 +635,13 @@ class Company:
                 return shelf
         return None
     
+    def get_shelf_offering(self, offering_accn: str):
+        for shelf in self.shelfs:
+            offering = shelf.get_offering_by_accn(offering_accn)
+            if offering:
+                return offering
+        return None
+    
     def get_resale(self, accn: str):
         for resale in self.resales:
             if resale.accn == accn:

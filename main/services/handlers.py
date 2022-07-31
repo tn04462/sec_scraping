@@ -30,11 +30,25 @@ def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUn
         u.company.add(company)
         u.commit()
 
+def add_shelf_security_registration(cmd: commands.AddShelfSecurityRegistration, uow: AbstractUnitOfWork):
+    with uow as u:
+        company: model.Company = u.company.get(cik=cmd.cik)
+        offering = company.get_shelf_offering(offering_accn=cmd.offering_accn)
+        if offering:
+            offering.add_registration(registered=cmd.security_registration)
+            u.company.add(company)
+            u.commit()
+        else:
+            u.rollback()
+            raise AttributeError(f"Couldnt add ShelfSecurityRegistration, because this company doesnt have a shelf offering associated with accn: {cmd.offering_accn}.")
+
+
 
 COMMAND_HANDLERS = {
     commands.AddCompany: add_company,
     commands.AddSecurities: add_securities,
     commands.AddShelfRegistration: add_shelf_registration,
     commands.AddResaleRegistration: add_resale_registration,
+    commands.AddShelfSecurityRegistration: add_shelf_security_registration
 }
 
