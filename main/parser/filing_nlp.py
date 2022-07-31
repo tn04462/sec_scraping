@@ -19,6 +19,19 @@ class MatchFormater:
         digits = re.findall("[0-9]+", money)
         return int("".join(digits))
 
+    def issuable_relation_no_primary_secu():
+        pass
+
+    def issuable_relation_with_primary_secu(self, doc: Doc, match: Span):
+        # dict with keys: primary, base, action, price
+        pass
+
+    def issuable_relation_no_exercise_price_no_primary():
+        pass
+
+    def issuable_relation_no_exercise_price_no_primary():
+        pass
+
 formater = MatchFormater()
 
 
@@ -299,20 +312,20 @@ class SECUMatcher:
         patterns = [
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["preferred", "common", "warrant", "warrants", "ordinary"]}},
                 {"LOWER": {"IN": ["shares"]}}
             ]
                 ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["preferred", "common", "warrant", "warrants", "ordinary"]}},
                 {"LOWER": {"IN": ["shares"]}}
             ]
                 ,
             *[  
                 [
                     *general_pre_sec_compound_modifier,
-                    {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                    {"LOWER": {"IN": ["preferred", "common", "warrant", "warrants", "ordinary"]}},
                     {"LOWER": {"IN": ["shares"]}}
                 ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
             ]
@@ -387,23 +400,60 @@ class SECUMatcher:
             [{"TEXT": "Subsciption"}, {"TEXT": "Rights"}],
         ]
         # exclude particles, conjunctions from regex match 
+        depositary_patterns = [
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["depository", "depositary"]}},
+                {"LOWER": {"IN": ["shares"]}}
+            ]
+                ,
+            [
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "ordinary"]}},
+                {"LOWER": {"IN": ["shares"]}}
+            ]
+                ,
+            *[  
+                [
+                    *general_pre_sec_compound_modifier,
+                    {"LOWER": {"IN": ["depository", "depositary"]}},
+                    {"LOWER": {"IN": ["shares"]}, "OP": "?"}
+                ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
+            ]
+                ,
+            
+            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["depository", "depositary"]}, "OP": "?"},
+                {"LOWER": {"IN": ["shares", "stock"]}},
+                {"LOWER": {"IN": ["options", "option"]}}
+            ]
+                ,
+            [
+                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
+                {"LOWER": {"IN": ["depository", "depositary"]}, "OP": "?"},
+                {"LOWER": {"IN": ["shares", "stock"]}},
+                {"LOWER": {"IN": ["options", "option"]}}
+            ]
+
+        ]
         patterns = [
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}},
                 {"LOWER": {"IN": ["stock"]}}
             ]
                 ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}},
                 {"LOWER": {"IN": ["stock"]}}
             ]
                 ,
             *[  
                 [
                     *general_pre_sec_compound_modifier,
-                    {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "warrant", "warrants", "ordinary"]}},
+                    {"LOWER": {"IN": ["preferred", "common", "warrant", "warrants", "ordinary"]}},
                     {"LOWER": {"IN": ["stock"]}, "OP": "?"}
                 ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
             ]
@@ -411,14 +461,14 @@ class SECUMatcher:
             
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "ordinary"]}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}, "OP": "?"},
                 {"LOWER": {"IN": ["stock"]}},
                 {"LOWER": {"IN": ["options", "option"]}}
             ]
                 ,
             [
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "ordinary"]}, "OP": "?"},
+                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}, "OP": "?"},
                 {"LOWER": {"IN": ["stock"]}},
                 {"LOWER": {"IN": ["options", "option"]}}
             ]
@@ -427,8 +477,7 @@ class SECUMatcher:
             
             [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
                 {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["warrant", "warrants"]}},
-                {"LOWER": {"IN": ["stock"]}, "OP": "?"}
+                {"LOWER": {"IN": ["warrant", "warrants"]}}
             ]
                 ,
             [
@@ -456,7 +505,7 @@ class SECUMatcher:
                 ,            
         ]
 
-        self.matcher.add("SECU_ENT", [*patterns, *special_patterns], on_match=_add_SECU_ent)
+        self.matcher.add("SECU_ENT", [*patterns, *depositary_patterns, *special_patterns], on_match=_add_SECU_ent)
 
     def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
         regular_patterns = [
@@ -468,6 +517,7 @@ class SECUMatcher:
             [   
                 {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
                 {"LOWER": "of", "OP": "?"},
+                {"LOWER": "our", "OP": "?"},
                 {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
                 # # {"ENT_TYPE": "SECU", "OP": "*"},
             ]
@@ -521,7 +571,7 @@ def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
             "agreement",
             "agent",
             "indebenture",
-            "rights",
+            # "rights",
             "shares"],
             ent_callback=add_SECU_to_spans
             )
@@ -633,6 +683,7 @@ class SpacyFilingTextSearch:
         doc = self.nlp(text)
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches if matches is not None else []
+        
     
     def match_aggregate_offering_amount(self, doc: Doc):
         pattern = [
@@ -688,6 +739,8 @@ class SpacyFilingTextSearch:
             else:
                 values.append(value)
         return values
+    
+    # def match_issuabel_secu_primary(self, doc: Doc, primary_secu: Span)
     
     def match_issuable_secu_primary(self, doc: Doc):
         secu_transformative_actions = ["exercise", "conversion"]
@@ -758,7 +811,7 @@ class SpacyFilingTextSearch:
         ]
         [primary_secu_pattern.append(x) for x in pattern2]
         matcher = Matcher(self.nlp.vocab)
-        matcher.add("primary_secu", [*primary_secu_pattern])
+        matcher.add("secu_issuabel_relation_primary_secu", [*primary_secu_pattern])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
     
     def match_issuable_secu_no_primary(self, doc: Doc):
@@ -807,7 +860,7 @@ class SpacyFilingTextSearch:
                             ]
                 no_primary_secu_pattern.append(pattern)
         matcher = Matcher(self.nlp.vocab)
-        matcher.add("no_primary_secu", [*no_primary_secu_pattern])
+        matcher.add("secu_issuable_relation_no_primary_secu", [*no_primary_secu_pattern])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches
     
@@ -837,7 +890,7 @@ class SpacyFilingTextSearch:
                 pattern = [
                             *p1,
                             {"LOWER": transformative_action},
-                            {"IS_SENT_START": False, "LOWER": {"NOT_IN": [";", ".", "exercise"]}, "OP": "*"},
+                            {"IS_SENT_START": False, "LOWER": {"NOT_IN": [";", "."]}, "ENT_TYPE": {"NOT_IN": ["SECUATTR"]}, "OP": "*"},
                             {"LOWER": "of"},
                             {"ENT_TYPE": "SECU", "OP": "+"}
                             ]

@@ -195,22 +195,23 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         form_case = self.classify_s3(filing)
         cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
         self.extract_securities(filing, company, bus, cover_page_doc)
-        if form_case == "shelf":
-            logger.info("Handling Filing as a 'shelf'")
+        form_classifications = form_case["classifications"]
+        if "shelf" in form_classifications:
+            logger.info(f"Handling classification case: 'shelf' in form_case: {form_case}")
             # add shelf_registration
-            self.handle_shelf(filing, company, bus)
-        elif form_case == "resale":
-            logger.info("Handling Filing as a 'resale'")
+            self.handle_shelf(filing, company, bus, is_preliminary=form_case["is_preliminary"])
+        if "resale" in form_classifications:
+            logger.info(f"Handling classification case: 'resale' in form_case: {form_case}")
             # add resale_registration
-            self.handle_resale(filing, company, bus)
-        elif form_case == "ATM":
-            logger.info("Handling Filing as an 'ATM'")
+            self.handle_resale(filing, company, bus, is_preliminary=form_case["is_preliminary"])
+        if "ATM" in form_classifications:
+            logger.info(f"Handling classification case: 'ATM' in form_case: {form_case}")
             # add ShelfOffering to BaseProspectus
             # check if we have ShelfRegistration added
-            self.handle_ATM(filing, company, bus, cover_page_doc)
+            self.handle_ATM(filing, company, bus, cover_page_doc, is_preliminary=form_case["is_preliminary"])
         return company
 
-    def handle_ATM(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
+    def handle_ATM(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc, is_preliminary: bool=False):
         shelf: model.ShelfRegistration = company.get_shelf(file_number=filing.file_number)
         print(f"found base registration 'shelf': {shelf}")
         if shelf:
@@ -229,7 +230,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             registrations = []
             
 
-    def handle_resale(self, filing: Filing, company: model.Company, bus: MessageBus):
+    def handle_resale(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):
         kwargs =  {
                 "accn": filing.accession_number,
                 "form_type": filing.form_type,
@@ -241,7 +242,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         bus.handle(commands.AddResaleRegistration(filing.cik, resale))
 
 
-    def handle_shelf(self, filing: Filing, company: model.Company, bus: MessageBus):
+    def handle_shelf(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):
         kwargs = {
                 "accn": filing.accession_number,
                 "form_type": filing.form_type,
@@ -304,6 +305,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         #WIP
 
     def classify_s3(self, filing: Filing):
+        front_page = filing.get_section(re.compile("front page"))
         cover_page = filing.get_section(re.compile("cover page"))
         distribution = filing.get_section(re.compile("distribution", re.I))
         summary = filing.get_section(re.compile("summary", re.I))
@@ -314,13 +316,36 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         distribution_doc = self.doc_from_section(distribution) if distribution != [] else []
         summary_doc = self.doc_from_section(summary) if summary != [] else []
         about_doc = self.doc_from_section(about) if about != [] else []
+        form_case = {"is_preliminary": False, "is_combination_form_case": False, "classifications": set()}
+        if front_page:
+            front_page_doc = self.doc_from_section(front_page)
+            if self._is_preliminary_prospectus(front_page_doc):
+                form_case["is_preliminary"] = True
         if self._is_resale_prospectus(cover_page_doc):
-            return "resale"
+            form_case["classifications"].add("resale")
         if self._is_at_the_market_prospectus(cover_page_doc) or self._is_at_the_market_prospectus(distribution_doc):
-            return "ATM"
+            form_case["classifications"].add("ATM")
         if True in [self._is_shelf_prospectus(x) if x != [] else False for x in [cover_page_doc, about_doc, summary_doc]]:
-            return "shelf"
-        raise UnhandledClassificationError
+            form_case["classifications"].add("shelf")
+        if len(form_case["classifications"]) > 1:
+            form_case["is_combination_form_case"] = True
+        if form_case["classifications"] == []:
+            raise UnhandledClassificationError
+        return form_case
+    
+    def _is_preliminary_prospectus(self, doc: Doc):
+        phrase_matcher = PhraseMatcher(self.spacy_text_search.nlp.vocab)
+        pm_patterns = [self.spacy_text_search.nlp.make_doc(term) for term in [
+            "SUBJECT TO COMPLETION,",
+            "The information in this prospectus is not complete and may be changed.",
+            "The information set forth in this preliminary prospectus is not complete and may be changed.",
+            "The information set forth in this prospectus is not complete and may be changed."
+        ]]
+        phrase_matcher.add("is_preliminary_prospectus", pm_patterns)
+        if len(phrase_matcher(doc)) > 0:
+            return True
+        else:
+            return False
 
     def _is_resale_prospectus(self, doc: Doc) -> bool:
         '''
