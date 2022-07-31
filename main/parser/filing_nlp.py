@@ -510,17 +510,22 @@ class SECUMatcher:
     def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
         regular_patterns = [
             [
-                {"ENT_TYPE": "CARDINAL"},
+                {"ENT_TYPE": "CARDINAL", "OP": "+"},
                 {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
                 {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
             ],
             [   
                 {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
+                # {"LOWER": "shares", "OP": "?"},
                 {"LOWER": "of", "OP": "?"},
                 {"LOWER": "our", "OP": "?"},
                 {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
                 # # {"ENT_TYPE": "SECU", "OP": "*"},
-            ]
+            ],
+            # [
+            #     {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
+            #     {"LOWER": "shares"}
+            # ]
         ]
         each_pattern = [
                 [

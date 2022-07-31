@@ -21,6 +21,7 @@ from psycopg_pool import ConnectionPool
 
 import pandas as pd
 import logging
+import webbrowser
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -604,7 +605,7 @@ if __name__ == "__main__":
     
     def get_s3_resale_filings(root_path, max_num=100):
         unhandled = []
-        front_pages = []
+        # front_pages = []
         from main.parser.extractors import HTMS3Extractor
         extractor = HTMS3Extractor()
         paths = get_all_filings_path(root_path, "S-3")
@@ -613,22 +614,26 @@ if __name__ == "__main__":
             pass
         else:
             paths = paths[:max_num]
-        for path in paths:
+        for path in tqdm(paths):
             filings = _create_filing("S-3", path)
             if not isinstance(filings, list):
                 filings = [filings]
             for filing in filings:
-                try:
-                    front_page = filing.get_section(re.compile("front page"))
-                    front_pages.append(front_page.text_only)
-                except Exception:
-                    front_pages.append(None)
+                # try:
+                #     front_page = filing.get_section(re.compile("front page"))
+                #     front_pages.append(front_page.text_only)
+                # except Exception:
+                #     front_pages.append(None)
                 try:
                     form_case = extractor.classify_s3(filing)
                     if "resale" in form_case["classifications"]:
                         resale_paths.append(path)
                 except UnhandledClassificationError:
                     unhandled.append(path)
+                except Exception as e:
+                    print(e)
+                    print("opening file in browser")
+                    webbrowser.open(path, new=2)
         print(f"unhandled classification for paths: {unhandled}")
         # print(f"front_pages: {front_pages}")
         return resale_paths
@@ -660,7 +665,7 @@ if __name__ == "__main__":
 
    
 
-    # download_samples(r"C:\Users\Olivi\Desktop\test_set\set2_s3", forms=["S-3"])
+    # download_samples(r"F:\example_filing_set_S3", forms=["S-3"])
     
     # dl = Dä¨$ä¨$$$$$ings("0001175680", "S-3", after_date="2000-01-01", number_of_filings=100)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
@@ -716,27 +721,37 @@ if __name__ == "__main__":
     # # text = 'The selling shareholders named in this prospectus may use this prospectus to offer and resell from time to time up to 22,093,822 shares of our common stock, par value $0.0001 per share, which are comprised of (i) 6,772,000 shares (the “Shares”) of our common stock issued in a private placement on November 22, 2021 (the “Private Placement”), pursuant to that certain Securities Purchase Agreement by and among us and certain investors (the “Purchasers”), dated as of November 17, 2021 (the “Securities Purchase Agreement”), (ii) 4,058,305 shares (the “Pre-funded Warrant Shares”) of our common stock issuable upon the exercise of the pre-funded warrants (the “Pre-funded Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement, (iii) 10,830,305 shares (the “Common Stock Warrant Shares” and together with the Pre-funded Warrant Shares, the “Warrant Shares”) of our common stock issuable upon the exercise of the warrants (the “Common Stock Warrants” and together with the Pre-funded Warrants, the “Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement we issued to such investor and (iv) 433,212 shares (the “Placement Agent Warrant Shares”) of our common stock issuable upon the exercise of the placement agent warrants (the “Placement Agent Warrants”) issued in connection with the Private Placement.'
 
     # texts = ["This prospectus relates to the offer and sale by the selling stockholders identified in this prospectus of up to 79,752,367 shares of our common stock, par value $0.001 per share, issued and outstanding or issuable upon exercise of warrants. The shares of common stock being offered include: 1)	35,286,904 shares issued to the selling stockholders in certain private transactions occurring between November 2, 2017 and February 16, 2018 (the “February 2018 Placement”); 2)	35,286,904 shares issuable upon exercise, at an exercise price of $0.75 per share, of warrants issued to the selling stockholders in the February 2018 Placement; 3)	2,813,490 shares issuable upon exercise, at an exercise price of $0.55 per share, of warrants issued to our placement agent and its employees in the February 2018 Placement;", "This prospectus relates to the sale from time to time by the selling stockholders identified in this prospectus for their own account of up to a total of 12,558,795 shares of our common stock, including up to an aggregate of 3,588,221 shares of our common stock issuable upon the exercise of warrants. The selling stockholders acquired their shares in a private placement of shares of common stock and warrants to purchase shares of common stock completed on August 29, 2008."]
+    # root = r"F:\example_filing_set_S3\filings"
+    # # root = r"C:\Users\Olivi\Desktop\test_set\set2_s3\filings"
+    # resale_paths = get_s3_resale_filings(root, max_num=100)
+    # import pandas as pd
+    # pd.Series([str(p) for p in resale_paths]).to_clipboard()
+    resale_paths = [
+        # r"F:\example_filing_set_S3\filings\0000908311\S-3\000110465919045622\a19-16974_1s3.htm",
+        # r"F:\example_filing_set_S3\filings\0000908311\S-3\000110465919045626\a19-16974_2s3.htm",
+        # r"F:\example_filing_set_S3\filings\0001031029\S-3\000110465919035405\a19-11424_1s3.htm",
+        r"F:\example_filing_set_S3\filings\0001286613\S-3\000101905620000490\lincoln_s3.htm",
+        r"F:\example_filing_set_S3\filings\0001286613\S-3\000101905620000522\lincoln_s3.htm",
+        r"F:\example_filing_set_S3\filings\0001441693\S-3\000149315218004885\forms-3.htm",
+        r"F:\example_filing_set_S3\filings\0001441693\S-3\000149315220023346\forms-3.htm",
+        r"F:\example_filing_set_S3\filings\0001595527\S-3\000110465920111083\tm2032148-2_s3.htm",
+        r"F:\example_filing_set_S3\filings\0001697851\S-3\000119312521313484\d204494ds3.htm"
+        ]
+    extractor = BaseHTMExtractor()
+    docs = []
+    for p in resale_paths:
+        filings = _create_filing("S-3", p)
+        if not isinstance(filings, list):
+            filings = [filings]
+        for filing in filings:
+            docs.append(extractor.doc_from_section(filing.get_section(re.compile("cover page"))))
+    displacy.serve(docs, style="ent", options={
+        "ents": ["SECU", "SECUREF", "SECUQUANTITY"],
+        "colors": {"SECU": "#e171f0", "SECUREF": "#03fcb1", "SECUQUANTITY": "grey"}
+        })
 
-    resale_paths = get_s3_resale_filings(r"C:\Users\Olivi\Desktop\test_set\set2_s3\filings", max_num=100)
-    import pandas as pd
-    pd.Series([str(p) for p in resale_paths]).to_clipboard()
-    # resale_paths = [
-    #     r"C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0000908311/S-3/000110465919045622/a19-16974_1s3.htm",
-    #     r"C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0000908311/S-3/000110465919045626/a19-16974_2s3.htm",
-    #     r"C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001031029/S-3/000110465919035405/a19-11424_1s3.htm"
-    #     ]
-    # extractor = BaseHTMExtractor()
-    # docs = []
-    # for p in resale_paths:
-    #     filings = _create_filing("S-3", p)
-    #     if not isinstance(filings, list):
-    #         filings = [filings]
-    #     for filing in filings:
-    #         docs.append(extractor.doc_from_section(filing.get_section(re.compile("cover page"))))
-    # displacy.serve(docs, style="ent", options={
-    #     "ents": ["SECU", "SECUREF", "SECUQUANTITY"],
-    #     "colors": {"SECU": "#e171f0", "SECUREF": "#03fcb1", "SECUQUANTITY": "grey"}
-    #     })
+    # check if secuquantity now matches
+    "This prospectus relates to the possible resale or other disposition, from time to time, of up to 119,007,618 shares of our common stock SECU previously issued and issuable upon exercise of warrants SECU to purchase shares of our common stock SECU by the selling stockholders named in this prospectus or in supplements to this prospectus. See “Selling Stockholders.”"
 
     
     

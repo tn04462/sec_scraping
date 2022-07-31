@@ -384,6 +384,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 
     def _is_at_the_market_prospectus(self, doc: Doc) -> bool:
+        if not isinstance(doc, Doc):
+            logger.debug(f"_is_at_the_market_prospectus failed; Expecting type: Doc got type: {type(doc), doc}")
+            return False
         '''
         Determine if this is an "at-the-market" offering, rule 415(a)(4) Act 1933,
         by checking for key phrase in the "cover page" and "plan of distribution".
