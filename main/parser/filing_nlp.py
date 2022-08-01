@@ -582,13 +582,17 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     match_tokens = [t for t in doc[match_start:match_end]]
     match_id, start, _ = matches[i]
     end = None
+    wanted_tokens = []
     for token in match_tokens:
-        if token.ent_type not in ["MONEY", "CARDINAL"]:
-            end = token.i
+        if token.ent_type_ in ["MONEY", "CARDINAL"]:
+            # end = token.i-1
+            wanted_tokens.append(token.i)
+    end = sorted(wanted_tokens)[-1]+1 if wanted_tokens != [] else None
+    print(end, wanted_tokens)
     if end is None:
         raise AttributeError(f"_add_SECUQUANTITY_ent_regular_case couldnt determine the end token of the entity, match_tokens: {match_tokens}")
     entity = Span(doc, start, end, label="SECUQUANTITY")
-    logger.debug(f"Adding ent_label: SECUQUANTITY. Entity: {entity}, original_match: {doc[match_start:match_end]}")
+    logger.debug(f"Adding ent_label: SECUQUANTITY. Entity: {entity} [{start}-{end}], original_match:{doc[match_start:match_end]} [{match_start}-{match_end}]")
     _set_secuquantity_unit_on_span(match_tokens, entity)
     try:
         doc.ents += (entity,)
@@ -642,7 +646,7 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span):
 def get_conflicting_ents(doc: Doc, start: int, end: int):
     conflicting_ents = []
     for ent in doc.ents:                
-        covered_tokens = range(ent.start, ent.end + 1)
+        covered_tokens = range(ent.start + 1, ent.end + 1)
         if (start in covered_tokens) or (end in covered_tokens):
             if (ent.end - ent.start) <= (end - start):
                 conflicting_ents.append((ent.end - ent.start, ent))

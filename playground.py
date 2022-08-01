@@ -674,6 +674,7 @@ if __name__ == "__main__":
         print(f"unhandled classification for paths: {unhandled}")
         print(f"other_exceptions: {other_exceptions}")
         # print(f"front_pages: {front_pages}")
+        pd.Series([str(p) for p in ATM_paths]).to_clipboard()
         return ATM_paths
     # test_sc13g_main_table()
 
@@ -760,12 +761,12 @@ if __name__ == "__main__":
     # # text = 'The selling shareholders named in this prospectus may use this prospectus to offer and resell from time to time up to 22,093,822 shares of our common stock, par value $0.0001 per share, which are comprised of (i) 6,772,000 shares (the “Shares”) of our common stock issued in a private placement on November 22, 2021 (the “Private Placement”), pursuant to that certain Securities Purchase Agreement by and among us and certain investors (the “Purchasers”), dated as of November 17, 2021 (the “Securities Purchase Agreement”), (ii) 4,058,305 shares (the “Pre-funded Warrant Shares”) of our common stock issuable upon the exercise of the pre-funded warrants (the “Pre-funded Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement, (iii) 10,830,305 shares (the “Common Stock Warrant Shares” and together with the Pre-funded Warrant Shares, the “Warrant Shares”) of our common stock issuable upon the exercise of the warrants (the “Common Stock Warrants” and together with the Pre-funded Warrants, the “Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement we issued to such investor and (iv) 433,212 shares (the “Placement Agent Warrant Shares”) of our common stock issuable upon the exercise of the placement agent warrants (the “Placement Agent Warrants”) issued in connection with the Private Placement.'
 
     # texts = ["This prospectus relates to the offer and sale by the selling stockholders identified in this prospectus of up to 79,752,367 shares of our common stock, par value $0.001 per share, issued and outstanding or issuable upon exercise of warrants. The shares of common stock being offered include: 1)	35,286,904 shares issued to the selling stockholders in certain private transactions occurring between November 2, 2017 and February 16, 2018 (the “February 2018 Placement”); 2)	35,286,904 shares issuable upon exercise, at an exercise price of $0.75 per share, of warrants issued to the selling stockholders in the February 2018 Placement; 3)	2,813,490 shares issuable upon exercise, at an exercise price of $0.55 per share, of warrants issued to our placement agent and its employees in the February 2018 Placement;", "This prospectus relates to the sale from time to time by the selling stockholders identified in this prospectus for their own account of up to a total of 12,558,795 shares of our common stock, including up to an aggregate of 3,588,221 shares of our common stock issuable upon the exercise of warrants. The selling stockholders acquired their shares in a private placement of shares of common stock and warrants to purchase shares of common stock completed on August 29, 2008."]
-    # root = r"F:\example_filing_set_S3\filings"
-    filing_root = r"C:\Users\Olivi\Desktop\test_set\set2_s3\filings"
-    root =  r"C:\Users\Olivi\Desktop\test_set\set2_s3"
+    root = r"F:\example_filing_set_S3\filings"
+    # root =  r"C:\Users\Olivi\Desktop\test_set\set2_s3"
+    filing_root = str(Path(root)/"filings")
     # resale_paths = get_s3_resale_filings(root, max_num=100)
     # import pandas as pd
-    # pd.Series([str(p) for p in resale_paths]).to_clipboard()
+    
     resale_paths = [
         # r"0000908311\S-3\000110465919045622\a19-16974_1s3.htm",
         # r"0000908311\S-3\000110465919045626\a19-16974_2s3.htm",
@@ -783,30 +784,44 @@ if __name__ == "__main__":
     def get_absolute_paths_from_rel_paths(rel_paths, root_path):
         return [create_absolute_path(f, root_path) for f in rel_paths]
 
-    def get_cover_pages_from_rel_paths(paths, skip_first=True):
+    def get_cover_pages_from_paths(paths, skip_first=True):
         for p in paths:
             filings = _create_filing("S-3", p)
             if not isinstance(filings, list):
                 filings = [filings]
-            for filing, idx in enumerate(filings):
+            for idx, filing in enumerate(filings):
                 if skip_first is True and len(filings) > 1:
                     if idx == 0:
                         continue
                 docs.append(extractor.doc_from_section(filing.get_section(re.compile("cover page"))))
         return docs
     
-    atm_filings = get_s3_AMT_filings(filing_root, max_num=20)
-    docs = get_cover_pages_from_rel_paths(atm_filings)
+    # test_filing = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0000002178/S-3/000000217820000138/a2020forms-3.htm")
+    # from main.parser.extractors import HTMS3Extractor
+    # extractor = HTMS3Extractor()
+    # for filing in test_filing:
+    #     print(extractor.classify_s3(filing))
+
+    # atm_filings = get_s3_AMT_filings(root, max_num=100)
+    # docs = get_cover_pages_from_paths(atm_filings)
+
+    ATM_paths = [r"F:\example_filing_set_S3\filings\0000002178\S-3\000000217820000138\a2020forms-3.htm",
+    # r"F:\example_filing_set_S3\filings\0001183765\S-3\000119312518356360\d639710ds3.htm",
+    # r"F:\example_filing_set_S3\filings\0001183765\S-3\000119312520212471\d29932ds3.htm",
+    # r"F:\example_filing_set_S3\filings\0001253176\S-3\000119312519321066\d599661ds3.htm",
+    r"F:\example_filing_set_S3\filings\0001445499\S-3\000119312522151913\d714983ds3.htm"]
+    docs = get_cover_pages_from_paths(ATM_paths)
     
+   
     # for doc in docs:
-    #     print("ALIAS MAP:")
+    #     print("ALIAS MAP:")docs = get_cover_pages_from_paths(atm_filings)
     #     print(doc._.single_secu_alias)
     #     print("SECU SPANS:")
     #     print(doc.spans["SECU"])
 
     displacy.serve(docs, style="ent", options={
         "ents": ["SECU", "SECUREF", "SECUQUANTITY"],
-        "colors": {"SECä$¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨U": "#e171f0", "SECUREF": "#03fcb1", "SECUQUANTITY": "grey"}
+        "colors": {"SECU": "#e171f0", "SECUREF": "#03fcb1", "SECUQUANTITY": "grey"}
         })
 
 
