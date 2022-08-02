@@ -178,6 +178,11 @@ def test_extract_ATM_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_ATM
         "end_date": datetime.date(2021, 9, 27)
     })
     assert offering == expected_offering
+    cover_page_doc = extractor.doc_from_section(atm_filing.get_section(re.compile("cover page")))
+    aggregate_offering = extractor.extract_aggregate_offering_amount(cover_page_doc)
+    expected_aggregate_offering = {'SECU': ['common stock'], 'amount': 75000000}
+    assert aggregate_offering == expected_aggregate_offering
+    
 
 def test_match_outstanding_shares(get_base_extractor):
     base_extractor = get_base_extractor

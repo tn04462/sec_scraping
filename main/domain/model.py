@@ -265,14 +265,15 @@ class ShelfSecurityRegistration:
         if isinstance(other, ShelfSecurityRegistration):
             if (
                 (self.security == other.security) and
-                (self.amount == other.amount) and
+                (self.amount_dollar == other.amount_dollar) and
+                (self.amount_security == other.amount_security) and
                 (self.source_security == other.source_security)
             ):
                 return True
         return False
     
     def __hash__(self):
-        return hash((self.amount, self.source_security, self.security))
+        return hash((self.amount_dollar, self.amount_security, self.source_security, self.security))
 
 @dataclass
 class ShelfSecurityComplete:
@@ -285,14 +286,15 @@ class ShelfSecurityComplete:
         if isinstance(other, ShelfSecurityComplete):
             if (
                 (self.security == other.security) and
-                (self.amount == other.amount) and
+                (self.amount_dollar == other.amount_dollar) and
+                (self.amount_security == other.amount_security) and
                 (self.source_security == other.source_security)
             ):
                 return True
         return False
     
     def __hash__(self):
-        return hash((self.amount, self.source_security, self.security))
+        return hash((self.amount_dollar, self.amount_security, self.source_security, self.security))
 
 
 @dataclass
@@ -388,14 +390,15 @@ class ResaleSecurityRegistration:
         if isinstance(other, ResaleSecurityRegistration):
             if (
                 (self.security == other.security) and
-                (self.amount == other.amount) and
+                (self.amount_dollar == other.amount_dollar) and
+                (self.amount_security == other.amount_security) and
                 (self.source_security == other.source_security)
             ):
                 return True
         return False
     
     def __hash__(self):
-        return hash((self.amount, self.source_security, self.security))
+        return hash((self.amount_dollar, self.amount_security, self.source_security, self.security))
 
 @dataclass
 class ResaleSecurityComplete:
@@ -408,14 +411,15 @@ class ResaleSecurityComplete:
         if isinstance(other, ResaleSecurityComplete):
             if (
                 (self.security == other.security) and
-                (self.amount == other.amount) and
+                (self.amount_dollar == other.amount_dollar) and
+                (self.amount_security == other.amount_security) and
                 (self.source_security == other.source_security)
             ):
                 return True
         return False
 
     def __hash__(self):
-        return hash((self.amount, self.source_security, self.security))
+        return hash((self.amount_dollar, self.amount_security, self.source_security, self.security))
 
 @dataclass
 class ResaleRegistration:

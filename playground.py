@@ -257,7 +257,9 @@ if __name__ == "__main__":
     import re
     from datetime import timedelta
     import pickle
-    def download_samples(root, forms=["S-1", "S-3", "SC13D"]):
+    def download_samples(root, forms=["S-1", "S-3", "SC13D"], num_tickers=100, max_filings=20):
+        import random
+        random.seed(a=32525)
         dl = Downloader(root, user_agent="P licker p@licker.com")
         def get_filing_set(downloader: Downloader, ticker: str, forms: list, after: str, number_of_filings: int = 250):
             # # download the last 2 years of relevant filings
@@ -271,9 +273,10 @@ if __name__ == "__main__":
                     print((ticker, form, e))
                     pass
         with open("./resources/company_tickers.json", "r") as f:
-            tickers = list(json.load(f).keys())
-            for ticker in tqdm(tickers[5100:5200]):
-                get_filing_set(dl, ticker, forms, "2018-01-01", number_of_filings=20)
+            all_tickers = list(json.load(f).keys())
+            tickers = random.sample(all_tickers, k=num_tickers)
+            for ticker in tqdm(tickers):
+                get_filing_set(dl, ticker, forms, "2017-01-01", number_of_filings=max_filings)
     
     def open_filings_in_browser(root: str, form: str, max=100):
         import webbrowser
@@ -606,6 +609,8 @@ if __name__ == "__main__":
     
     def get_s3_resale_filings(root_path, max_num=100):
         unhandled = []
+        filing_creation_failed = []
+        other_exceptions = []
         # front_pages = []
         from main.parser.extractors import HTMS3Extractor
         extractor = HTMS3Extractor()
@@ -616,7 +621,11 @@ if __name__ == "__main__":
         else:
             paths = paths[:max_num]
         for path in tqdm(paths):
-            filings = _create_filing("S-3", path)
+            try:
+                filings = _create_filing("S-3", path)
+            except Exception as e:
+                filing_creation_failed.append(path)
+                continue
             if not isinstance(filings, list):
                 filings = [filings]
             for filing in filings:
@@ -632,15 +641,19 @@ if __name__ == "__main__":
                 except UnhandledClassificationError:
                     unhandled.append(path)
                 except Exception as e:
-                    print(e)
+                    other_exceptions.append(e)
                     print("opening file in browser")
                     webbrowser.open(path, new=2)
         print(f"unhandled classification for paths: {unhandled}")
+        print(f"other_exceptions: {other_exceptions}")
+        print(f"filing_creation_failed: {filing_creation_failed}")
         # print(f"front_pages: {front_pages}")
+        pd.Series([str(p) for p in resale_paths]).to_clipboard()
         return resale_paths
 
     def get_s3_AMT_filings(root_path, max_num=100):
         unhandled = []
+        filing_creation_failed = []
         other_exceptions = []
         # front_pages = []
         from main.parser.extractors import HTMS3Extractor
@@ -652,7 +665,11 @@ if __name__ == "__main__":
         else:
             paths = paths[:max_num]
         for path in tqdm(paths):
-            filings = _create_filing("S-3", path)
+            try:
+                filings = _create_filing("S-3", path)
+            except Exception as e:
+                filing_creation_failed.append(path)
+                continue
             if not isinstance(filings, list):
                 filings = [filings]
             for filing in filings:
@@ -673,6 +690,7 @@ if __name__ == "__main__":
                     webbrowser.open(path, new=2)
         print(f"unhandled classification for paths: {unhandled}")
         print(f"other_exceptions: {other_exceptions}")
+        print(f"filing_creation_failed: {filing_creation_failed}")
         # print(f"front_pages: {front_pages}")
         pd.Series([str(p) for p in ATM_paths]).to_clipboard()
         return ATM_paths
@@ -703,7 +721,6 @@ if __name__ == "__main__":
 
    
 
-    # download_samples(r"F:\example_filing_set_S3", forms=["S-3"])
     
     # dl = Dä¨$ä¨$$$$$ings("0001175680", "S-3", after_date="2000-01-01", number_of_filings=100)
     # dl.get_filings("CEI", "DEF 14A", after_date="2021-01-01", number_of_filings=10)
@@ -753,6 +770,7 @@ if __name__ == "__main__":
     def create_absolute_path(rel, root):
         return str(Path(root).joinpath(rel))
 
+    # download_samples(r"C:\Users\Olivi\Desktop\test_set\set2_s3", forms=["S-3"], num_tickers=300, max_filings=30)
 
     from main.parser.filing_nlp import SpacyFilingTextSearch
     from main.parser.extractors import BaseHTMExtractor
@@ -761,22 +779,24 @@ if __name__ == "__main__":
     # # text = 'The selling shareholders named in this prospectus may use this prospectus to offer and resell from time to time up to 22,093,822 shares of our common stock, par value $0.0001 per share, which are comprised of (i) 6,772,000 shares (the “Shares”) of our common stock issued in a private placement on November 22, 2021 (the “Private Placement”), pursuant to that certain Securities Purchase Agreement by and among us and certain investors (the “Purchasers”), dated as of November 17, 2021 (the “Securities Purchase Agreement”), (ii) 4,058,305 shares (the “Pre-funded Warrant Shares”) of our common stock issuable upon the exercise of the pre-funded warrants (the “Pre-funded Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement, (iii) 10,830,305 shares (the “Common Stock Warrant Shares” and together with the Pre-funded Warrant Shares, the “Warrant Shares”) of our common stock issuable upon the exercise of the warrants (the “Common Stock Warrants” and together with the Pre-funded Warrants, the “Warrants”) issued in the Private Placement pursuant to the Securities Purchase Agreement we issued to such investor and (iv) 433,212 shares (the “Placement Agent Warrant Shares”) of our common stock issuable upon the exercise of the placement agent warrants (the “Placement Agent Warrants”) issued in connection with the Private Placement.'
 
     # texts = ["This prospectus relates to the offer and sale by the selling stockholders identified in this prospectus of up to 79,752,367 shares of our common stock, par value $0.001 per share, issued and outstanding or issuable upon exercise of warrants. The shares of common stock being offered include: 1)	35,286,904 shares issued to the selling stockholders in certain private transactions occurring between November 2, 2017 and February 16, 2018 (the “February 2018 Placement”); 2)	35,286,904 shares issuable upon exercise, at an exercise price of $0.75 per share, of warrants issued to the selling stockholders in the February 2018 Placement; 3)	2,813,490 shares issuable upon exercise, at an exercise price of $0.55 per share, of warrants issued to our placement agent and its employees in the February 2018 Placement;", "This prospectus relates to the sale from time to time by the selling stockholders identified in this prospectus for their own account of up to a total of 12,558,795 shares of our common stock, including up to an aggregate of 3,588,221 shares of our common stock issuable upon the exercise of warrants. The selling stockholders acquired their shares in a private placement of shares of common stock and warrants to purchase shares of common stock completed on August 29, 2008."]
-    root = r"F:\example_filing_set_S3\filings"
-    # root =  r"C:\Users\Olivi\Desktop\test_set\set2_s3"
+    # root = r"F:\example_filing_set_S3\filings"
+    root =  r"C:\Users\Olivi\Desktop\test_set\set2_s3"
     filing_root = str(Path(root)/"filings")
-    # resale_paths = get_s3_resale_filings(root, max_num=100)
+    # resale_paths = get_s3_resale_filings(filing_root, max_num=200)
     # import pandas as pd
     
     resale_paths = [
-        # r"0000908311\S-3\000110465919045622\a19-16974_1s3.htm",
-        # r"0000908311\S-3\000110465919045626\a19-16974_2s3.htm",
-        # r"0001031029\S-3\000110465919035405\a19-11424_1s3.htm",
-        r"0001286613\S-3\000101905620000490\lincoln_s3.htm",
-        r"0001286613\S-3\000101905620000522\lincoln_s3.htm",
-        r"0001441693\S-3\000149315218004885\forms-3.htm",
-        r"0001441693\S-3\000149315220023346\forms-3.htm",
+        r"0001089907\S-3\000155278120000140\e20085_swkh-s3.htm",
+        r"0001109189\S-3\000119312517123212\d367699ds3.htm",
+        r"0001138978\S-3\000149315221013807\forms3.htm",
+        r"0001138978\S-3\000149315222010232\forms-3.htm",
+        r"0001178727\S-3\000121390021050060\ea147604-s3_comsovereign.htm",
+        r"0001421517\S-3\000143774919018317\erii20190823_s3.htm",
+        r"0001453593\S-3\000149315221008120\forms-3.htm",
+        r"0001453593\S-3\000149315221010942\forms-3.htm",
         r"0001595527\S-3\000110465920111083\tm2032148-2_s3.htm",
-        r"0001697851\S-3\000119312521313484\d204494ds3.htm"
+        r"0001830033\S-3\000110465922053533\tm2213671d1_s3.htm",
+        r"0001830033\S-3\000110465922053550\tm2213671d2_s3.htm"
         ]
     
     extractor = BaseHTMExtractor()
@@ -797,22 +817,49 @@ if __name__ == "__main__":
         return docs
     
     # test_filing = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0000002178/S-3/000000217820000138/a2020forms-3.htm")
-    # from main.parser.extractors import HTMS3Extractor
-    # extractor = HTMS3Extractor()
+    from main.parser.extractors import HTMS3Extractor
+    extractor = HTMS3Extractor()
     # for filing in test_filing:
     #     print(extractor.classify_s3(filing))
 
-    # atm_filings = get_s3_AMT_filings(root, max_num=100)
-    # docs = get_cover_pages_from_paths(atm_filings)
+    # atm_filings = get_s3_AMT_filings(filing_root, max_num=300)
 
-    ATM_paths = [r"F:\example_filing_set_S3\filings\0000002178\S-3\000000217820000138\a2020forms-3.htm",
-    # r"F:\example_filing_set_S3\filings\0001183765\S-3\000119312518356360\d639710ds3.htm",
-    # r"F:\example_filing_set_S3\filings\0001183765\S-3\000119312520212471\d29932ds3.htm",
-    # r"F:\example_filing_set_S3\filings\0001253176\S-3\000119312519321066\d599661ds3.htm",
-    r"F:\example_filing_set_S3\filings\0001445499\S-3\000119312522151913\d714983ds3.htm"]
-    docs = get_cover_pages_from_paths(ATM_paths)
+    failed_creation = [
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0000092230/S-3/000119312520186933/d922227ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001176495/S-3/000007632117000036/forms-36302017.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000095012322003104/d238665ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000095012322003106/d224632ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312517033056/d340149ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312517170650/d384504ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312517297534/d460791ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312519069067/d702010ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312520063305/d854165ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312520132535/d917962ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312520139237/d923407ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312521041857/d222360ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312521045244/d32186ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312521274106/d223710ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001415311/S-3/000119312521274112/d185409ds3.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001466538/S-3/000146653817000119/cowenincs-3november2017xv8.htm', 
+        r'C:/Users/Olivi/Desktop/test_set/set2_s3/filings/0001495932/S-3/000149593219000018/expi-20190131xs3.htm'
+    ]
+
+    ATM_paths = [
+        r"0001571498\S-3\000119312521152469\d385293ds3.htm",
+        r"0001623526\S-3\000119312520191098\d13608ds3.htm",
+        r"0001623526\S-3\000119312522156134\d350430ds3.htm",
+        r"0001708599\S-3\000149315221000635\forms-3.htm"
+        ]
+    # docs = get_cover_pages_from_paths(
+    #     get_absolute_paths_from_rel_paths(ATM_paths, filing_root)
+    #     )
+    # for doc in docs:
+    #     print(extractor.extract_aggregate_offering_amount(doc))
     
-   
+    docs = get_cover_pages_from_paths(
+        get_absolute_paths_from_rel_paths(resale_paths, filing_root)
+        )
+
     # for doc in docs:
     #     print("ALIAS MAP:")docs = get_cover_pages_from_paths(atm_filings)
     #     print(doc._.single_secu_alias)

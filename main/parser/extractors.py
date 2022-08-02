@@ -16,7 +16,7 @@ from main.domain import model,  commands
 from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityTypeFactory, Warrant, Option
 from main.services.messagebus import Message, MessageBus
 from main.services.unit_of_work import AbstractUnitOfWork
-from .filing_nlp import SpacyFilingTextSearch, MatchFormater
+from .filing_nlp import SpacyFilingTextSearch, MatchFormater, get_secu_key
 
 logger = logging.getLogger(__name__)
 security_type_factory = SecurityTypeFactory()
@@ -132,6 +132,16 @@ class BaseHTMExtractor():
                 securities.append(security)
         return securities
 
+    def get_queryable_secu_spans_form_key(self, doc: Doc, security_key: str):
+        single_secu_alias = doc._.single_secu_alias.get(security_key)
+        if single_secu_alias:
+            synonyms = []
+            base = single_secu_alias.get("base")
+            alias = single_secu_alias.get("alias")
+            [synonyms.append(x) for x in base + alias]
+            return synonyms
+        return None
+        # now build queries which take the span as arg to search for features¨ääääääääääää$
 
     def get_secu_exercise_price(self, doc: Doc, security_name: str):
         pass
@@ -219,7 +229,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             kwargs = {
                     "offering_type": "ATM",
                     "accn": filing.accession_number,
-                    "anticipated_offering_amount": self.extract_aggregate_offering_amount(cover_page_doc),
+                    "anticipated_offering_amount": self.extract_aggregate_offering_amount(cover_page_doc).get("amount"),
                     "commencment_date": commencment_date,
                     "end_date": commencment_date + timedelta(days=1095)
                 }
@@ -227,10 +237,17 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             shelf.add_offering(offering)
             logger.info("Added ShelfOffering")
             bus.handle(commands.AddShelfOffering(company.cik, offering))
-            security_registrations = self.get_security_registrations()
-            for security_registration in security_registrations:
-                # self.handle_shelf_security_registrations()
-                pass
+            self.handle_ATM_security_registrations(filing, company, bus, cover_page_doc)
+
+    def handle_ATM_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
+        security_registrations = self.get_ATM_security_registrations(filing, company, cover_page_doc)
+        for security_registration in security_registrations:
+            self.handle_shelf_security_registration(
+                    filing=filing,
+                    company=company,
+                    bus=bus,
+                    security_registration=security_registration)
+                
             
 
     def handle_resale(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):
@@ -243,6 +260,12 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         resale = model.ResaleRegistration(**kwargs)
         company.add_resale(resale)
         bus.handle(commands.AddResaleRegistration(filing.cik, resale))
+        self.handle_resale_security_registrations(self, filing, company, bus)
+    
+    def handle_resale_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus):
+        security_registrations = self.get_resale_security_registrations()
+    
+    def get_resale_security_registrations(self, filing: Filing, company: model.Company, )
 
 
     def handle_shelf(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):
@@ -261,17 +284,22 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 # get underwriters, registrations and completed then modify
                 # previously added ShelfOffering
     
-    def handle_shelf_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus, security_registration: model.ShelfSecurityRegistration):
+    def handle_shelf_security_registration(self, filing: Filing, company: model.Company, bus: MessageBus, security_registration: model.ShelfSecurityRegistration):
+        offering = company.get_shelf_offering(filing.accession_number)
+        offering.add_registration(security_registration)
         cmd = commands.AddShelfSecurityRegistration(filing.cik, filing.accession_number, security_registration=security_registration)
-        pass
+        bus.handle(cmd)
     
-    def get_security_registrations(self, filing: Filing, docs: list[Doc]):
+    def get_ATM_security_registrations(self, filing: Filing, company: model.Company, cover_page: Doc):
         registrations = []
-        for doc in docs:
-            pass
+        aggregate_offering_amount = self.extract_aggregate_offering_amount(cover_page)
+        if aggregate_offering_amount:
+            if len(aggregate_offering_amount["SECU"]) == 1:
+                secu = company.get_security_by_name(aggregate_offering_amount["SECU"][0])
+                amount = aggregate_offering_amount["amount"]
+                registrations.append(model.ShelfSecurityRegistration(secu, amount, None, None))
+        return registrations if registrations != [] else None
 
-
-        
 
     def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus, security_doc: Doc) -> List[model.Security]:
         '''extract securities from cover_page and descriptions of securities.'''
@@ -284,17 +312,20 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         bus.handle(commands.AddSecurities(company.cik, securities))
         return securities
     
-    def extract_aggregate_offering_amount(self, cover_page: Doc) -> int:
+    def extract_aggregate_offering_amount(self, cover_page: Doc) -> dict:
         matches = self.spacy_text_search.match_aggregate_offering_amount(cover_page)
         # check how well this works
         if len(matches) > 1:
             logger.debug(f"Unhandled case for extract_offering_amount: more than one match. matches: {matches}")
             raise NotImplementedError
         else:
+            offering_data = {"SECU": [], "amount": None}
             for ent in matches[0].ents:
+                if ent.label_ == "SECU":
+                    offering_data["SECU"].append(get_secu_key(ent))
                 if ent.label_ == "MONEY":
-                    return self.formater.money_string_to_int(ent.text)
-        return None
+                    offering_data["amount"] = self.formater.money_string_to_int(ent.text)
+            return offering_data if (offering_data["amount"] is not None) else None
  
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
         description_sections = filing.get_sections(re.compile("description\s*of", re.I))

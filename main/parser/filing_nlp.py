@@ -15,9 +15,76 @@ from main.security_models.naiv_models import CommonShare, Securities
 logger = logging.getLogger(__name__)
 
 class MatchFormater:
+    def parse_number(self, text):
+        '''from https://github.com/hayj/SystemTools/blob/master/systemtools/number.py'''
+        try:
+            # First we return None if we don't have something in the text:
+            if text is None:
+                return None
+            if isinstance(text, int) or isinstance(text, float):
+                return text
+            text = text.strip()
+            if text == "":
+                return None
+            # Next we get the first "[0-9,. ]+":
+            n = re.search("-?[0-9]*([,. ]?[0-9]+)+", text).group(0)
+            n = n.strip()
+            if not re.match(".*[0-9]+.*", text):
+                return None
+            # Then we cut to keep only 2 symbols:
+            while " " in n and "," in n and "." in n:
+                index = max(n.rfind(','), n.rfind(' '), n.rfind('.'))
+                n = n[0:index]
+            n = n.strip()
+            # We count the number of symbols:
+            symbolsCount = 0
+            for current in [" ", ",", "."]:
+                if current in n:
+                    symbolsCount += 1
+            # If we don't have any symbol, we do nothing:
+            if symbolsCount == 0:
+                pass
+            # With one symbol:
+            elif symbolsCount == 1:
+                # If this is a space, we just remove all:
+                if " " in n:
+                    n = n.replace(" ", "")
+                # Else we set it as a "." if one occurence, or remove it:
+                else:
+                    theSymbol = "," if "," in n else "."
+                    if n.count(theSymbol) > 1:
+                        n = n.replace(theSymbol, "")
+                    else:
+                        n = n.replace(theSymbol, ".")
+            else:
+                rightSymbolIndex = max(n.rfind(','), n.rfind(' '), n.rfind('.'))
+                rightSymbol = n[rightSymbolIndex:rightSymbolIndex+1]
+                if rightSymbol == " ":
+                    return self.parse_number(n.replace(" ", "_"))
+                n = n.replace(rightSymbol, "R")
+                leftSymbolIndex = max(n.rfind(','), n.rfind(' '), n.rfind('.'))
+                leftSymbol = n[leftSymbolIndex:leftSymbolIndex+1]
+                n = n.replace(leftSymbol, "L")
+                n = n.replace("L", "")
+                n = n.replace("R", ".")
+            n = float(n)
+            if n.is_integer():
+                return int(n)
+            else:
+                return n
+        except:
+            pass
+        return None
+
     def money_string_to_int(self, money: str):
-        digits = re.findall("[0-9]+", money)
-        return int("".join(digits))
+        multiplier = 1
+        digits = re.findall("[0-9.,]+", money)
+        amount_float = self.parse_number("".join(digits))
+        if re.search(re.compile("million(?:s)?", re.I), money):
+            multiplier = 1000000
+        if re.search(re.compile("billion(?:s)?", re.I), money):
+            multiplier = 1000000000
+        return int(amount_float*multiplier)
 
     def issuable_relation_no_primary_secu():
         pass
@@ -162,6 +229,13 @@ def is_alias(doc: Doc, secu: Span):
         return True
     return False
 
+def get_secu_key(secu: Span):
+    core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
+    body = [token.text_with_ws.lower() for token in core_tokens[:-1]]
+    tail = core_tokens[-1].lemma_.lower()
+    body.append(tail)
+    return "".join(body) 
+
 class SECUMatcher:
     _instance = None
     def __init__(self, vocab):
@@ -214,7 +288,7 @@ class SECUMatcher:
             print(doc.spans.get("SECU"), doc.spans.get("alias"))
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         for secu in doc.spans["SECU"]:
-            secu_key = self.get_secu_key(secu)
+            secu_key = get_secu_key(secu)
             if secu_key not in doc._.single_secu_alias.keys():
                 doc._.single_secu_alias[secu_key] = {"base": [secu], "alias": []}
             else:
@@ -222,13 +296,7 @@ class SECUMatcher:
             alias = doc._.get_alias(secu)
             if alias:
                 doc._.single_secu_alias[secu_key]["alias"].append(alias)
-    
-    def get_secu_key(self, secu: Span):
-        core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
-        body = [token.text_with_ws.lower() for token in core_tokens[:-1]]
-        tail = core_tokens[-1].lemma_.lower()
-        body.append(tail)
-        return "".join(body)        
+           
     
     def get_chars_to_tokens_map(self, doc: Doc):
         chars_to_tokens = {}
@@ -698,6 +766,8 @@ class SpacyFilingTextSearch:
     
     def match_aggregate_offering_amount(self, doc: Doc):
         pattern = [
+            {"ENT_TYPE": "SECU", "OP":"*"},
+            {"IS_SENT_START": False, "OP": "*"},
             {"LOWER": "aggregate"},
             {"LOWER": "offering"},
             {"OP": "?"},
@@ -916,7 +986,7 @@ def filter_matches(matches):
     '''works as spacy.util.filter_spans but for matches'''
     if len(matches) <= 1:
         return matches
-    logger.debug(f"pre filter matches: {[m for m in matches]}")
+    # logger.debug(f"pre filter matches: {[m for m in matches]}")
     get_sort_key = lambda match: (match[2] - match[1], -match[1])
     sorted_matches = sorted(matches, key=get_sort_key, reverse=True)
     result = []

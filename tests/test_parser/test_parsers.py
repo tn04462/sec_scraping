@@ -1,8 +1,8 @@
 from pathlib import Path
 import os
 import pytest
-
 from main.parser.parsers import filing_factory, HTMFilingParser
+
 s3_rel_path = r"test_resources\filings\0001325879\S-3\000119312518218817\d439397ds3.htm"
 
 def _get_absolute_path(rel_path):
