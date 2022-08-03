@@ -749,6 +749,9 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
     
+    def match_secu_exercise_price(self, doc: Doc, secu: Span):
+        pass
+    
     def match_prospectus_relates_to(self, text):
         pattern = [
             # This prospectus relates to
