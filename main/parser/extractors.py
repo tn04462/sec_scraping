@@ -132,18 +132,29 @@ class BaseHTMExtractor():
                 securities.append(security)
         return securities
 
-    def get_queryable_secu_spans_form_key(self, doc: Doc, security_key: str):
+    def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
         single_secu_alias = doc._.single_secu_alias.get(security_key)
         if single_secu_alias:
-            synonyms = []
             base = single_secu_alias.get("base")
             alias = single_secu_alias.get("alias")
-            [synonyms.append(x) for x in base + alias]
-            return synonyms
+            return base + alias
+            # need to think how i handle bases that arent unique -> only return alias? or only search until we encounter next sentence containing a base span?
+            # maybe apply a flag when creating the alias map
         return None
-        # now build queries which take the span as arg to search for features¨ääääääääääää$
+        # now build queries which take the span as arg to search for features
 
-    def get_secu_exercise_price(self, doc: Doc, security_name: str):
+    def get_secu_exercise_price(self, doc: Doc, secu_spans: list[Span]):
+        # look through sentences and call matcher on sentence with alias/base
+        
+        for secu in secu_spans:
+            start, end = secu.start, secu.end
+            for sent in doc.sents:
+                if start in sent:
+                    temp_doc = doc[sent.start:sent.end]
+                    exercies_price = self.spacy_text_search.match_secu_exercise_price(temp_doc, secu)
+
+
+
         pass
     
     def get_secu_expiry(self, doc: Doc, security_name: str):
@@ -265,7 +276,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def handle_resale_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus):
         security_registrations = self.get_resale_security_registrations()
     
-    def get_resale_security_registrations(self, filing: Filing, company: model.Company, )
+    def get_resale_security_registrations(self, filing: Filing, company: model.Company):
+        pass
 
 
     def handle_shelf(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):

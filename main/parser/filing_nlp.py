@@ -750,7 +750,9 @@ class SpacyFilingTextSearch:
         return cls._instance
     
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
-        pass
+        matcher = Matcher(self.nlp.vocab )
+    # add matcher into __new__
+    # 
     
     def match_prospectus_relates_to(self, text):
         pattern = [
