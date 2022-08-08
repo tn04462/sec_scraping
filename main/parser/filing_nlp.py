@@ -793,86 +793,136 @@ class SpacyFilingTextSearch:
         '''
         patterns = [
             [
-            {
-                "RIGHT_ID": "secu_anchor",
-                "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-            },
-            {
-                "LEFT_ID": "secu_anchor",
-                "REL_OP": "<",
-                "RIGHT_ID": "verb1",
-                "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-            },
-            {
-                "LEFT_ID": "verb1",
-                "REL_OP": ">",
-                "RIGHT_ID": "prepverb1",
-                "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
-            },
-            {
-                "LEFT_ID": "prepverb1",
-                "REL_OP": ">",
-                "RIGHT_ID": "price",
-                "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
-            },
-            {
-                "LEFT_ID": "price",
-                "REL_OP": "<",
-                "RIGHT_ID": "compound",
-                "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-            },
-            {
-                "LEFT_ID": "price",
-                "REL_OP": ">",
-                "RIGHT_ID": "prep1",
-                "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-            },
-            {
-                "LEFT_ID": "prep1",
-                "REL_OP": ">",
-                "RIGHT_ID": "pobj_CD",
-                "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
-            }  
+                {
+                    "RIGHT_ID": "secu_anchor",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prepverb1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
+                },
+                {
+                    "LEFT_ID": "prepverb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "conj",
+                    "RIGHT_ATTRS": {"DEP": "conj", "LEMMA": {"IN": ["remain"]}},
+                },
+                {
+                    "LEFT_ID": "conj",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "price",
+                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "compound",
+                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj_CD",
+                    "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
+                }  
             ],
             [
-            {
-                "RIGHT_ID": "secu_anchor",
-                "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-            },
-            {
-                "LEFT_ID": "secu_anchor",
-                "REL_OP": "<",
-                "RIGHT_ID": "verb1",
-                "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "have"}, 
-            },
-            {
-                "LEFT_ID": "verb1",
-                "REL_OP": ">",
-                "RIGHT_ID": "price",
-                "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
-            },
-            {
-                "LEFT_ID": "price",
-                "REL_OP": ">",
-                "RIGHT_ID": "compound",
-                "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-            },
-            {
-                "LEFT_ID": "price",
-                "REL_OP": ">",
-                "RIGHT_ID": "prep1",
-                "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-            },
-            {
-                "LEFT_ID": "prep1",
-                "REL_OP": ">",
-                "RIGHT_ID": "pobj_CD",
-                "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-            }  
+                {
+                    "RIGHT_ID": "secu_anchor",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prepverb1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
+                },
+                {
+                    "LEFT_ID": "prepverb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "price",
+                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "compound",
+                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj_CD",
+                    "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
+                }  
+            ],
+            [
+                {
+                    "RIGHT_ID": "secu_anchor",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "have"}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "price",
+                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "compound",
+                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj_CD",
+                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+                }  
             ]
         ]
         dep_matcher.add("exercise_price", patterns)
         matches = dep_matcher(doc)
+        if matches:
+            matches = _convert_dep_matches_to_spans(doc, matches)
         print(f"dep_matcher exercise_price: ", matches)
 
     
@@ -1191,6 +1241,12 @@ def _convert_matches_to_spans(doc, matches):
     m = []
     for match in matches:
         m.append(doc[match[1]:match[2]])
+    return m
+
+def _convert_dep_matches_to_spans(doc, matches):
+    m = []
+    for match in matches:
+        m.append([doc[f] for f in match[1]])
     return m
 
 def validate_filing_values(values, attributes):
