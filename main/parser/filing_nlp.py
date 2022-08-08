@@ -76,7 +76,7 @@ class MatchFormater:
             pass
         return None
 
-    def money_string_to_int(self, money: str):
+    def money_string_to_float(self, money: str):
         multiplier = 1
         digits = re.findall("[0-9.,]+", money)
         amount_float = self.parse_number("".join(digits))
@@ -84,7 +84,8 @@ class MatchFormater:
             multiplier = 1000000
         if re.search(re.compile("billion(?:s)?", re.I), money):
             multiplier = 1000000000
-        return int(amount_float*multiplier)
+        return float(amount_float*multiplier)
+    
 
     def issuable_relation_no_primary_secu():
         pass
@@ -195,7 +196,7 @@ class SecurityActMatcher:
 
 def get_secuquantity(span):
     if span.label_ == "SECUQUANTITY":
-        return formater.money_string_to_int(span.text)
+        return formater.money_string_to_float(span.text)
     else:
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
@@ -753,37 +754,101 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
     
-    # def match_exercise_price(self, doc: Doc):
-    #     dep_matcher = DependencyMatcher(self.nlp.vocab)
-    #     patterns = [
-    #         {
-    #             "RIGHT_ID": "anchor",
-    #             "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj"]}, "LOWER": "price"}, 
-    #         },
-    #         {
-    #             "LEFT_ID": "anchor",
-    #             "REL_OP": ">",
-    #             "RIGHT_ID": "compound",
-    #             "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-    #         },
-    #         {
-    #             "LEFT_ID": "anchor",
-    #             "REL_OP": ">",
-    #             "RIGHT_ID": "prep1",
-    #             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-    #         },
-    #         {
-    #             "LEFT_ID": "prep1",
-    #             "REL_OP": ">",
-    #             "RIGHT_ID": "pobj_CD",
-    #             "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
-    #         }   
-    #     ]
+
+    def match_secu_with_dollar_CD(self, doc: Doc, secu: Span):
+        dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
+        secu_root_token = self._get_compound_SECU_root(secu)
+        patterns = [
+            [
+                {
+                    "RIGHT_ID": "secu_anchor",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["purchase", "have"]}}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "CD_",
+                    "RIGHT_ATTRS": {"TAG": "CD"}, 
+                },
+                {
+                    "LEFT_ID": "CD_",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "nmod",
+                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}, 
+                },
+                # {
+                #     "LEFT_ID": "verb1",
+                #     "REL_OP": ">>",
+                #     "RIGHT_ID": "for_",
+                #     "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "for"}, 
+                # },
+                # {
+                #     "LEFT_ID": "for_",
+                #     "REL_OP": ">",
+                #     "RIGHT_ID": "numCD",
+                #     "RIGHT_ATTRS": {"TAG": "CD"},
+                # },
+                # {
+                #     "LEFT_ID": "numCD",
+                #     "REL_OP": ">",
+                #     "RIGHT_ID": "prepCD",
+                #     "RIGHT_ATTRS": {"DEP": "prep"},
+                # },
+                # {
+                #     "LEFT_ID": "prepCD",
+                #     "REL_OP": ">",
+                #     "RIGHT_ID": "secu2",
+                #     "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": secu_root_token.lower_},
+                # },
+
+            ]
+        ]
+        dep_matcher.add("secu_cd", patterns)
+        matches = dep_matcher(doc)
+        if matches:
+            matches = _convert_dep_matches_to_spans(doc, matches)
+            return matches
+        return []
+    
+    def get_prep_phrases(self, doc: Doc):
+        phrases = []
+        seen = set()
+        for token in doc:
+            if token.dep_ == "prep":
+                subtree = [i for i in token.subtree]
+                new = True
+                for t in subtree:
+                    if t in seen:
+                        new = False
+                if new is True:
+                    phrases.append(doc[subtree[0].i:subtree[-1].i])
+                    for t in subtree:
+                        if t not in seen:
+                            seen.add(t)
+        return phrases
+    
+    def get_verbal_phrases(self, doc: Doc):
+        phrases = []
+        for token in doc:
+            if token.pos_ == "VERB":
+                subtree = [i for i in token.subtree]
+                phrases.append(doc[subtree[0].i:subtree[-1].i])
+        return phrases
+
     
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
         secu_root_token = self._get_compound_SECU_root(secu)
         print(f"secu_root_token: ", secu_root_token)
+        print(f"doc: {doc}")
+        if secu_root_token is None:
+            return None
         '''
         acl   (SECU) <- VERB (purchase) -> 					 prep (of | at) -> [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
 		nsubj (SECU) <- VERB (have)  	->				     			       [dobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
@@ -791,6 +856,8 @@ class SpacyFilingTextSearch:
 		nsubj (SECU) <- VERB (purchase) -> conj (remain)  -> prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
 		nsubj (SECU) <- VERB (purchase) -> 					 prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
         '''
+        count = 0
+         
         patterns = [
             [
                 {
@@ -806,17 +873,17 @@ class SpacyFilingTextSearch:
                 {
                     "LEFT_ID": "verb1",
                     "REL_OP": ">",
-                    "RIGHT_ID": "prepverb1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
-                },
-                {
-                    "LEFT_ID": "prepverb1",
-                    "REL_OP": ">",
                     "RIGHT_ID": "conj",
                     "RIGHT_ATTRS": {"DEP": "conj", "LEMMA": {"IN": ["remain"]}},
                 },
                 {
                     "LEFT_ID": "conj",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prepverb1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
+                },
+                {
+                    "LEFT_ID": "prepverb1",
                     "REL_OP": ">",
                     "RIGHT_ID": "price",
                     "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
@@ -837,8 +904,62 @@ class SpacyFilingTextSearch:
                     "LEFT_ID": "prep1",
                     "REL_OP": ">",
                     "RIGHT_ID": "pobj_CD",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
-                }  
+                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+                },
+                {
+                    "LEFT_ID": "pobj_CD",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "dollar",
+                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
+                } 
+            ],
+            [
+                {
+                    "RIGHT_ID": "secu_anchor",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prepverb1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
+                },
+                {
+                    "LEFT_ID": "prepverb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "price",
+                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "compound",
+                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj_CD",
+                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+                },
+                {
+                    "LEFT_ID": "pobj_CD",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "dollar",
+                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
+                } 
             ],
             [
                 {
@@ -879,8 +1000,14 @@ class SpacyFilingTextSearch:
                     "LEFT_ID": "prep1",
                     "REL_OP": ">",
                     "RIGHT_ID": "pobj_CD",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
-                }  
+                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+                },
+                {
+                    "LEFT_ID": "pobj_CD",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "dollar",
+                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
+                } 
             ],
             [
                 {
@@ -916,6 +1043,12 @@ class SpacyFilingTextSearch:
                     "REL_OP": ">",
                     "RIGHT_ID": "pobj_CD",
                     "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+                },
+                {
+                    "LEFT_ID": "pobj_CD",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "dollar",
+                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
                 }  
             ]
         ]
@@ -923,7 +1056,17 @@ class SpacyFilingTextSearch:
         matches = dep_matcher(doc)
         if matches:
             matches = _convert_dep_matches_to_spans(doc, matches)
-        print(f"dep_matcher exercise_price: ", matches)
+            secu_dollar_CD = self.match_secu_with_dollar_CD(doc, secu)
+            if len(secu_dollar_CD) > 1:
+                logger.info(f"unhandled ambigious case of exercise_price match: matches: {matches}; secu_dollar_CD: {secu_dollar_CD}")
+                return None
+            def _get_CD_object_from_match(match):
+                for token in match:
+                    if token.tag_ == "CD":
+                        return formater.money_string_to_float(token.text)
+            # print([_get_CD_object_from_match(match) for match in matches], matches)
+            return [_get_CD_object_from_match(match) for match in matches]
+
 
     
     # def match_secu_exercise_price(self, doc: Doc, secu: Span):
@@ -1035,6 +1178,8 @@ class SpacyFilingTextSearch:
         for token in secu:
             if token.dep_ != "compound":
                 return token
+        print(f"couldnt find root token for: {secu}, {[s.dep_ for s in secu]}")
+        return None
     
     def match_issuable_secu_primary(self, doc: Doc):
         secu_transformative_actions = ["exercise", "conversion", "redemption"]

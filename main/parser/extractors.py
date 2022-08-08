@@ -123,7 +123,7 @@ class BaseHTMExtractor():
         mentioned_secus = {}
         for doc in docs:
             mentioned_secus = self.get_mentioned_secus(doc, mentioned_secus)
-        for secu, _ in mentioned_secus.items():
+        for secu, values in mentioned_secus.items():
             security_type = self.get_security_type(secu)
             security_attributes = {}
             for doc in docs:
@@ -159,6 +159,9 @@ class BaseHTMExtractor():
         # print(f"doc._.single_secu_alias: {doc._.single_secu_alias}")
         # print(f"doc._.alias: {doc._.alias_set}")
         secu_spans = self.get_queryable_secu_spans_from_key(doc, security_name)
+        print(f"get_secu_exercise_price got following spans to query for: {secu_spans}")
+        exercise_prices_seen = set()
+        exercise_prices = []
         if secu_spans is None:
             return None
         for secu in secu_spans:
@@ -167,7 +170,13 @@ class BaseHTMExtractor():
                 if sent[0].i <= start <= sent[-1].i:
                     temp_doc = doc[sent.start:sent.end]
                     exercies_price = self.spacy_text_search.match_secu_exercise_price(temp_doc, secu)
-                    print(exercies_price)
+                    if exercies_price:
+                        for price in exercies_price:
+                            if price not in exercise_prices_seen:
+                                exercise_prices_seen.add(price)
+                                exercise_prices.append(price)
+        print("exercise_prices found: ", exercise_prices)
+        return exercise_prices
 
 
 
@@ -336,7 +345,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         description_docs = [self.doc_from_section(x) for x in description_sections]
         security_relevant_docs = [
             self.doc_from_section(x) for x in filing.get_sections(
-                re.compile("(description)|(summary)|(about)", re.I))]
+                re.compile("(description)|(summary)|(about)|(selling)", re.I))]
+        logger.info(f"security_relevant_docs_found: {filing.get_sections(re.compile('(description)|(summary)|(about)|(selling)', re.I))}")
         securities = self.get_securities_from_docs(security_relevant_docs)
         for security in securities:
             company.add_security(security)
@@ -355,7 +365,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 if ent.label_ == "SECU":
                     offering_data["SECU"].append(get_secu_key(ent))
                 if ent.label_ == "MONEY":
-                    offering_data["amount"] = self.formater.money_string_to_int(ent.text)
+                    offering_data["amount"] = self.formater.money_string_to_float(ent.text)
             return offering_data if (offering_data["amount"] is not None) else None
  
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
@@ -602,9 +612,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             return None
         capacity = capacity_dict["total_shelf_capacity"]
         if capacity["unit"] == "$":
-            return self.formater.money_string_to_int(capacity["amount"])
+            return self.formater.money_string_to_float(capacity["amount"])
         if capacity["unit"] == "shares":
-            return str(self.formater.money_string_to_int(capacity["amount"])) + " shares"
+            return str(self.formater.money_string_to_float(capacity["amount"])) + " shares"
     
     
 

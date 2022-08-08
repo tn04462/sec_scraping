@@ -20,12 +20,19 @@ def get_search():
 @pytest.mark.parametrize(["text", "expected", "secu_idx"], [
     (
         "Warrants to purchase 33,334 shares of common stock at any time on or prior to September 26, 2022 at an initial exercise price of $3.00 per share.",
-        "Warrants to purchase 33,334 shares of common stock at any time on or prior to September 26, 2022 at an initial exercise price of $3.00 per share.",
-        (0, 1)),
+        3,
+        (0, 1)
+    ),
     (
         "The Series A Warrants have an exercise price of $11.50 per share",
-        "Series A Warrants have an exercise price of $11.50 per share",
-        (1, 4)),
+        11.5,
+        (1, 4)
+    ),
+    (
+        "Warrants to purchase 96,668 shares of common stock and remain outstanding at any time on or prior to December 31, 2022 at an initial exercise price of $3.00 per share.",
+        3,
+        (0, 1)
+    ),
     ])
 def test_match_exercise_price(text, expected, secu_idx, get_search):
     search: SpacyFilingTextSearch = get_search
@@ -35,5 +42,5 @@ def test_match_exercise_price(text, expected, secu_idx, get_search):
     secu = doc[secu_idx[0]:secu_idx[1]]
     matches = search.match_secu_exercise_price(doc, secu)
     # print(matches, type(matches[0]))
-    assert expected == matches[0].text
+    assert expected == matches[0]
 

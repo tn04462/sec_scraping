@@ -10,7 +10,8 @@ f = MatchFormater()
     ("up to $75,000,000", 75000000),
     ("up to $7.5 million", 7500000),
     ("up to $7,5 million", 7500000),
-    ("up to $0.0075 billion", 7500000)
+    ("up to $0.0075 billion", 7500000),
+    ("11.5", 11.5)
     ])
-def test_money_string_to_int(input, expected):
-    assert f.money_string_to_int(input) == expected
+def test_money_string_to_float(input, expected):
+    assert f.money_string_to_float(input) == expected

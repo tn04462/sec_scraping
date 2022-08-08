@@ -1,6 +1,7 @@
 
 from typing import Optional
 from bs4 import BeautifulSoup
+from matplotlib import docstring
 from numpy import number
 from urllib3 import connection_from_url
 from dilution_db import DilutionDBUpdater
@@ -878,27 +879,34 @@ if __name__ == "__main__":
     # text = "from time to time, of up to 119,007,618 shares of our common stock"
     texts = [
         # "An aggregate of 8,555,804 shares of common stock issuable upon the exercise of stock purchase warrants outstanding as of September 20, 2021 with a weighted average exercise price of $4.20 per share that expire between November 9, 2021 and January 10, 2026"
-        "Warrants to purchase 33,334 shares of common stock at any time on or prior to September 26, 2022 at an initial exercise price of $3.00 per share.",
-        "The Series A Warrants have an exercise price of $11.50 per share.",
-        "The Investor Warrant has an exercise price of $2.25 per share.",
+        # "The Warrants to purchase 33,334 shares of common stock at any time on or prior to September 26, 2022 at an initial exercise price of $3.00 per share.",
+        # "The Warrants have an exercise price of $11.50 per share.",
+        # "The Warrant has an exercise price of $2.25 per share.",
         # "Warrants to purchase 10,000 shares of common stock at any time on or prior to December 15, 2021 at an initial exercise price of $1.50 per share.",
-        # "Warrants to purchase 96,668 shares of common stock and remain outstanding at any time on or prior to December 31, 2022 at an initial exercise price of $3.00 per share.",
+        "Warrants to purchase 96,668 shares of common stock and remain outstanding at any time on or prior to December 31, 2022 at an initial exercise price of $3.00 per share.",
         # "Warrants to purchase 560,192 shares of common stock at any time on or prior to July 6, 2025 at an initial exercise price of $0.15 per share for 315,689 of the warrants and $0.72 per share for 244,503 of the warrants."
         ]
     docs = []
+    ex = []
     for text in texts:
         doc = search.nlp(text)
-        print("noun_chunks: ", [(chunk, chunk.root.text, chunk.root.dep_) for chunk in doc.noun_chunks])
-        deps = set([token.dep_ for token in doc])
-        tag = set([token.tag_ for token in doc])
-        # print([sent.root for sent in doc.sents])
-        secu = None
-        for sent in doc.sents:
-            for chunk in sent.noun_chunks:
-                if chunk.root.ent_type_ == "SECU":
-                    secu = chunk.root
-                    print("->".join([i.text for i in secu.subtree]))
-                    print("head: ", secu.head.text)
+        ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[0:1]))
+        # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
+        docs.append(doc)
+        print("prep_phrases: ", extractor.spacy_text_search.get_prep_phrases(doc))
+        # print("verbal_phrases: ", extractor.spacy_text_search.get_verbal_phrases(doc))
+        # print("noun_chunks: ", [(chunk, chunk.root.text, chunk.root.dep_) for chunk in doc.noun_chunks])
+    print("secus_with_dollar_CD: ", ex)
+        # # deps = set([token.dep_ for token in doc])
+        # # tag = set([token.tag_ for token in doc])
+        # # # print([sent.root for sent in doc.sents])
+        # # secu = None
+        # for sent in doc.sents:
+        #     for chunk in sent.noun_chunks:
+        #         if chunk.root.ent_type_ == "SECU":
+        #             secu = chunk.root
+        #             print("->".join([i.text for i in secu.subtree]))
+        #             print("head: ", secu.head.text)
 
 
             # for token in sent:
@@ -916,8 +924,8 @@ if __name__ == "__main__":
 
             #             print("found: ", [i if i.dep_ == "compound" else  for i in t.lefts], [i for i in t.rights], t.i) 
         # print("root: ", doc.root)
-        docs.append(doc)
-    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": False})
+        # docs.append(doc)
+    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
 
     
     #     print(doc._.single_secu_alias)

@@ -12,6 +12,7 @@ from main.services import unit_of_work, messagebus
 s3_shelf = r"test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
 s3_resale = r"test_resources\filings\0000908311\S-3\000110465919045626\a19-16974_2s3.htm"
 s3_ATM = r"test_resources\filings\0000831547\S-3\000083154720000018\cleans-3.htm"
+s3_resale_with_warrants = r"test_resources\filings\0001453593\S-3\000149315221008120\forms-s3.htm"
 
 def _get_absolute_path(rel_path):
     return str(Path(__file__).parent.parent / rel_path)
@@ -48,6 +49,21 @@ def get_fake_company():
 @pytest.fixture
 def get_filing_s3_shelf():
     path = _get_absolute_path(s3_shelf)
+    info = {
+            "path": path,
+            "filing_date": datetime.date(2018, 9, 28),
+            "accession_number": Path(path).parents[0].name,
+            "cik": Path(path).parents[2].name,
+            "file_number": "1",
+            "form_type": "S-3",
+            "extension": ".htm"
+            }
+    filing = filing_factory.create_filing(**info)
+    return filing
+
+@pytest.fixture
+def get_filing_s3_resale_with_warrants():
+    path = _get_absolute_path(s3_resale_with_warrants)
     info = {
             "path": path,
             "filing_date": datetime.date(2018, 9, 28),
@@ -122,6 +138,17 @@ def test_security_extraction_s3_shelf(get_s3_extractor, get_fake_messagebus, get
         model.Security(model.PreferredShare(name="preferred stock", par_value=0.001))
         ]
     assert securities == expected_securities
+
+def test_security_extraction_s3_warrant(get_s3_extractor, get_fake_messagebus, get_filing_s3_resale_with_warrants):
+    extractor: extractors.HTMS3Extractor = get_s3_extractor
+    bus = get_fake_messagebus
+    filing = get_filing_s3_resale_with_warrants
+    company = get_fake_company()
+    cover_page = filing.get_section(re.compile("cover page"))
+    cover_page_doc = extractor.doc_from_section(cover_page)
+    securities = extractor.extract_securities(filing, company, bus, cover_page_doc)
+    print(securities)
+    assert 1 == 2
 
 def test_security_extraction_s3_ATM(get_s3_extractor, get_fake_messagebus, get_filing_s3_ATM):
     extractor: extractors.HTMS3Extractor = get_s3_extractor
