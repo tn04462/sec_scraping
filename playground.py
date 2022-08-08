@@ -856,9 +856,9 @@ if __name__ == "__main__":
     # for doc in docs:
     #     print(extractor.extract_aggregate_offering_amount(doc))
     
-    docs = get_cover_pages_from_paths(
-        get_absolute_paths_from_rel_paths(resale_paths, filing_root)
-        )
+    # docs = get_cover_pages_from_paths(
+    #     get_absolute_paths_from_rel_paths(resale_paths, filing_root)
+    #     )
 
     # for doc in docs:
     #     print("ALIAS MAP:")docs = get_cover_pages_from_paths(atm_filings)
@@ -866,18 +866,60 @@ if __name__ == "__main__":
     #     print("SECU SPANS:")
     #     print(doc.spans["SECU"])
 
-    displacy.serve(docs, style="ent", options={
-        "ents": ["SECU", "SECUREF", "SECUQUANTITY"],
-        "colors": {"SECU": "#e171f0", "SECUREF": "#03fcb1", "SECUQUANTITY": "grey"}
-        })
+    # displacy.serve(docs, style="ent", options={
+    #     "ents": ["SECU", "SECUREF", "SECUQUANTITY"],
+    #     "colors": {"SECU": "#e171f0", "SECUREF": "#03fcb1", "SECUQUANTITY": "grey"}
+    #     })
 
 
     
     
     # # text = "up to $ 75,000,000 of Common Stock  issued with exercise price of 1$."
     # text = "from time to time, of up to 119,007,618 shares of our common stock"
-    # for text in texts:
-    # doc = search.nlp(text)
+    texts = [
+        # "An aggregate of 8,555,804 shares of common stock issuable upon the exercise of stock purchase warrants outstanding as of September 20, 2021 with a weighted average exercise price of $4.20 per share that expire between November 9, 2021 and January 10, 2026"
+        "Warrants to purchase 33,334 shares of common stock at any time on or prior to September 26, 2022 at an initial exercise price of $3.00 per share.",
+        "The Series A Warrants have an exercise price of $11.50 per share.",
+        "The Investor Warrant has an exercise price of $2.25 per share.",
+        # "Warrants to purchase 10,000 shares of common stock at any time on or prior to December 15, 2021 at an initial exercise price of $1.50 per share.",
+        # "Warrants to purchase 96,668 shares of common stock and remain outstanding at any time on or prior to December 31, 2022 at an initial exercise price of $3.00 per share.",
+        # "Warrants to purchase 560,192 shares of common stock at any time on or prior to July 6, 2025 at an initial exercise price of $0.15 per share for 315,689 of the warrants and $0.72 per share for 244,503 of the warrants."
+        ]
+    docs = []
+    for text in texts:
+        doc = search.nlp(text)
+        print("noun_chunks: ", [(chunk, chunk.root.text, chunk.root.dep_) for chunk in doc.noun_chunks])
+        deps = set([token.dep_ for token in doc])
+        tag = set([token.tag_ for token in doc])
+        # print([sent.root for sent in doc.sents])
+        secu = None
+        for sent in doc.sents:
+            for chunk in sent.noun_chunks:
+                if chunk.root.ent_type_ == "SECU":
+                    secu = chunk.root
+                    print("->".join([i.text for i in secu.subtree]))
+                    print("head: ", secu.head.text)
+
+
+            # for token in sent:
+            #     if token.text == "price":
+            #         t = token
+            #         while (len([i for i in t.ancestors]))
+            #         print("ancestors: ", [i for i in token.ancestors])
+                    # print("sent.root: ", sent.root)
+                    # print("token.head.children: ", [i for i in token.head.children])
+                    # if sent.root.is_ancestor(token):
+                    #     print("is ancestor of root: ", token)
+            #     for t in token.head.children:
+            #         # print(t.ent_type_, t.dep_)
+            #         if t.dep_ == "nsubj" and t.ent_type_ == "SECU":
+
+            #             print("found: ", [i if i.dep_ == "compound" else  for i in t.lefts], [i for i in t.rights], t.i) 
+        # print("root: ", doc.root)
+        docs.append(doc)
+    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": False})
+
+    
     #     print(doc._.single_secu_alias)
 
         # for token in doc:

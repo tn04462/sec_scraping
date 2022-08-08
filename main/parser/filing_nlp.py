@@ -1,7 +1,7 @@
 from functools import partial
 from typing import Callable, Dict, Set
 import spacy
-from spacy.matcher import Matcher, PhraseMatcher
+from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
 from spacy import Language
 from spacy.util import filter_spans
@@ -229,12 +229,16 @@ def is_alias(doc: Doc, secu: Span):
         return True
     return False
 
-def get_secu_key(secu: Span):
+def get_secu_key(secu: Span|str):
     core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
     body = [token.text_with_ws.lower() for token in core_tokens[:-1]]
     tail = core_tokens[-1].lemma_.lower()
+    if tail == "warrants":
+        tail = "warrant"
     body.append(tail)
-    return "".join(body) 
+    result = "".join(body) 
+    print(f"get_secu_key() returning key: {result}")
+    return result
 
 class SECUMatcher:
     _instance = None
@@ -656,7 +660,7 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
             # end = token.i-1
             wanted_tokens.append(token.i)
     end = sorted(wanted_tokens)[-1]+1 if wanted_tokens != [] else None
-    print(end, wanted_tokens)
+    # print(end, wanted_tokens)
     if end is None:
         raise AttributeError(f"_add_SECUQUANTITY_ent_regular_case couldnt determine the end token of the entity, match_tokens: {match_tokens}")
     entity = Span(doc, start, end, label="SECUQUANTITY")
@@ -749,10 +753,159 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
     
+    # def match_exercise_price(self, doc: Doc):
+    #     dep_matcher = DependencyMatcher(self.nlp.vocab)
+    #     patterns = [
+    #         {
+    #             "RIGHT_ID": "anchor",
+    #             "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj"]}, "LOWER": "price"}, 
+    #         },
+    #         {
+    #             "LEFT_ID": "anchor",
+    #             "REL_OP": ">",
+    #             "RIGHT_ID": "compound",
+    #             "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+    #         },
+    #         {
+    #             "LEFT_ID": "anchor",
+    #             "REL_OP": ">",
+    #             "RIGHT_ID": "prep1",
+    #             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+    #         },
+    #         {
+    #             "LEFT_ID": "prep1",
+    #             "REL_OP": ">",
+    #             "RIGHT_ID": "pobj_CD",
+    #             "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
+    #         }   
+    #     ]
+    
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
-        matcher = Matcher(self.nlp.vocab )
-    # add matcher into __new__
-    # 
+        dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
+        secu_root_token = self._get_compound_SECU_root(secu)
+        print(f"secu_root_token: ", secu_root_token)
+        '''
+        acl   (SECU) <- VERB (purchase) -> 					 prep (of | at) -> [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
+		nsubj (SECU) <- VERB (have)  	->				     			       [dobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
+		nsubj (SECU) <- VERB (purchase) -> 					 prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
+		nsubj (SECU) <- VERB (purchase) -> conj (remain)  -> prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
+		nsubj (SECU) <- VERB (purchase) -> 					 prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
+        '''
+        patterns = [
+            [
+            {
+                "RIGHT_ID": "secu_anchor",
+                "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+            },
+            {
+                "LEFT_ID": "secu_anchor",
+                "REL_OP": "<",
+                "RIGHT_ID": "verb1",
+                "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+            },
+            {
+                "LEFT_ID": "verb1",
+                "REL_OP": ">",
+                "RIGHT_ID": "prepverb1",
+                "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
+            },
+            {
+                "LEFT_ID": "prepverb1",
+                "REL_OP": ">",
+                "RIGHT_ID": "price",
+                "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
+            },
+            {
+                "LEFT_ID": "price",
+                "REL_OP": "<",
+                "RIGHT_ID": "compound",
+                "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+            },
+            {
+                "LEFT_ID": "price",
+                "REL_OP": ">",
+                "RIGHT_ID": "prep1",
+                "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+            },
+            {
+                "LEFT_ID": "prep1",
+                "REL_OP": ">",
+                "RIGHT_ID": "pobj_CD",
+                "RIGHT_ATTRS": {"DEP": "pobj", "POS": "CD"}
+            }  
+            ],
+            [
+            {
+                "RIGHT_ID": "secu_anchor",
+                "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+            },
+            {
+                "LEFT_ID": "secu_anchor",
+                "REL_OP": "<",
+                "RIGHT_ID": "verb1",
+                "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "have"}, 
+            },
+            {
+                "LEFT_ID": "verb1",
+                "REL_OP": ">",
+                "RIGHT_ID": "price",
+                "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
+            },
+            {
+                "LEFT_ID": "price",
+                "REL_OP": ">",
+                "RIGHT_ID": "compound",
+                "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+            },
+            {
+                "LEFT_ID": "price",
+                "REL_OP": ">",
+                "RIGHT_ID": "prep1",
+                "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+            },
+            {
+                "LEFT_ID": "prep1",
+                "REL_OP": ">",
+                "RIGHT_ID": "pobj_CD",
+                "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+            }  
+            ]
+        ]
+        dep_matcher.add("exercise_price", patterns)
+        matches = dep_matcher(doc)
+        print(f"dep_matcher exercise_price: ", matches)
+
+    
+    # def match_secu_exercise_price(self, doc: Doc, secu: Span):
+    #     matcher = Matcher(self.nlp.vocab)
+    #     # print([{"LOWER": x.lower_} for x in secu])
+    #     patterns = [
+    #         [
+    #             *[{"LOWER": x.lower_} for x in secu],
+    #             {"LEMMA": "have"},
+    #             {"OP": "*", "IS_SENT_START": False, "ENT_TYPE": {"NOT_IN": ["SECU"]}},
+    #             {"ENT_TYPE": "SECUATTR", "OP": "*"},
+    #             {"LOWER": "of", "OP": "?"},
+    #             {"ENT_TYPE": "MONEY", "OP": "*"}
+    #         ],
+    #         [
+    #             *[{"LOWER": x.lower_} for x in secu],
+    #             {"LOWER": "to"},
+    #             {"LOWER": "purchase"},
+    #             {"ENT_TYPE": {"IN": ["MONEY", "CARDINAL", "SECUQUANTITY"]}, "OP": "*"},
+    #             {"LOWER": "shares"},
+    #             {"LOWER": "of", "OP": "?"},
+    #             {"ENT_TYPE": "SECU", "OP": "*"},
+    #             {"OP": "*", "IS_SENT_START": False, "ENT_TYPE": {"NOT_IN": ["SECU", "SECUQUANTITY"]}},
+    #             {"ENT_TYPE": "SECUATTR", "OP": "*"},
+    #             {"LOWER": "of", "OP": "?"},
+    #             {"ENT_TYPE": "MONEY", "OP": "*"}
+
+    #         ]
+    #     ]
+    #     matcher.add("exercise_price", patterns)
+    #     return _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
+    
     
     def match_prospectus_relates_to(self, text):
         pattern = [
@@ -827,6 +980,11 @@ class SpacyFilingTextSearch:
         return values
     
     # def match_issuabel_secu_primary(self, doc: Doc, primary_secu: Span)
+
+    def _get_compound_SECU_root(self, secu: Span):
+        for token in secu:
+            if token.dep_ != "compound":
+                return token
     
     def match_issuable_secu_primary(self, doc: Doc):
         secu_transformative_actions = ["exercise", "conversion", "redemption"]
@@ -985,7 +1143,7 @@ class SpacyFilingTextSearch:
         matcher.add("secu_issuable_relation_no_exercise_price", [*patterns])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches
-    
+
     
 def filter_matches(matches):
     '''works as spacy.util.filter_spans but for matches'''

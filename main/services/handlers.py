@@ -33,7 +33,7 @@ def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUn
 def add_shelf_security_registration(cmd: commands.AddShelfSecurityRegistration, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(cik=cmd.cik)
-        offering = company.get_shelf_offering(offering_accn=cmd.offering_accn)
+        offering: model.ShelfOffering = company.get_shelf_offering(offering_accn=cmd.offering_accn)
         if offering:
             offering.add_registration(registered=cmd.security_registration)
             u.company.add(company)

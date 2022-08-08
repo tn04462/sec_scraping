@@ -38,8 +38,14 @@ class BaseHTMExtractor():
         self.spacy_text_search = SpacyFilingTextSearch()
         self.formater = MatchFormater()
     
-    def _normalize_SECU(self, security: str):
-        return security.lower()
+    def get_secu_key(self, security: Span|str):
+        if isinstance(security, str):
+            doc = self.spacy_text_search.nlp(security)
+            security = doc[0:]
+        if isinstance(security, Span):
+            return get_secu_key(security)
+        else:
+            raise TypeError(f"BaseHTMExtractor.get_secu_key is expecting type:Span got:{type(security)}")
     
     def get_mentioned_secus(self, doc: Doc, secus:Optional[Dict]=None):
         '''get all SECU entities. 
@@ -50,6 +56,7 @@ class BaseHTMExtractor():
         if secus is None:
             secus = dict()
         for key in doc._.single_secu_alias.keys():
+            print(f"get_mentioned_secus working on key. {key}")
             if key not in secus.keys():
                 secus[key] = doc._.single_secu_alias[key]
             else:
@@ -59,7 +66,6 @@ class BaseHTMExtractor():
     
     def get_security_type(self, security_name: str):
         return security_type_factory.get_security_type(security_name)
-    
     
     def merge_attributes(self, d1: dict, d2: dict):
         print(d1, d2)
@@ -133,7 +139,10 @@ class BaseHTMExtractor():
         return securities
 
     def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
+        # print("security_key when getting queryable_secu_spans: ", security_key)
         single_secu_alias = doc._.single_secu_alias.get(security_key)
+        # print(f"working with single_secu_alias map: {doc._.single_secu_alias}")
+        # print(f"got single_secu_alias: {single_secu_alias}")
         if single_secu_alias:
             base = single_secu_alias.get("base")
             alias = single_secu_alias.get("alias")
@@ -143,15 +152,22 @@ class BaseHTMExtractor():
         return None
         # now build queries which take the span as arg to search for features
 
-    def get_secu_exercise_price(self, doc: Doc, secu_spans: list[Span]):
+    def get_secu_exercise_price(self, doc: Doc, security_name: str):
         # look through sentences and call matcher on sentence with alias/base
-        
+        # print("security_name in exercise_price func: ", security_name)
+        # print(f"doc.spans['SECU']: {doc.spans['SECU']}")
+        # print(f"doc._.single_secu_alias: {doc._.single_secu_alias}")
+        # print(f"doc._.alias: {doc._.alias_set}")
+        secu_spans = self.get_queryable_secu_spans_from_key(doc, security_name)
+        if secu_spans is None:
+            return None
         for secu in secu_spans:
             start, end = secu.start, secu.end
             for sent in doc.sents:
-                if start in sent:
+                if sent[0].i <= start <= sent[-1].i:
                     temp_doc = doc[sent.start:sent.end]
                     exercies_price = self.spacy_text_search.match_secu_exercise_price(temp_doc, secu)
+                    print(exercies_price)
 
 
 
@@ -271,10 +287,10 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         resale = model.ResaleRegistration(**kwargs)
         company.add_resale(resale)
         bus.handle(commands.AddResaleRegistration(filing.cik, resale))
-        self.handle_resale_security_registrations(self, filing, company, bus)
+        self.handle_resale_security_registrations(filing, company, bus)
     
     def handle_resale_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus):
-        security_registrations = self.get_resale_security_registrations()
+        security_registrations = self.get_resale_security_registrations(filing, company)
     
     def get_resale_security_registrations(self, filing: Filing, company: model.Company):
         pass
@@ -318,7 +334,10 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         raw_secus = self.get_mentioned_secus(security_doc)
         description_sections = filing.get_sections(re.compile("description\s*of", re.I))
         description_docs = [self.doc_from_section(x) for x in description_sections]
-        securities = self.get_securities_from_docs(description_docs)
+        security_relevant_docs = [
+            self.doc_from_section(x) for x in filing.get_sections(
+                re.compile("(description)|(summary)|(about)", re.I))]
+        securities = self.get_securities_from_docs(security_relevant_docs)
         for security in securities:
             company.add_security(security)
         bus.handle(commands.AddSecurities(company.cik, securities))
