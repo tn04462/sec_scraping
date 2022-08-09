@@ -883,20 +883,22 @@ if __name__ == "__main__":
         # "The Warrants have an exercise price of $11.50 per share.",
         # "The Warrant has an exercise price of $2.25 per share.",
         # "Warrants to purchase 10,000 shares of common stock at any time on or prior to December 15, 2021 at an initial exercise price of $1.50 per share.",
-        "Warrants to purchase 96,668 shares of common stock and remain outstanding at any time on or prior to December 31, 2022 at an initial exercise price of $3.00 per share.",
+        # "Warrants to purchase 96,668 shares of common stock and remain outstanding at any time on or prior to December 31, 2022 at an initial exercise price of $3.00 per share.",
         # "Warrants to purchase 560,192 shares of common stock at any time on or prior to July 6, 2025 at an initial exercise price of $0.15 per share for 315,689 of the warrants and $0.72 per share for 244,503 of the warrants."
+        "The Placement Agent Warrant have an exercise price of $2.8125 per share, subject to customary anti-dilution, but not price protection, adjustments.",
+        "We will be prohibited from effecting an exercise of the Investor Warrant to the extent that, as a result of such exercise, the Investor would beneficially own more than 9.99% of the number of shares of our common stock outstanding immediately after giving effect to the Warrant Shares."
         ]
     docs = []
     ex = []
     for text in texts:
         doc = search.nlp(text)
-        ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[0:1]))
+        # ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[0:1]))
         # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
         docs.append(doc)
-        print("prep_phrases: ", extractor.spacy_text_search.get_prep_phrases(doc))
+        # print("prep_phrases: ", extractor.spacy_text_search.get_prep_phrases(doc))
         # print("verbal_phrases: ", extractor.spacy_text_search.get_verbal_phrases(doc))
         # print("noun_chunks: ", [(chunk, chunk.root.text, chunk.root.dep_) for chunk in doc.noun_chunks])
-    print("secus_with_dollar_CD: ", ex)
+    # print("secus_with_dollar_CD: ", ex)
         # # deps = set([token.dep_ for token in doc])
         # # tag = set([token.tag_ for token in doc])
         # # # print([sent.root for sent in doc.sents])
@@ -925,7 +927,7 @@ if __name__ == "__main__":
             #             print("found: ", [i if i.dep_ == "compound" else  for i in t.lefts], [i for i in t.rights], t.i) 
         # print("root: ", doc.root)
         # docs.append(doc)
-    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
+    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
 
     
     #     print(doc._.single_secu_alias)

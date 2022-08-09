@@ -201,18 +201,28 @@ def get_secuquantity(span):
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
 def get_alias(doc: Doc, secu: Span):
-    logger.debug(f"getting alias for: {secu}")
+    # logger.debug(f"getting alias for: {secu}")
     if doc._.is_alias(secu) is True:
         return None
     else:
-        secu_first_token = secu.__getitem__(0)
-        secu_last_token = secu.__getitem__(-1)
+        secu_first_token = secu[0]
+        secu_last_token = secu[-1]
+        # logger.debug(f"secu first/last idx: {secu_first_token.i, secu_last_token.i}")
+        # logger.debug(f"secu first/last token: {secu_first_token, secu_last_token}")
         for sent in doc.sents:
             if secu_first_token in sent:
+                # logger.debug("secu_first_token is in sent")
                 # possible_alias = []
-                for token in sent[secu_last_token.i+1:]:
+                # logger.debug(f"sent indexes: {sent[0].i, sent[-1].i}")
+                # logger.debug(f"expected: {secu_last_token}; got: {sent[secu_last_token.i-sent[0].i]}")
+                token_idx_offset = sent[0].i
+                # logger.debug(f"looking for alias in: {sent[secu_last_token.i-token_idx_offset:]}")
+                for token in sent[secu_last_token.i-token_idx_offset+1:]:
+                    # logger.debug(f"current token: {token}")
                     alias = doc._.tokens_to_alias_map.get(token.i)
+                    # logger.debug(f"tokens_to_alias_map got alias: {alias} from i: {token.i}")
                     if token.ent_type_ == "SECU":
+                        # logger.debug("token_ent type is SECU")
                         if alias is None:
                             return None
                     if alias:
@@ -264,6 +274,9 @@ class SECUMatcher:
         Doc.set_extension("is_alias", method=is_alias)
         Doc.set_extension("single_secu_alias", default=dict())
         Doc.set_extension("multiple_secu_alias", default=dict())
+
+        #extensions for transition or testing
+        Doc.set_extension("single_secu_alias_tuples", default=dict())
         # need a:
         #   get alias method on doc which takes the Span of origin as arg
         
@@ -281,6 +294,7 @@ class SECUMatcher:
         self.matcher(doc)
         self.second_matcher(doc)
         self.get_single_secu_alias_map(doc)
+        self._get_single_secu_alias_map_as_tuples(doc)
         return doc
     
     def _init_span_labels(self, doc: Doc):
@@ -301,6 +315,18 @@ class SECUMatcher:
             alias = doc._.get_alias(secu)
             if alias:
                 doc._.single_secu_alias[secu_key]["alias"].append(alias)
+    
+    def _get_single_secu_alias_map_as_tuples(self, doc: Doc):
+        if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
+            print(doc.spans.get("SECU"), doc.spans.get("alias"))
+            raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
+        for secu in doc.spans["SECU"]:
+            secu_key = get_secu_key(secu)
+            if secu_key not in doc._.single_secu_alias_tuples.keys():
+                doc._.single_secu_alias_tuples[secu_key] = []
+            alias = doc._.get_alias(secu)
+            doc._.single_secu_alias_tuples[secu_key].append((secu, alias))
+            
            
     
     def get_chars_to_tokens_map(self, doc: Doc):
@@ -347,7 +373,7 @@ class SECUMatcher:
         logger.debug(f"set alias spans: {doc.spans['alias']}")
         for span in doc.spans["alias"]:
             doc._.alias_set.add(span.text)
-        logger.debug(f"alias_set extension on doc: {doc._.alias_set}")
+        logger.debug(f"set alias_set extension: {doc._.alias_set}")
     
     def add_tokens_to_alias_map(self, doc: Doc):
         doc._.tokens_to_alias_map = self.get_tokens_to_alias_map(doc, doc.spans["alias"])

@@ -8,6 +8,7 @@ pysec-downloader = "*"
 pytest-postgresql = "*"
 psycopg2 = "*"
 pytest = "*"
+matplotlib = "*"
 
 [dev-packages]
 

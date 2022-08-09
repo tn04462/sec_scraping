@@ -12,7 +12,7 @@ from main.services import unit_of_work, messagebus
 s3_shelf = r"test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
 s3_resale = r"test_resources\filings\0000908311\S-3\000110465919045626\a19-16974_2s3.htm"
 s3_ATM = r"test_resources\filings\0000831547\S-3\000083154720000018\cleans-3.htm"
-s3_resale_with_warrants = r"test_resources\filings\0001453593\S-3\000149315221008120\forms-s3.htm"
+s3_resale_with_warrants = r"test_resources\filings\0001453593\S-3\000149315221008120\forms-3.htm"
 
 def _get_absolute_path(rel_path):
     return str(Path(__file__).parent.parent / rel_path)
@@ -146,7 +146,7 @@ def test_security_extraction_s3_warrant(get_s3_extractor, get_fake_messagebus, g
     company = get_fake_company()
     cover_page = filing.get_section(re.compile("cover page"))
     cover_page_doc = extractor.doc_from_section(cover_page)
-    securities = extractor.extract_securities(filing, company, bus, cover_page_doc)
+    securities = extractor.extract_securities(filing, company, bus, extractor.spacy_text_search.nlp(filing.get_text_only()))
     print(securities)
     assert 1 == 2
 

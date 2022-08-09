@@ -123,7 +123,7 @@ class BaseHTMExtractor():
         mentioned_secus = {}
         for doc in docs:
             mentioned_secus = self.get_mentioned_secus(doc, mentioned_secus)
-        for secu, values in mentioned_secus.items():
+        for secu, _ in mentioned_secus.items():
             security_type = self.get_security_type(secu)
             security_attributes = {}
             for doc in docs:
@@ -238,9 +238,11 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
+        complete_doc = self.spacy_text_search.nlp(filing.get_text_only())
         form_case = self.classify_s3(filing)
         cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
-        self.extract_securities(filing, company, bus, cover_page_doc)
+        # self.extract_securities(filing, company, bus, cover_page_doc)
+        self.extract_securities(filing, company, bus, complete_doc)
         form_classifications = form_case["classifications"]
         if "shelf" in form_classifications:
             logger.info(f"Handling classification case: 'shelf' in form_case: {form_case}")
@@ -340,14 +342,16 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
     def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus, security_doc: Doc) -> List[model.Security]:
         '''extract securities from cover_page and descriptions of securities.'''
-        raw_secus = self.get_mentioned_secus(security_doc)
-        description_sections = filing.get_sections(re.compile("description\s*of", re.I))
-        description_docs = [self.doc_from_section(x) for x in description_sections]
-        security_relevant_docs = [
-            self.doc_from_section(x) for x in filing.get_sections(
-                re.compile("(description)|(summary)|(about)|(selling)", re.I))]
-        logger.info(f"security_relevant_docs_found: {filing.get_sections(re.compile('(description)|(summary)|(about)|(selling)', re.I))}")
-        securities = self.get_securities_from_docs(security_relevant_docs)
+        print(security_doc)
+        # raw_secus = self.get_mentioned_secus(security_doc)
+        # description_sections = filing.get_sections(re.compile("description\s*of", re.I))
+        # description_docs = [self.doc_from_section(x) for x in description_sections]
+        # security_relevant_docs = [
+        #     self.doc_from_section(x) for x in filing.get_sections(
+        #         re.compile("(description)|(summary)|(about)|(selling)", re.I))]
+        # logger.info(f"security_relevant_docs_found: {[s.title if s is not None else None for s in filing.get_sections(re.compile('(description)|(summary)|(about)|(selling)', re.I))]}")
+        # securities = self.get_securities_from_docs(security_relevant_docs)
+        securities = self.get_securities_from_docs([security_doc])
         for security in securities:
             company.add_security(security)
         bus.handle(commands.AddSecurities(company.cik, securities))
