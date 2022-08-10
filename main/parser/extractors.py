@@ -56,7 +56,7 @@ class BaseHTMExtractor():
         if secus is None:
             secus = dict()
         for key in doc._.single_secu_alias.keys():
-            print(f"get_mentioned_secus working on key. {key}")
+            # print(f"get_mentioned_secus working on key. {key}")
             if key not in secus.keys():
                 secus[key] = doc._.single_secu_alias[key]
             else:
@@ -140,8 +140,8 @@ class BaseHTMExtractor():
 
     def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
         # print("security_key when getting queryable_secu_spans: ", security_key)
+        logger.info(f"working with single_secu_alias map: {doc._.single_secu_alias}")
         single_secu_alias = doc._.single_secu_alias.get(security_key)
-        # print(f"working with single_secu_alias map: {doc._.single_secu_alias}")
         # print(f"got single_secu_alias: {single_secu_alias}")
         if single_secu_alias:
             base = single_secu_alias.get("base")
@@ -159,7 +159,7 @@ class BaseHTMExtractor():
         # print(f"doc._.single_secu_alias: {doc._.single_secu_alias}")
         # print(f"doc._.alias: {doc._.alias_set}")
         secu_spans = self.get_queryable_secu_spans_from_key(doc, security_name)
-        print(f"get_secu_exercise_price got following spans to query for: {secu_spans}")
+        logger.info(f"get_secu_exercise_price got following spans to query for: {secu_spans}")
         exercise_prices_seen = set()
         exercise_prices = []
         if secu_spans is None:
@@ -342,7 +342,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
     def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus, security_doc: Doc) -> List[model.Security]:
         '''extract securities from cover_page and descriptions of securities.'''
-        print(security_doc)
+        # print(security_doc)
         # raw_secus = self.get_mentioned_secus(security_doc)
         # description_sections = filing.get_sections(re.compile("description\s*of", re.I))
         # description_docs = [self.doc_from_section(x) for x in description_sections]

@@ -145,7 +145,7 @@ def test_security_extraction_s3_warrant(get_s3_extractor, get_fake_messagebus, g
     filing = get_filing_s3_resale_with_warrants
     company = get_fake_company()
     cover_page = filing.get_section(re.compile("cover page"))
-    cover_page_doc = extractor.doc_from_section(cover_page)
+    # cover_page_doc = extractor.doc_from_section(cover_page)
     securities = extractor.extract_securities(filing, company, bus, extractor.spacy_text_search.nlp(filing.get_text_only()))
     print(securities)
     assert 1 == 2

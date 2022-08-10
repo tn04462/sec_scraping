@@ -211,6 +211,7 @@ def get_alias(doc: Doc, secu: Span):
         # logger.debug(f"secu first/last token: {secu_first_token, secu_last_token}")
         for sent in doc.sents:
             if secu_first_token in sent:
+                secu_counter = 0
                 # logger.debug("secu_first_token is in sent")
                 # possible_alias = []
                 # logger.debug(f"sent indexes: {sent[0].i, sent[-1].i}")
@@ -220,18 +221,39 @@ def get_alias(doc: Doc, secu: Span):
                 for token in sent[secu_last_token.i-token_idx_offset+1:]:
                     # logger.debug(f"current token: {token}")
                     alias = doc._.tokens_to_alias_map.get(token.i)
-                    # logger.debug(f"tokens_to_alias_map got alias: {alias} from i: {token.i}")
+                    if alias:
+                        logger.info(f"tokens_to_alias_map got alias: {alias} from i: {token.i}")
+                        logger.info(f"is this alias really in the alias_set: {alias.text in doc._.alias_set}")
                     if token.ent_type_ == "SECU":
                         # logger.debug("token_ent type is SECU")
-                        if alias is None:
+                        secu_counter += 1
+                        if alias is None and secu_counter > 2: 
                             return None
                     if alias:
-                        if alias.similarity(secu) > 0.6:
+                        if alias.similarity(secu) > 0.7:
                             return alias
                         else:
                             logger.debug(f"similarity score was to low for alias to be considered correct (< 0.6)")
                             logger.debug(f"similarity score: {alias.similarity(secu)} for base:{secu} and alias:{alias}")
                             return None
+
+def get_single_secu_alias_map(doc: Doc):
+        print("getting single_secu_alias with following spans: ", doc.spans.get("SECU"), doc.spans.get("alias"))
+        # print("starting state of single_secu_alias: ", doc._.single_secu_alias)
+        if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
+            raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
+        single_secu_alias = dict()
+        for secu in doc.spans["SECU"]:
+            secu_key = get_secu_key(secu)
+            if secu_key not in single_secu_alias.keys():
+                single_secu_alias[secu_key] = {"base": [secu], "alias": []}
+            else:
+                single_secu_alias[secu_key]["base"].append(secu)
+            alias = doc._.get_alias(secu)
+            if alias:
+                single_secu_alias[secu_key]["alias"].append(alias)
+        logger.info(f"Done getting single_secu_alias map: {doc._.single_secu_alias}")
+        return single_secu_alias
 
                 
 
@@ -272,7 +294,7 @@ class SECUMatcher:
             *) ?
         '''
         Doc.set_extension("is_alias", method=is_alias)
-        Doc.set_extension("single_secu_alias", default=dict())
+        Doc.set_extension("single_secu_alias", getter=get_single_secu_alias_map)
         Doc.set_extension("multiple_secu_alias", default=dict())
 
         #extensions for transition or testing
@@ -293,28 +315,14 @@ class SECUMatcher:
         self.add_tokens_to_alias_map(doc)
         self.matcher(doc)
         self.second_matcher(doc)
-        self.get_single_secu_alias_map(doc)
-        self._get_single_secu_alias_map_as_tuples(doc)
+        # self.get_single_secu_alias_map(doc)
+        # self._get_single_secu_alias_map_as_tuples(doc)
         return doc
     
     def _init_span_labels(self, doc: Doc):
         doc.spans["SECU"] = []
         doc.spans["alias"] = []
 
-    
-    def get_single_secu_alias_map(self, doc: Doc):
-        if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
-            print(doc.spans.get("SECU"), doc.spans.get("alias"))
-            raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
-        for secu in doc.spans["SECU"]:
-            secu_key = get_secu_key(secu)
-            if secu_key not in doc._.single_secu_alias.keys():
-                doc._.single_secu_alias[secu_key] = {"base": [secu], "alias": []}
-            else:
-                doc._.single_secu_alias[secu_key]["base"].append(secu)
-            alias = doc._.get_alias(secu)
-            if alias:
-                doc._.single_secu_alias[secu_key]["alias"].append(alias)
     
     def _get_single_secu_alias_map_as_tuples(self, doc: Doc):
         if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
@@ -344,6 +352,11 @@ class SECUMatcher:
         return tokens_to_alias_map
     
     def get_possible_alias_spans(self, doc: Doc, chars_to_tokens: Dict):
+        secu_alias_exclusions = set([
+            "we",
+            "us",
+            "our"
+        ])
         spans = []
         parenthesis_pattern = re.compile(r"\([^(]*\)")
         possible_alias_pattern = re.compile(
@@ -357,7 +370,11 @@ class SECUMatcher:
                         start_token = chars_to_tokens.get(start_idx + possible_alias.start())
                         end_token = chars_to_tokens.get(start_idx + possible_alias.end()-1)
                         if (start_token is not None) and (end_token is not None):
-                            spans.append(doc[start_token+1:end_token])
+                            alias_span = doc[start_token+1:end_token]
+                            if alias_span.text in secu_alias_exclusions:
+                                logger.debug(f"Was in secu_alias_exclusions -> discarded alias span: {alias_span}")
+                                continue
+                            spans.append(alias_span)
                         else:
                             logger.debug(f"couldnt find start/end token for alias: {possible_alias}; start/end token: {start_token}/{end_token}")
         return spans
@@ -871,6 +888,7 @@ class SpacyFilingTextSearch:
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
         secu_root_token = self._get_compound_SECU_root(secu)
+        print(f"secu: {secu}")
         print(f"secu_root_token: ", secu_root_token)
         print(f"doc: {doc}")
         if secu_root_token is None:

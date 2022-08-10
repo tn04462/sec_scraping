@@ -51,13 +51,18 @@ def test_secu_alias_map(get_search):
     doc = search.nlp(text)
     print(doc._.single_secu_alias_tuples)
     print(doc._.single_secu_alias)
-    for k, v in doc._.single_secu_alias_tuples.items():
-        for value in v:
-            base = value[0]
-            alias = value[1]
-            print(base[0].i, base[-1].i)
-            if alias is not None:
-                print(alias[0].i, alias[-1].i)
-    assert 1 == 2
+    expected_bases = ["common stock", "common stock", "warrant"]
+    expected_alias = ["Investor Warrant"]
+    received_bases = sum([doc._.single_secu_alias[k]["base"] for k, v in doc._.single_secu_alias.items()], [])
+    received_alias = sum([doc._.single_secu_alias[k]["alias"] for k, v in doc._.single_secu_alias.items()], [])
+    assert len(expected_bases) == len(received_bases)
+    assert len(expected_alias) == len(received_alias)
+    for expected, received in zip(expected_bases, received_bases):
+        assert expected == received.text
+    for expected, received in zip(expected_alias, received_alias):
+        assert expected == received.text
+    # assert 1==2
+
+    # assert {'common stock': {'base': [doc[49:51], doc[80:82]], 'alias': []}, 'warrant': {'base': [doc[71:72]], 'alias': []}} == doc._.single_secu_alias
 
 
