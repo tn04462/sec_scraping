@@ -200,6 +200,7 @@ def get_secuquantity(span):
     else:
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
+
 def get_alias(doc: Doc, secu: Span):
     logger.debug(f"getting alias for: {secu}")
     if doc._.is_alias(secu) is True:
@@ -207,23 +208,12 @@ def get_alias(doc: Doc, secu: Span):
     else:
         secu_first_token = secu[0]
         secu_last_token = secu[-1]
-        # logger.debug(f"secu first/last idx: {secu_first_token.i, secu_last_token.i}")
-        # logger.debug(f"secu first/last token: {secu_first_token, secu_last_token}")
         for sent in doc.sents:
             if secu_first_token in sent:
                 secu_counter = 0
-                # logger.debug("secu_first_token is in sent")
-                # possible_alias = []
-                # logger.debug(f"sent indexes: {sent[0].i, sent[-1].i}")
-                # logger.debug(f"expected: {secu_last_token}; got: {sent[secu_last_token.i-sent[0].i]}")
                 token_idx_offset = sent[0].i
-                # logger.debug(f"looking for alias in: {sent[secu_last_token.i-token_idx_offset:]}")
                 for token in sent[secu_last_token.i-token_idx_offset+1:]:
-                    # logger.debug(f"current token: {token}")
                     alias = doc._.tokens_to_alias_map.get(token.i)
-                    if alias:
-                        logger.info(f"tokens_to_alias_map got alias: {alias} from i: {token.i}")
-                        logger.info(f"is this alias really in the alias_set: {alias.text in doc._.alias_set}")
                     if token.ent_type_ == "SECU":
                         secu_counter += 1
                         if alias is None and secu_counter > 2: 
@@ -265,9 +255,12 @@ def _get_single_secu_alias_map_as_tuples(doc: Doc):
             #     continue
             secu_key = get_secu_key(secu)
             if secu_key not in single_secu_alias_tuples.keys():
-                single_secu_alias_tuples[secu_key] = []
+                single_secu_alias_tuples[secu_key] = {"alias": [], "no_alias": []}
             alias = doc._.get_alias(secu)
-            single_secu_alias_tuples[secu_key].append((secu, alias))
+            if alias:
+                single_secu_alias_tuples[secu_key]["alias"].append((secu, alias))
+            else:
+                single_secu_alias_tuples[secu_key]["no_alias"].append(secu)
         logger.info(f"single_secu_alias_tuples: {single_secu_alias_tuples}")
         return single_secu_alias_tuples
 
@@ -306,9 +299,9 @@ class SECUMatcher:
 
         Doc.set_extension("is_alias", method=is_alias)
         Doc.set_extension("single_secu_alias", getter=get_single_secu_alias_map)
-        Doc.set_extension("multiple_secu_alias", getter=_get_single_secu_alias_map_as_tuples)
+        # Doc.set_extension("multiple_secu_alias", getter=)
 
-        Doc.set_extension("single_secu_alias_tuples", default=dict())
+        Doc.set_extension("single_secu_alias_tuples", getter=_get_single_secu_alias_map_as_tuples)
     
         
         self.add_SECU_ent_to_matcher()
@@ -858,6 +851,15 @@ class SpacyFilingTextSearch:
             matches = _convert_dep_matches_to_spans(doc, matches)
             return matches
         return []
+    
+    def get_queryable_similar_spans_from_lower(self, doc: Doc, span: Span):
+        matcher = Matcher(self.nlp.vocab)
+        pattern = [
+            [{"LOWER": x.lower_} for x in span]
+        ]
+        matcher.add("similar_spans", pattern)
+        matches = matcher(doc)
+        return _convert_matches_to_spans(doc, filter_matches(matches)) if matches else None
     
     def get_prep_phrases(self, doc: Doc):
         phrases = []

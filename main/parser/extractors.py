@@ -47,23 +47,41 @@ class BaseHTMExtractor():
         else:
             raise TypeError(f"BaseHTMExtractor.get_secu_key is expecting type:Span got:{type(security)}")
     
-    def get_mentioned_secus(self, doc: Doc, secus:Optional[Dict]=None):
-        '''get all SECU entities. 
-        
-        Returns:
-            {secu_name: [spacy entities]}
-        '''
+    def get_mentioned_secus(self, doc: Doc, secus: Optional[Dict]=None):
         if secus is None:
             secus = dict()
-        single_secu_alias = doc._.single_secu_alias
-        for key in single_secu_alias.keys():
-            # print(f"get_mentioned_secus working on key. {key}")
+        single_secu_alias_tuples = doc._.single_secu_alias_tuples
+        for key in single_secu_alias_tuples.keys():
             if key not in secus.keys():
-                secus[key] = single_secu_alias[key]
-            else:
-                secus[key]["base"] += single_secu_alias[key]["base"]
-                secus[key]["alias"] += single_secu_alias[key]["alias"]
+                secus[key] = []
+            secus[key] += single_secu_alias_tuples[key]["no_alias"]
+            for alias in single_secu_alias_tuples[key]["alias"]:
+                alias_span = alias[1]
+                alias_key = get_secu_key(alias_span)
+                if alias_key:
+                    if alias_key not in secus.keys():
+                        secus[alias_key] = []
+                    similar_spans = self.spacy_text_search.get_queryable_similar_spans_from_lower(doc, alias_span)
+                    if similar_spans:
+                        secus[alias_key] += similar_spans
         return secus
+    
+    # def get_mentioned_secus(self, doc: Doc, secus:Optional[Dict]=None):
+    #     '''get all SECU entities. 
+        
+    #     Returns:
+    #         {secu_name: [spacy entities]}
+    #     '''
+    #     if secus is None:
+    #         secus = dict()
+    #     for key in doc._.single_secu_alias.keys():
+    #         print(f"get_mentioned_secus working on key. {key}")
+    #         if key not in secus.keys():
+    #             secus[key] = doc._.single_secu_alias[key]
+    #         else:
+    #             secus[key]["base"] += doc._.single_secu_alias[key]["base"]
+    #             secus[key]["alias"] += doc._.single_secu_alias[key]["alias"]
+    #     return secus
     
     def get_security_type(self, security_name: str):
         return security_type_factory.get_security_type(security_name)
@@ -80,9 +98,9 @@ class BaseHTMExtractor():
                 d1[d2key] = d2[d2key]
         return d1 
 
-    def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security):  
+    def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security, security_spans):  
         attributes = {}
-        _kwargs = {"doc": doc, "security_name": security_name}
+        _kwargs = {"doc": doc, "security_name": security_name, "security_spans": security_spans}
         if security_type == CommonShare:
             attributes = {
                 "name": security_name
@@ -121,16 +139,18 @@ class BaseHTMExtractor():
     
     def get_securities_from_docs(self, docs: List[Doc]) -> List[model.Security]:
         securities = []
-        mentioned_secus = None
+        mentioned_secus = {}
         for doc in docs:
             mentioned_secus = self.get_mentioned_secus(doc, mentioned_secus)
-        for secu, _ in mentioned_secus.items():
+        logger.debug(f"finished collecting mentioned_secus: {mentioned_secus}")
+        for secu, secu_spans in mentioned_secus.items():
             security_type = self.get_security_type(secu)
+            logger.debug(f"getting security_attributes for {secu} with type: {security_type}")
             security_attributes = {}
             for doc in docs:
                 security_attributes = self.merge_attributes(
                     security_attributes,
-                    self.get_security_attributes(doc, secu, security_type))
+                    self.get_security_attributes(doc, secu, security_type, secu_spans))
             try:
                 security = model.Security(security_type(**security_attributes))
             except ValidationError:
@@ -142,6 +162,7 @@ class BaseHTMExtractor():
     def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
         # print("security_key when getting queryable_secu_spans: ", security_key)
         single_secu_alias = doc._.single_secu_alias.get(security_key)
+        # print(f"working with single_secu_alias map: {doc._.single_secu_alias}")
         # print(f"got single_secu_alias: {single_secu_alias}")
         if single_secu_alias:
             base = single_secu_alias.get("base")
@@ -152,19 +173,10 @@ class BaseHTMExtractor():
         return None
         # now build queries which take the span as arg to search for features
 
-    def get_secu_exercise_price(self, doc: Doc, security_name: str):
-        # look through sentences and call matcher on sentence with alias/base
-        # print("security_name in exercise_price func: ", security_name)
-        # print(f"doc.spans['SECU']: {doc.spans['SECU']}")
-        # print(f"doc._.single_secu_alias: {doc._.single_secu_alias}")
-        # print(f"doc._.alias: {doc._.alias_set}")
-        secu_spans = self.get_queryable_secu_spans_from_key(doc, security_name)
-        logger.info(f"get_secu_exercise_price got following spans to query for: {secu_spans}")
+    def get_secu_exercise_price(self, doc: Doc, security_name: str, security_spans: List[Span]):
         exercise_prices_seen = set()
         exercise_prices = []
-        if secu_spans is None:
-            return None
-        for secu in secu_spans:
+        for secu in security_spans:
             start, end = secu.start, secu.end
             for sent in doc.sents:
                 if sent[0].i <= start <= sent[-1].i:
@@ -178,26 +190,48 @@ class BaseHTMExtractor():
         print("exercise_prices found: ", exercise_prices)
         return exercise_prices
 
+    # def get_secu_exercise_price(self, doc: Doc, security_name: str):
+        ## look through sentences and call matcher on sentence with alias/base
+        # secu_spans = self.get_queryable_secu_spans_from_key(doc, security_name)
+        # print(f"get_secu_exercise_price got following spans to query for: {secu_spans}")
+        # exercise_prices_seen = set()
+        # exercise_prices = []
+        # if secu_spans is None:
+        #     return None
+        # for secu in secu_spans:
+        #     start, end = secu.start, secu.end
+        #     for sent in doc.sents:
+        #         if sent[0].i <= start <= sent[-1].i:
+        #             temp_doc = doc[sent.start:sent.end]
+        #             exercies_price = self.spacy_text_search.match_secu_exercise_price(temp_doc, secu)
+        #             if exercies_price:
+        #                 for price in exercies_price:
+        #                     if price not in exercise_prices_seen:
+        #                         exercise_prices_seen.add(price)
+        #                         exercise_prices.append(price)
+        # print("exercise_prices found: ", exercise_prices)
+        # return exercise_prices
+
 
 
         pass
     
-    def get_secu_expiry(self, doc: Doc, security_name: str):
+    def get_secu_expiry(self, doc: Doc, security_name: str, security_spans: List[Span]):
         pass
 
-    def get_secu_multiplier(self, doc: Doc, security_name: str):
+    def get_secu_multiplier(self, doc: Doc, security_name: str, security_spans: List[Span]):
         pass
 
-    def get_secu_latest_issue_date(self, doc: Doc, security_name: str):
+    def get_secu_latest_issue_date(self, doc: Doc, security_name: str, security_spans: List[Span]):
         pass
 
-    def get_secu_interest_rate(self, doc: Doc, security_name: str):
+    def get_secu_interest_rate(self, doc: Doc, security_name: str, security_spans: List[Span]):
         pass
 
-    def get_secu_right(self, doc: Doc, security_name: str):
+    def get_secu_right(self, doc: Doc, security_name: str, security_spans: List[Span]):
         pass
 
-    def get_secu_conversion(self, doc: Doc, security_name: str):
+    def get_secu_conversion(self, doc: Doc, security_name: str, security_spans: List[Span]):
         pass
     
     def get_issuable_relation(self, doc: Doc, security_name: str):
@@ -342,7 +376,6 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
     def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus, security_doc: Doc) -> List[model.Security]:
         '''extract securities from cover_page and descriptions of securities.'''
-        # print(security_doc)
         # raw_secus = self.get_mentioned_secus(security_doc)
         # description_sections = filing.get_sections(re.compile("description\s*of", re.I))
         # description_docs = [self.doc_from_section(x) for x in description_sections]
@@ -351,7 +384,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         #         re.compile("(description)|(summary)|(about)|(selling)", re.I))]
         # logger.info(f"security_relevant_docs_found: {[s.title if s is not None else None for s in filing.get_sections(re.compile('(description)|(summary)|(about)|(selling)', re.I))]}")
         # securities = self.get_securities_from_docs(security_relevant_docs)
+
         securities = self.get_securities_from_docs([security_doc])
+
         for security in securities:
             company.add_security(security)
         bus.handle(commands.AddSecurities(company.cik, securities))
