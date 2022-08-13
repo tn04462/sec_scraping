@@ -892,6 +892,7 @@ if __name__ == "__main__":
     ex = []
     for text in texts:
         doc = search.nlp(text)
+        print(doc.spans["SECU"])
         # ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[0:1]))
         # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
         docs.append(doc)
@@ -927,7 +928,7 @@ if __name__ == "__main__":
             #             print("found: ", [i if i.dep_ == "compound" else  for i in t.lefts], [i for i in t.rights], t.i) 
         # print("root: ", doc.root)
         # docs.append(doc)
-    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
+    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
 
     
     #     print(doc._.single_secu_alias)

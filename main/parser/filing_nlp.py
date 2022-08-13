@@ -201,7 +201,7 @@ def get_secuquantity(span):
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
 def get_alias(doc: Doc, secu: Span):
-    # logger.debug(f"getting alias for: {secu}")
+    logger.debug(f"getting alias for: {secu}")
     if doc._.is_alias(secu) is True:
         return None
     else:
@@ -225,7 +225,6 @@ def get_alias(doc: Doc, secu: Span):
                         logger.info(f"tokens_to_alias_map got alias: {alias} from i: {token.i}")
                         logger.info(f"is this alias really in the alias_set: {alias.text in doc._.alias_set}")
                     if token.ent_type_ == "SECU":
-                        # logger.debug("token_ent type is SECU")
                         secu_counter += 1
                         if alias is None and secu_counter > 2: 
                             return None
@@ -233,13 +232,14 @@ def get_alias(doc: Doc, secu: Span):
                         if alias.similarity(secu) > 0.7:
                             return alias
                         else:
-                            logger.debug(f"similarity score was to low for alias to be considered correct (< 0.6)")
+                            logger.debug(f"similarity score was to low for alias to be considered correct (<= 0.7)")
                             logger.debug(f"similarity score: {alias.similarity(secu)} for base:{secu} and alias:{alias}")
                             return None
 
 def get_single_secu_alias_map(doc: Doc):
-        print("getting single_secu_alias with following spans: ", doc.spans.get("SECU"), doc.spans.get("alias"))
-        # print("starting state of single_secu_alias: ", doc._.single_secu_alias)
+        # logger.info("getting single_secu_alias with following spans:")
+        # logger.info(f"SECU spans: {doc.spans['SECU']}")
+        # logger.info(f"alias spans: {doc.spans.get('alias')}")
         if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         single_secu_alias = dict()
@@ -252,8 +252,24 @@ def get_single_secu_alias_map(doc: Doc):
             alias = doc._.get_alias(secu)
             if alias:
                 single_secu_alias[secu_key]["alias"].append(alias)
-        logger.info(f"Done getting single_secu_alias map: {doc._.single_secu_alias}")
+        logger.debug(f"got single_secu_alias map: {single_secu_alias}")
         return single_secu_alias
+
+def _get_single_secu_alias_map_as_tuples(doc: Doc):
+        if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
+            # print(doc.spans.get("SECU"), doc.spans.get("alias"))
+            raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
+        single_secu_alias_tuples = dict()
+        for secu in doc.spans["SECU"]:
+            # if doc._.is_alias(secu):
+            #     continue
+            secu_key = get_secu_key(secu)
+            if secu_key not in single_secu_alias_tuples.keys():
+                single_secu_alias_tuples[secu_key] = []
+            alias = doc._.get_alias(secu)
+            single_secu_alias_tuples[secu_key].append((secu, alias))
+        logger.info(f"single_secu_alias_tuples: {single_secu_alias_tuples}")
+        return single_secu_alias_tuples
 
                 
 
@@ -265,16 +281,19 @@ def is_alias(doc: Doc, secu: Span):
 def get_secu_key(secu: Span|str):
     core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
     body = [token.text_with_ws.lower() for token in core_tokens[:-1]]
-    tail = core_tokens[-1].lemma_.lower()
-    if tail == "warrants":
-        tail = "warrant"
-    body.append(tail)
+    try:
+        tail = core_tokens[-1].lemma_.lower()
+        if tail == "warrants":
+            tail = "warrant"
+        body.append(tail)
+    except IndexError:
+        logger.debug("IndexError when accessing tail information of secu_key -> no tail -> pass")
+        pass
     result = "".join(body) 
-    print(f"get_secu_key() returning key: {result}")
+    logger.debug(f"get_secu_key() returning key: {result} from secu: {secu}")
     return result
 
 class SECUMatcher:
-    _instance = None
     def __init__(self, vocab):
         self.matcher = Matcher(vocab)
         self.second_matcher = Matcher(vocab)
@@ -284,23 +303,13 @@ class SECUMatcher:
         Doc.set_extension("get_alias", method=get_alias)
         Doc.set_extension("alias_set", default=set())
         Doc.set_extension("tokens_to_alias_map", default=dict())
-        '''
-        0) add SECU ent to doc.spans["SECU"] list
-        1) populate alias to tokens map
-        1.5) for each secu get
-        2) to get alias:
-            *) look for tokens after subject
-            *) get next alias in same sent
-            *) ?
-        '''
+
         Doc.set_extension("is_alias", method=is_alias)
         Doc.set_extension("single_secu_alias", getter=get_single_secu_alias_map)
-        Doc.set_extension("multiple_secu_alias", default=dict())
+        Doc.set_extension("multiple_secu_alias", getter=_get_single_secu_alias_map_as_tuples)
 
-        #extensions for transition or testing
         Doc.set_extension("single_secu_alias_tuples", default=dict())
-        # need a:
-        #   get alias method on doc which takes the Span of origin as arg
+    
         
         self.add_SECU_ent_to_matcher()
         self.add_SECUREF_ent_to_matcher()
@@ -309,14 +318,13 @@ class SECUMatcher:
     
 
     def __call__(self, doc: Doc):
+        # logger.warning(f"__call__ executed")
         self._init_span_labels(doc)
         self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
         self.add_possible_alias_spans(doc)
         self.add_tokens_to_alias_map(doc)
         self.matcher(doc)
         self.second_matcher(doc)
-        # self.get_single_secu_alias_map(doc)
-        # self._get_single_secu_alias_map_as_tuples(doc)
         return doc
     
     def _init_span_labels(self, doc: Doc):
@@ -324,19 +332,8 @@ class SECUMatcher:
         doc.spans["alias"] = []
 
     
-    def _get_single_secu_alias_map_as_tuples(self, doc: Doc):
-        if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
-            print(doc.spans.get("SECU"), doc.spans.get("alias"))
-            raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
-        for secu in doc.spans["SECU"]:
-            secu_key = get_secu_key(secu)
-            if secu_key not in doc._.single_secu_alias_tuples.keys():
-                doc._.single_secu_alias_tuples[secu_key] = []
-            alias = doc._.get_alias(secu)
-            doc._.single_secu_alias_tuples[secu_key].append((secu, alias))
-            
-           
     
+            
     def get_chars_to_tokens_map(self, doc: Doc):
         chars_to_tokens = {}
         for token in doc:
@@ -344,8 +341,9 @@ class SECUMatcher:
                 chars_to_tokens[i] = token.i
         return chars_to_tokens
     
-    def get_tokens_to_alias_map(self, doc: Doc, alias_spans: list[Span]):
+    def get_tokens_to_alias_map(self, doc: Doc):
         tokens_to_alias_map = {}
+        alias_spans = doc.spans["alias"]
         for span in alias_spans:
             for token in span:
                 tokens_to_alias_map[token.i] = span
@@ -393,7 +391,7 @@ class SECUMatcher:
         logger.debug(f"set alias_set extension: {doc._.alias_set}")
     
     def add_tokens_to_alias_map(self, doc: Doc):
-        doc._.tokens_to_alias_map = self.get_tokens_to_alias_map(doc, doc.spans["alias"])
+        doc._.tokens_to_alias_map = self.get_tokens_to_alias_map(doc)
         
     
     def add_SECUATTR_ent_to_matcher(self):
@@ -657,10 +655,11 @@ def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
         return False
     return True
 
-def add_SECU_to_spans(doc: Doc, entity:  Span):
+def add_SECU_to_spans(doc: Doc, entity: Span):
     if doc._.is_alias(entity):
         return
     else:
+        logger.debug(f"adding to SECU spans: {entity}")
         add_entity_to_spans(doc, entity, "SECU")
 
 def add_entity_to_spans(doc: Doc, entity: Span, span_label: str):
@@ -731,7 +730,6 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
     Args:
         ent_callback: function which will be called if entity was added with the entity and doc as args.
         ent_exclude_condition: function which returns bool and takes entity and doc as args.'''
-    logger.debug(f"Adding ent_label: {ent_label}")
     match_id, start, end = matches[i]
     if (not _is_match_followed_by(doc, start, end, exclude_after)) and (
         not _is_match_preceeded_by(doc, start, end, exclude_before)):
@@ -743,6 +741,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
         # logger.debug(f"entity: {entity}")
         try:
             doc.ents += (entity,)
+            logger.debug(f"Added entity: {entity} with label: {ent_label}")
         except ValueError as e:
             if "[E1010]" in str(e):
                 handle_overlapping_ents(doc, start, end, entity)
@@ -758,6 +757,7 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span):
         logger.debug(f"removed conflicting ents: {[k[1] for k in conflicting_ents]}")
         previous_ents.add(entity)
         doc.ents = previous_ents
+        logger.debug(f"Added entity: {entity} with label: {entity.label_}")
 
 def get_conflicting_ents(doc: Doc, start: int, end: int):
     conflicting_ents = []
@@ -792,9 +792,9 @@ class SpacyFilingTextSearch:
         if cls._instance is None:
             cls._instance = super(SpacyFilingTextSearch, cls).__new__(cls)
             cls._instance.nlp = spacy.load("en_core_web_lg")
-            cls._instance.nlp.add_pipe("security_law_retokenizer")
+            cls._instance.nlp.add_pipe("secu_act_matcher", first=True)
+            cls._instance.nlp.add_pipe("security_law_retokenizer", after="secu_act_matcher")
             cls._instance.nlp.add_pipe("secu_matcher")
-            cls._instance.nlp.add_pipe("secu_act_matcher")
         return cls._instance
     
 

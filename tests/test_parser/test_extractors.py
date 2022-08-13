@@ -146,7 +146,10 @@ def test_security_extraction_s3_warrant(get_s3_extractor, get_fake_messagebus, g
     company = get_fake_company()
     cover_page = filing.get_section(re.compile("cover page"))
     # cover_page_doc = extractor.doc_from_section(cover_page)
-    securities = extractor.extract_securities(filing, company, bus, extractor.spacy_text_search.nlp(filing.get_text_only()))
+    filing_text = filing.get_text_only()
+    filing_text_doc = extractor.spacy_text_search.nlp(filing_text)
+    print(f"single_secu_alias_tuples: {filing_text_doc._.single_secu_alias_tuples}")
+    securities = extractor.extract_securities(filing, company, bus, filing_text_doc)
     print(securities)
     assert 1 == 2
 
