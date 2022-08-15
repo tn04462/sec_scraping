@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Callable, Dict, Set
+from attr import Attribute
 import spacy
 from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
@@ -13,6 +14,13 @@ import  pandas as pd
 from main.security_models.naiv_models import CommonShare, Securities
 
 logger = logging.getLogger(__name__)
+
+PLURAL_SINGULAR_SECU_TAIL_MAP = {
+    "warrants": "warrant"
+}
+SINGULAR_PLURAL_SECU_TAIL_MAP = {
+    "warrant": "warrants"
+}
 
 class MatchFormater:
     def parse_number(self, text):
@@ -226,14 +234,19 @@ def get_alias(doc: Doc, secu: Span):
                             logger.debug(f"similarity score: {alias.similarity(secu)} for base:{secu} and alias:{alias}")
                             return None
 
-def get_single_secu_alias_map(doc: Doc):
-        # logger.info("getting single_secu_alias with following spans:")
-        # logger.info(f"SECU spans: {doc.spans['SECU']}")
-        # logger.info(f"alias spans: {doc.spans.get('alias')}")
+def _get_SECU_in_doc(doc: Doc):
+    secu_spans = []
+    for ent in doc.ents:
+        if ent.label_ == "SECU":
+            secu_spans.append(ent)
+    return secu_spans
+
+def _set_single_secu_alias_map(doc: Doc):
         if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         single_secu_alias = dict()
-        for secu in doc.spans["SECU"]:
+        secu_ents = doc._.secus
+        for secu in secu_ents:
             secu_key = get_secu_key(secu)
             if secu_key not in single_secu_alias.keys():
                 single_secu_alias[secu_key] = {"base": [secu], "alias": []}
@@ -243,14 +256,15 @@ def get_single_secu_alias_map(doc: Doc):
             if alias:
                 single_secu_alias[secu_key]["alias"].append(alias)
         logger.debug(f"got single_secu_alias map: {single_secu_alias}")
-        return single_secu_alias
+        doc._.single_secu_alias = single_secu_alias
 
-def _get_single_secu_alias_map_as_tuples(doc: Doc):
+def _set_single_secu_alias_map_as_tuples(doc: Doc):
         if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
             # print(doc.spans.get("SECU"), doc.spans.get("alias"))
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         single_secu_alias_tuples = dict()
-        for secu in doc.spans["SECU"]:
+        secu_ents = doc._.secus
+        for secu in secu_ents:
             # if doc._.is_alias(secu):
             #     continue
             secu_key = get_secu_key(secu)
@@ -262,7 +276,7 @@ def _get_single_secu_alias_map_as_tuples(doc: Doc):
             else:
                 single_secu_alias_tuples[secu_key]["no_alias"].append(secu)
         logger.info(f"single_secu_alias_tuples: {single_secu_alias_tuples}")
-        return single_secu_alias_tuples
+        doc._.single_secu_alias_tuples = single_secu_alias_tuples
 
                 
 
@@ -288,8 +302,11 @@ def get_secu_key(secu: Span|str):
 
 class SECUMatcher:
     def __init__(self, vocab):
-        self.matcher = Matcher(vocab)
-        self.second_matcher = Matcher(vocab)
+        self.vocab = vocab
+        self.matcher_SECU = Matcher(vocab)
+        self.matcher_SECUREF = Matcher(vocab)
+        self.matcher_SECUATTR = Matcher(vocab)
+        self.matcher_SECUQUANTITY = Matcher(vocab)
 
         Span.set_extension("secuquantity", getter=get_secuquantity)
         Span.set_extension("secuquantity_unit", default=None)
@@ -298,16 +315,15 @@ class SECUMatcher:
         Doc.set_extension("tokens_to_alias_map", default=dict())
 
         Doc.set_extension("is_alias", method=is_alias)
-        Doc.set_extension("single_secu_alias", getter=get_single_secu_alias_map)
-        # Doc.set_extension("multiple_secu_alias", getter=)
-
-        Doc.set_extension("single_secu_alias_tuples", getter=_get_single_secu_alias_map_as_tuples)
+        Doc.set_extension("single_secu_alias", default=dict())
+        Doc.set_extension("single_secu_alias_tuples", default=dict())
+        Doc.set_extension("secus", getter=_get_SECU_in_doc)
     
         
-        self.add_SECU_ent_to_matcher()
-        self.add_SECUREF_ent_to_matcher()
-        self.add_SECUATTR_ent_to_matcher()
-        self.add_SECUQUANTITY_ent_to_matcher(self.second_matcher)
+        self.add_SECU_ent_to_matcher(self.matcher_SECU)
+        self.add_SECUREF_ent_to_matcher(self.matcher_SECUREF)
+        self.add_SECUATTR_ent_to_matcher(self.matcher_SECUATTR)
+        self.add_SECUQUANTITY_ent_to_matcher(self.matcher_SECUQUANTITY)
     
 
     def __call__(self, doc: Doc):
@@ -316,16 +332,49 @@ class SECUMatcher:
         self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
         self.add_possible_alias_spans(doc)
         self.add_tokens_to_alias_map(doc)
-        self.matcher(doc)
-        self.second_matcher(doc)
+        self.matcher_SECU(doc)
+        self.matcher_SECUREF(doc)
+        _set_single_secu_alias_map(doc)
+        _set_single_secu_alias_map_as_tuples(doc)
+        self.handle_SECU_special_cases(doc)
+        self.matcher_SECUATTR(doc)
+        self.matcher_SECUQUANTITY(doc)
         return doc
     
     def _init_span_labels(self, doc: Doc):
         doc.spans["SECU"] = []
         doc.spans["alias"] = []
+    
+    def handle_SECU_special_cases(self, doc: Doc):
+        special_case_matcher = Matcher(self.vocab)
+        self.add_alias_SECU_cases_to_matcher(doc, special_case_matcher)
+        special_case_matcher(doc)
 
-    
-    
+
+    def add_alias_SECU_cases_to_matcher(self, doc, matcher):
+        # duplicate spans
+        # overlapping spans ?
+        # side effects of rerunning matcher ? 
+        special_patterns = []
+        for secu_key, values in doc._.single_secu_alias_tuples.items():
+            # logger.info(f"current key: {secu_key}")
+            alias_tuples = doc._.single_secu_alias_tuples[secu_key]["alias"]
+            # logger.info(f"current alias_tuples: {alias_tuples}")
+            if alias_tuples and alias_tuples != []:
+                for entry in alias_tuples:
+                    base_span = entry[0]
+                    alias_span = entry[1]
+                    special_patterns.append(
+                        [{"LOWER": x.lower_} for x in alias_span]
+                    )
+                    if len(alias_span) > 1:
+                        special_patterns.append(
+                            [*[{"LOWER": x.lower_} for x in alias_span[:-1]], {"LEMMA": alias_span[-1].lemma_}]
+                        )
+        logger.debug(f"adding special alias_SECU patterns to matcher: {special_patterns}")
+        matcher.add("alias_special_cases", special_patterns, on_match=_add_SECU_ent)
+                    
+
             
     def get_chars_to_tokens_map(self, doc: Doc):
         chars_to_tokens = {}
@@ -387,16 +436,16 @@ class SECUMatcher:
         doc._.tokens_to_alias_map = self.get_tokens_to_alias_map(doc)
         
     
-    def add_SECUATTR_ent_to_matcher(self):
+    def add_SECUATTR_ent_to_matcher(self, matcher):
         patterns = [
             [
                 {"LOWER": "exercise"},
                 {"LOWER": "price"}
             ]
         ]
-        self.matcher.add("SECUATTR_ENT", [*patterns], on_match=_add_SECUATTR_ent)
+        matcher.add("SECUATTR_ENT", [*patterns], on_match=_add_SECUATTR_ent)
     
-    def add_SECUREF_ent_to_matcher(self):
+    def add_SECUREF_ent_to_matcher(self, matcher):
         general_pre_sec_modifiers = [
             "convertible"
         ]
@@ -449,10 +498,10 @@ class SECUMatcher:
   
         ]
 
-        self.matcher.add("SECUREF_ENT", [*patterns], on_match=_add_SECUREF_ent)
+        matcher.add("SECUREF_ENT", [*patterns], on_match=_add_SECUREF_ent)
 
     
-    def add_SECU_ent_to_matcher(self):
+    def add_SECU_ent_to_matcher(self, matcher):
         # base_securities is just to keep track of the different bases we work with
         base_securities = [
             [{"LOWER": "common"}, {"LOWER": "stock"}], #
@@ -614,7 +663,7 @@ class SECUMatcher:
                 ,            
         ]
 
-        self.matcher.add("SECU_ENT", [*patterns, *depositary_patterns, *special_patterns], on_match=_add_SECU_ent)
+        matcher.add("SECU_ENT", [*patterns, *depositary_patterns, *special_patterns], on_match=_add_SECU_ent)
 
     def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
         regular_patterns = [
@@ -760,6 +809,14 @@ def get_conflicting_ents(doc: Doc, start: int, end: int):
             if (ent.end - ent.start) <= (end - start):
                 conflicting_ents.append((ent.end - ent.start, ent))
     return conflicting_ents
+
+def _get_singular_or_plural_of_SECU_token(token):
+    singular = PLURAL_SINGULAR_SECU_TAIL_MAP.get(token.lower_)
+    plural = SINGULAR_PLURAL_SECU_TAIL_MAP.get(token.lower_)
+    if singular is None:
+        return plural
+    else:
+        return singular
                     
 @Language.factory("secu_matcher")
 def create_secu_matcher(nlp, name):
@@ -857,7 +914,14 @@ class SpacyFilingTextSearch:
         pattern = [
             [{"LOWER": x.lower_} for x in span]
         ]
+        if len(span) > 1:
+            tail_lower = _get_singular_or_plural_of_SECU_token(span[-1])
+            if tail_lower:
+                pattern.append(
+                    [*[{"LOWER": x.lower_} for x in span[:-1]], {"LOWER": tail_lower}]
+                )
         matcher.add("similar_spans", pattern)
+        logger.debug(f"similar_spans_from_lower match patterns: {pattern}")
         matches = matcher(doc)
         return _convert_matches_to_spans(doc, filter_matches(matches)) if matches else None
     
@@ -885,16 +949,88 @@ class SpacyFilingTextSearch:
                 subtree = [i for i in token.subtree]
                 phrases.append(doc[subtree[0].i:subtree[-1].i])
         return phrases
+    
+    # def match_SECU_root_verb(self, doc: Doc, secu_root_token: Token, secu: Span):
+    #     dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
+    #     patterns = [
+    #         [
+    #             {
+    #                 "RIGHT_ID": "secu_anchor",
+    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+    #             },
+    #             {
+    #                 "LEFT_ID": "secu_anchor",
+    #                 "REL_OP": "<",
+    #                 "RIGHT_ID": "verb1",
+    #                 "RIGHT_ATTRS": {"POS": "VERB"}, 
+    #             },
+    #         ]
+    #     ]
+    #     dep_matcher.add("exercise_price", patterns)
+    #     matches = dep_matcher(doc)
+    #     if matches:
+    #         if len(matches) > 1:
+    #             raise AttributeError(f"secu_root_token cant have more than one root verb.")
+    #         matches = _convert_dep_matches_to_spans(doc, matches)
+    #         return matches[0]
+    #     return None
+
+    def _create_secu_span_dependency_matcher_dict(self, secu: Span) -> dict:
+        '''
+        create a list of dicts for dependency match patterns.
+        the root token will have RIGHT_ID of 'secu_anchor'
+        '''
+        secu_root_token = self._get_compound_SECU_root(secu)
+        if secu_root_token is None:
+            return None
+        root_pattern = [
+            {
+                "RIGHT_ID": "secu_anchor",
+                "RIGHT_ATTRS": {"ENT_TYPE": secu_root_token.ent_type_, "LOWER": secu_root_token.lower_}
+            }
+        ]
+        if secu_root_token.children:
+            for idx, token in enumerate(secu_root_token.children):
+                if token in secu:
+                    root_pattern.append(
+                        {
+                            "LEFT_ID": "secu_anchor",
+                            "REL_OP": ">",
+                            "RIGHT_ID": token.lower_ + "__" + str(idx),
+                            "RIGHT_ATTRS": {"LOWER": token.lower_}
+                        }
+                    )
+        logger.debug(f"root_pattern: {root_pattern}")
+        return root_pattern
+
+                
+        
+    
+    def match_secu_expiry(self, doc: Doc, secu: Span):
+        secu_root_token = self._get_compound_SECU_root(secu)
+        patterns = [
+            [
+                {
+                    "RIGHT_ID": "secu_anchor",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+                },
+            ]
+        ]
 
     
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-        secu_root_token = self._get_compound_SECU_root(secu)
-        print(f"secu: {secu}")
-        print(f"secu_root_token: ", secu_root_token)
-        print(f"doc: {doc}")
-        if secu_root_token is None:
-            return None
+        # secu_root_token = self._get_compound_SECU_root(secu)
+        logger.debug("match_secu_exercise_price:")
+        logger.debug(f"     secu: {secu}")
+        # logger.debug(f"     secu_root_token: ", secu_root_token)
+        
         '''
         acl   (SECU) <- VERB (purchase) -> 					 prep (of | at) -> [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
 		nsubj (SECU) <- VERB (have)  	->				     			       [dobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
@@ -902,14 +1038,12 @@ class SpacyFilingTextSearch:
 		nsubj (SECU) <- VERB (purchase) -> conj (remain)  -> prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
 		nsubj (SECU) <- VERB (purchase) -> 					 prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
         '''
-        count = 0
-         
+        secu_root_dict = self._create_secu_span_dependency_matcher_dict(secu)
+        if secu_root_dict is None:
+            return None
         patterns = [
             [
-                {
-                    "RIGHT_ID": "secu_anchor",
-                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-                },
+                *secu_root_dict,
                 {
                     "LEFT_ID": "secu_anchor",
                     "REL_OP": "<",
@@ -960,10 +1094,7 @@ class SpacyFilingTextSearch:
                 } 
             ],
             [
-                {
-                    "RIGHT_ID": "secu_anchor",
-                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-                },
+                *secu_root_dict,
                 {
                     "LEFT_ID": "secu_anchor",
                     "REL_OP": ">",
@@ -1008,10 +1139,7 @@ class SpacyFilingTextSearch:
                 } 
             ],
             [
-                {
-                    "RIGHT_ID": "secu_anchor",
-                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-                },
+                *secu_root_dict,
                 {
                     "LEFT_ID": "secu_anchor",
                     "REL_OP": "<",
@@ -1056,10 +1184,7 @@ class SpacyFilingTextSearch:
                 } 
             ],
             [
-                {
-                    "RIGHT_ID": "secu_anchor",
-                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-                },
+                *secu_root_dict,
                 {
                     "LEFT_ID": "secu_anchor",
                     "REL_OP": "<",
@@ -1100,8 +1225,10 @@ class SpacyFilingTextSearch:
         ]
         dep_matcher.add("exercise_price", patterns)
         matches = dep_matcher(doc)
+        logger.debug(f"raw exercise_price matches: {matches}")
         if matches:
             matches = _convert_dep_matches_to_spans(doc, matches)
+            logger.info(f"matches: {matches}")
             secu_dollar_CD = self.match_secu_with_dollar_CD(doc, secu)
             if len(secu_dollar_CD) > 1:
                 logger.info(f"unhandled ambigious case of exercise_price match: matches: {matches}; secu_dollar_CD: {secu_dollar_CD}")
@@ -1112,6 +1239,8 @@ class SpacyFilingTextSearch:
                         return formater.money_string_to_float(token.text)
             # print([_get_CD_object_from_match(match) for match in matches], matches)
             return [_get_CD_object_from_match(match) for match in matches]
+
+
 
 
     
@@ -1220,11 +1349,13 @@ class SpacyFilingTextSearch:
     
     # def match_issuabel_secu_primary(self, doc: Doc, primary_secu: Span)
 
-    def _get_compound_SECU_root(self, secu: Span):
+    def _get_compound_SECU_root(self, secu: Span) -> Token:
+        if isinstance(secu, Token):
+            return secu
         for token in secu:
             if token.dep_ != "compound":
                 return token
-        print(f"couldnt find root token for: {secu}, {[s.dep_ for s in secu]}")
+        logger.debug(f"couldnt find root token for: {secu}, {[s.dep_ for s in secu]}")
         return None
     
     def match_issuable_secu_primary(self, doc: Doc):

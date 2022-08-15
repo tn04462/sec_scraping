@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import re
 from spacy.matcher import Matcher, PhraseMatcher
-from spacy.tokens import Doc, Span
+from spacy.tokens import Doc, Span, Token
 
 from main.parser.filings_base import Filing, FilingSection
 from main.domain import model,  commands
@@ -160,6 +160,7 @@ class BaseHTMExtractor():
         return securities
 
     def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
+        # POSSIBLE WASTE CODE
         # print("security_key when getting queryable_secu_spans: ", security_key)
         single_secu_alias = doc._.single_secu_alias.get(security_key)
         # print(f"working with single_secu_alias map: {doc._.single_secu_alias}")
@@ -176,10 +177,13 @@ class BaseHTMExtractor():
     def get_secu_exercise_price(self, doc: Doc, security_name: str, security_spans: List[Span]):
         exercise_prices_seen = set()
         exercise_prices = []
+        logger.debug("get_secu_exercise_price:")
+        logger.debug(f" getting exercise_price for:")
+        logger.debug(f"     security_name  - {security_name}")
+        logger.debug(f"     security_spans - {security_spans}")
         for secu in security_spans:
-            start, end = secu.start, secu.end
             for sent in doc.sents:
-                if sent[0].i <= start <= sent[-1].i:
+                if self._is_span_in_sent(sent, secu):
                     temp_doc = doc[sent.start:sent.end]
                     exercies_price = self.spacy_text_search.match_secu_exercise_price(temp_doc, secu)
                     if exercies_price:
@@ -187,10 +191,67 @@ class BaseHTMExtractor():
                             if price not in exercise_prices_seen:
                                 exercise_prices_seen.add(price)
                                 exercise_prices.append(price)
-        print("exercise_prices found: ", exercise_prices)
+                                logger.debug(f"     exercise price found: {price}")
+                                logger.debug(f"     sentence: {temp_doc}")
         return exercise_prices
+    
+    def _is_span_in_sent(self, sent: Span, span: Span|Token):
+        token_idx_offset = sent[0].i
+        if isinstance(span, Span):
+            span_length = len(span)
+            first_token = span[0]
+            for token in sent:
+                if token == first_token:
+                    first_idx = token.i - token_idx_offset
+                    # logger.info(f"sent: {sent}")
+                    # logger.info(f"first_idx|end_idx: {first_idx, first_idx+span_length}")
+                    # logger.info(f"is this valid_span?: {sent[first_idx:first_idx+span_length]}")
+                    try:
+                        if sent[first_idx:first_idx+span_length] == span:
+                            if self._span_neighbors_arent_SECU(sent, span):
+                                # logger.info("valid span")
+                                return True
+                    except IndexError:
+                        logger.debug("excepted IndexError in _assert_any_secu_span_is_in_match; passing.")
+                        pass
+        if isinstance(span, Token):
+            if self._is_single_token_SECU_in_sent(sent, span):
+                return True
+        return False
+                
+    
+    def _is_single_token_SECU_in_sent(self, sent: Span, token: Token):
+        if token in sent:
+            if self._span_neighbors_arent_SECU(sent, token):
+                return True
+        return False
+    
+    def _span_neighbors_arent_SECU(self, sent: Span, span: Span|Token):
+        token_idx_offset = sent[0].i
+        if isinstance(span, Token):
+            start = span.i
+            end = start
+        else:
+            start = span[0].i
+            end = span[-1].i
+        start = start - token_idx_offset
+        end = end - token_idx_offset
+        if start != 0 and end != sent[-1].i:
+            if sent[start-1].ent_type_ != "SECU" and sent[end+1].ent_type_ != "SECU":
+                return True
+        else:
+            if start != 0:
+                if sent[start-1].ent_type_ != "SECU":
+                    return True
+            else:
+                if sent[end+1].ent_type_ != "SECU":
+                    return True
+        return False
+
+            
 
     # def get_secu_exercise_price(self, doc: Doc, security_name: str):
+        ## POSSIBLE WASTE CODE
         ## look through sentences and call matcher on sentence with alias/base
         # secu_spans = self.get_queryable_secu_spans_from_key(doc, security_name)
         # print(f"get_secu_exercise_price got following spans to query for: {secu_spans}")
@@ -632,7 +693,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                     pass
                 registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Price Per Unit", "Price Aggregate", "Fee"])
                 # values = []
-                logger.info(f"registration_df: {registration_df}")
+                logger.debug(f"registration_df: {registration_df}")
                 row = None
                 if "total" in registration_df["Title"].values:
                     row = registration_df[registration_df["Title"] == "total"]

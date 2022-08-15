@@ -3,6 +3,7 @@ import spacy
 from spacy.tokens import Span, Token, Doc
 from spacy.matcher import Matcher
 from main.parser.filing_nlp import SpacyFilingTextSearch
+from pandas import to_datetime
 
 @pytest.fixture
 def get_search():
@@ -10,12 +11,53 @@ def get_search():
     yield search
     del search
 
-# @pytest.fixture
-# def get_empty_matcher(get_search):
-#     search = get_search
-#     matcher = Matcher(search.nlp.vocab)
-#     yield matcher
-#     del matcher
+def test__create_secu_span_dependency_matcher_dict(get_search):
+    search = get_search
+    text = "The Series A Warrants have an exercise price of $11.50 per share"
+    doc = search.nlp(text)
+    secu = doc[1:4]
+    dep_dict = search._create_secu_span_dependency_matcher_dict(secu)
+    assert dep_dict == [
+        {
+            'RIGHT_ID': 'secu_anchor',
+            'RIGHT_ATTRS': {'ENT_TYPE': 'SECU', 'LOWER': 'warrants'}
+        },
+        {
+            'LEFT_ID': 'secu_anchor',
+            'REL_OP': '>',
+            'RIGHT_ID': 'series__1',
+            'RIGHT_ATTRS': {'LOWER': 'Series'}
+        },
+        {
+            'LEFT_ID': 'secu_anchor',
+            'REL_OP': '>',
+            'RIGHT_ID': 'a__2',
+            'RIGHT_ATTRS': {'LOWER': 'A'}
+        }
+        ]
+    
+
+@pytest.mark.parametrize(["text", "expected"], [
+    (
+        "Warrant Shares",
+        "Shares"
+    ),
+    (
+        "Placement Agent Warrant",
+        "Warrant"
+    ),
+    (
+        "Warrant",
+        "Warrant"
+    )
+])
+def test__get_compound_SECU_root(text, expected, get_search):
+    search = get_search
+    doc = search.nlp(text)
+    secu = doc[0:]
+    root_token = search._get_compound_SECU_root(secu)
+    assert isinstance(root_token, Token) is True
+    assert root_token.text == expected
 
 @pytest.mark.parametrize(["text", "expected", "secu_idx"], [
     (
@@ -37,15 +79,24 @@ def get_search():
 def test_match_exercise_price(text, expected, secu_idx, get_search):
     search: SpacyFilingTextSearch = get_search
     doc = search.nlp(text)
-    # print([ent.text for ent in doc.ents])
-    # print([token.text for token in doc])
     secu = doc[secu_idx[0]:secu_idx[1]]
     matches = search.match_secu_exercise_price(doc, secu)
-    # print(matches, type(matches[0]))
     assert expected == matches[0]
 
-# def test_correctly_setting_SECU_entities(get_search):
-#     text = 
+
+
+# @pytest.mark.parametrize(["text", "expected", "secu_idx"], [
+#         (
+            
+#         )
+#     ])
+# def test_match_expiry(text, expected, secu_idx, get_search):
+#     search: SpacyFilingTextSearch = get_search
+#     doc = search.nlp(text)
+#     secu = doc[secu_idx[0]:secu_idx[1]]
+#     matches = search.match_secu_expiry(doc, secu)
+#     assert expected == matches[0]
+
 
 def test_secu_alias_map(get_search):
     search = get_search
@@ -65,8 +116,25 @@ def test_secu_alias_map(get_search):
         assert expected == received.text
     for expected, received in zip(expected_alias, received_alias):
         assert expected == received.text
-    # assert 1==2
 
-    # assert {'common stock': {'base': [doc[49:51], doc[80:82]], 'alias': []}, 'warrant': {'base': [doc[71:72]], 'alias': []}} == doc._.single_secu_alias
-
-
+def test_match_outstanding_shares(get_search):
+    search = get_search
+    phrases = (
+        "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
+        "The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022",
+        "based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. ",
+        "are based on 30,823,573 shares outstanding on April 11, 2022. ",
+        "based on 70,067,147 shares of our Common Stockoutstanding as of October 18, 2021. ",
+        "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. "
+        )
+    expected = [
+        {"date": to_datetime("May 4, 2021"),"amount": 46522759},
+        {"date": to_datetime("May 16, 2022"),"amount": 399794291},
+        {"date": to_datetime("January  17, 2020"),"amount": 34190415},
+        {"date": to_datetime("April 11, 2022"),"amount": 30823573},
+        {"date": to_datetime("October 18, 2021"),"amount": 70067147},
+        {"date": to_datetime("October 26, 2020"),"amount": 41959545},
+    ]
+    for sent, ex in zip(phrases, expected):
+        res = search.match_outstanding_shares(sent)
+        assert res[0] == ex
