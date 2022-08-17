@@ -891,29 +891,44 @@ if __name__ == "__main__":
         # "We will be prohibited from effecting an exercise of the Investor Warrant to the extent that, as a result of such exercise, the Investor would beneficially own more than 9.99% of the number of shares of our common stock outstanding immediately after giving effect to the Warrant Shares."
         
         ## EXPIRY SENTENCES
-        # "The Placement Agent Warrants are immediately exercisable and expire on the five-year anniversary of the date of issuance.",
+        # "The Warrants are immediately exercisable and expire on the five-year anniversary of the date of issuance.",
+        # "The Warrants expire on the five-year anniversary of the date of issuance.",
+        # "The Warrants expires on August 6, 2025.",
+        "The Warrants are exercisable at an exercise price of $2.00 per share and expire on the fourth year anniversary of December 14, 2021, the initial issuance date of the Warrants",
+        # "The Warrants have an exercise price of $11.50 per share will be exercisable beginning on the calendar day following the six month anniversary of the date of issuance, will expire on March 17, 2026.",
         # "Holders of our Series A Warrants may exercise their Series A Warrants at any time beginning on the first anniversary of the date of issuance of such shares up to 5:00 p.m., New York time, on the date that is the fifth anniversary of such date of issuance (the “Series A Warrant Expiration Date”).",
+        
         # "The option fully vested on the date of grant and expires on August 6, 2025.",
-        # "The Warrants are exercisable at an exercise price of $2.00 per share and expire on the fourth year anniversary of December 14, 2021, the initial issuance date of the Warrants",
         # "The Investor Warrant is immediately exercisable and will expire on the five-year anniversary of the date of issuance",
-        "The Series A Warrants have an exercise price of $11.50 per share.",
-        #  will be exercisable beginning on the calendar day following the six month anniversary of the date of issuance, will expire on March 17, 2026.",
         # "Each Company Warrant become exercisable on May 4, 2021 and will expire five years after the completion of the Business Combination, or earlier upon redemption.",
 
         ]
+    secu_idxs = [
+        # (1, 2),
+        (1, 2),
+        # (1, 2),
+        # (1, 2),
+        # (1, 2)
+        # (3, 6),
+    ]
     docs = []
     ex = []
-    for text in texts:
+    for text, idxs in zip(texts, secu_idxs):
         doc = search.nlp(text)
+        print(doc)
+        print(ex.append(extractor.spacy_text_search.match_secu_expiry(doc, doc[idxs[0]:idxs[1]])))
+        for token in doc:
+            print(token.lemma_, token.ent_type_)
         # ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[0:1]))
         # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
         docs.append(doc)
-        print("prep_phrases: ")
-        [print("    ", x) for x  in extractor.spacy_text_search.get_prep_phrases(doc)]
-        print("verbal_phrases: ")
-        [print("    ", x) for x in extractor.spacy_text_search.get_verbal_phrases(doc)]
-        print("noun_chunks: ")
-        [print("    ", chunk, chunk.root.text, chunk.root.dep_) for chunk in doc.noun_chunks]
+    print(ex)
+        # print("prep_phrases: ")
+        # [print("    ", x) for x  in extractor.spacy_text_search.get_prep_phrases(doc)]
+        # print("verbal_phrases: ")
+        # [print("    ", x) for x in extractor.spacy_text_search.get_verbal_phrases(doc)]
+        # print("noun_chunks: ")
+        # [print("    ", chunk, chunk.root.text, chunk.root.dep_) for chunk in doc.noun_chunks]
     # print("secus_with_dollar_CD: ", ex)
         # # deps = set([token.dep_ for token in doc])
         # # tag = set([token.tag_ for token in doc])
@@ -943,10 +958,10 @@ if __name__ == "__main__":
             #             print("found: ", [i if i.dep_ == "compound" else  for i in t.lefts], [i for i in t.rights], t.i) 
         # print("root: ", doc.root)
         # docs.append(doc)
-    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
+    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
     # displacy.serve(docs, style="ent", options={
-    #     "ents": ["SECU", "SECUQUANTITY"],
-    #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
+    #     "ents": ["SECU", "SECUQUANTITY", "DATE"],
+    #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "DATE": "#eb4034"}
     #     },
     #     port=5000
     # )

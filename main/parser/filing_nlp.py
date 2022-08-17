@@ -1,4 +1,5 @@
 from functools import partial
+from tkinter import E
 from typing import Callable, Dict, Set
 from attr import Attribute
 import spacy
@@ -10,6 +11,7 @@ import logging
 import string
 import re
 import  pandas as pd
+from datetime import timedelta
 
 from main.security_models.naiv_models import CommonShare, Securities
 
@@ -21,6 +23,43 @@ PLURAL_SINGULAR_SECU_TAIL_MAP = {
 SINGULAR_PLURAL_SECU_TAIL_MAP = {
     "warrant": "warrants"
 }
+
+class WordToNumberConverter():
+    numbers_map = {
+        "one": 1,
+        "first": 1,
+        "two": 2,
+        "second": 2,
+        "three": 3,
+        "third": 3,
+        "four": 4,
+        "fourth": 4,
+        "five": 5,
+        "fifth": 5,
+        "six": 6,
+        "sixth": 6,
+        "seven": 7,
+        "seventh": 7,
+        "eight": 8,
+        "eighth": 8,
+        "nine": 9,
+        "ninth": 9,
+        "ten": 10,
+        "tenth": 10,
+        "eleven": 11,
+        "eleventh": 11,
+        "twelve": 12,
+        "twelfth": 12
+    }
+    timedelta_map = {
+        "day": timedelta(day=1),
+        "week": timedelta(weeks=1),
+        "month": timedelta(month=1),
+        "year": timedelta(days=365.25)
+    }
+
+    def convert_spacy_span(self, span: Span):
+        pass
 
 class MatchFormater:
     def parse_number(self, text):
@@ -93,6 +132,12 @@ class MatchFormater:
         if re.search(re.compile("billion(?:s)?", re.I), money):
             multiplier = 1000000000
         return float(amount_float*multiplier)
+    
+    def coerce_date_tokens_to_datetime(list[Token]):
+        pass
+    
+    def coerce_date_tokens_to_timedelta(list[Token]):
+        pass
     
 
     def issuable_relation_no_primary_secu():
@@ -1000,28 +1045,162 @@ class SpacyFilingTextSearch:
                             "RIGHT_ATTRS": {"LOWER": token.lower_}
                         }
                     )
-        logger.debug(f"root_pattern: {root_pattern}")
         return root_pattern
 
                 
         
     
     def match_secu_expiry(self, doc: Doc, secu: Span):
-        secu_root_token = self._get_compound_SECU_root(secu)
+        secu_root_pattern = self._create_secu_span_dependency_matcher_dict(secu)
+        dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
         patterns = [
             [
-                {
-                    "RIGHT_ID": "secu_anchor",
-                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-                },
+                *secu_root_pattern,
                 {
                     "LEFT_ID": "secu_anchor",
                     "REL_OP": "<",
                     "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "expire"}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj1",
+                    "RIGHT_ATTRS": {"DEP": "pobj"}, 
+                },
+            ],
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "verb2",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "expire"}, 
+                },
+                {
+                    "LEFT_ID": "verb2",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj1",
+                    "RIGHT_ATTRS": {"DEP": "pobj"}, 
+                },
+            ],
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb2",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "exercise"}, 
+                },
+                {
+                    "LEFT_ID": "verb2",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "up"}, 
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep2",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "to"}, 
+                },
+                {
+                    "LEFT_ID": "prep2",
+                    "REL_OP": ".*",
+                    "RIGHT_ID": "prep3",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
+                },
+                {
+                    "LEFT_ID": "prep3",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj1",
+                    "RIGHT_ATTRS": {"DEP": "pobj", "LEMMA": "date"}, 
+                },
+                {
+                    "LEFT_ID": "pobj1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "verb3",
+                    "RIGHT_ATTRS": {"LEMMA": "be"}, 
+                },
+                {
+                    "LEFT_ID": "verb3",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "attr1",
+                    "RIGHT_ATTRS": {"DEP": "attr"}, 
+                },
+                {
+                    "LEFT_ID": "attr1",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "issuance1",
+                    "RIGHT_ATTRS": {"ENT_TYPE": {"IN": ["ORDINAL", "CARDINAL"]}}, 
                 },
             ]
         ]
+        dep_matcher.add("expiry", patterns)
+        matches = dep_matcher(doc)
+        logger.debug(f"raw expiry matches: {matches}")
+        if matches:
+            matches = _convert_dep_matches_to_spans(doc, matches)
+            logger.info(f"matches: {matches}")
+            for match in matches:
+                print(self._format_expiry_match(match))
+            return matches
+    
+    def _format_expiry_match(self, match):
+        print([(i.ent_type_, i.text) for i in match])
+        if match[-1].ent_type_ == "ORDINAL":
+            match = match[:-1]
+        if match[-1].lower_ != "anniversary":
+            try:
+                date = "".join([i.text for i in match[-1].subtree])
+                date = pd.to_datetime(date).date()
+            except Exception as e:
+                pass
+            else:
+                return date
+        else:
+            date_tokens = [i for i in match[-1].subtree]
+            print(date_tokens, [i.dep_ for i in date_tokens])
+            dates = []
+            date = []
+            for token in date_tokens:
+                if token.dep_ != "prep":
+                    date.append(token)
+                else:
+                    dates.append(date)
+                    date = []
+            if date != []:
+                dates.append(date)
+            if len(dates) == 2:
+                #handle anniversary with issuance date
+                for date in dates:
+                    formater.
+                pass
+            elif len(dates) == 1:
+                #handle anniversary without issuance date
+                pass
+
+
+            
+
 
     
     def match_secu_exercise_price(self, doc: Doc, secu: Span):

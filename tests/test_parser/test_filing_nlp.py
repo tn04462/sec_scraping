@@ -58,6 +58,7 @@ def test__get_compound_SECU_root(text, expected, get_search):
     root_token = search._get_compound_SECU_root(secu)
     assert isinstance(root_token, Token) is True
     assert root_token.text == expected
+    
 
 @pytest.mark.parametrize(["text", "expected", "secu_idx"], [
     (
