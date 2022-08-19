@@ -52,16 +52,57 @@ class WordToNumberConverter():
         "twelfth": 12
     }
     timedelta_map = {
-        "day": timedelta(day=1),
+        "day": timedelta(days=1),
         "week": timedelta(weeks=1),
-        "month": timedelta(month=1),
-        "year": timedelta(days=365.25)
+        "month": timedelta(days=30),
+        "year": timedelta(days=365.25),
+        "days": timedelta(days=1),
+        "weeks": timedelta(weeks=1),
+        "months": timedelta(days=30),
+        "years": timedelta(days=365.25)
     }
 
-    def convert_spacy_span(self, span: Span):
-        pass
+    def convert_spacy_token(self, token: Token):
+        if self.numbers_map.get(token.lower_):
+            return self.numbers_map[token.lower_]
+        if self.timedelta_map.get(token.lower_):
+            return self.timedelta_map[token.lower_]
+        return None
+    
+    # def convert_spacy_tokens_to_timedelta(self, tokens: list[Token]):
+    #     converted = []
+    #     timedelta_keys = self.timedelta_map.keys()
+    #     numbers_keys = self.numbers_map.keys()
+    #     for idx, token in enumerate(tokens):
+    #         if idx != 0:
+    #             if token.lower_ in timedelta_keys:
+    #                 multipliers = []
+    #                 not_timedelta_tokens = []
+    #                 for x in range(idx-1, -1, -1):
+    #                     if tokens[x].lower_ in numbers_keys:
+    #                         multipliers.append(tokens[x].lower_)
+    #                     else:
+    #                         break
+    #                     if tokens[x].lower_ in timedelta_keys:
+    #                         break
+    #                     else:
+    #                         not_timedelta_tokens.append(tokens[x])
+    #                 count_multiplier = len(multipliers)
+    #                 if count_multiplier > 1:
+    #                     raise NotImplementedError(f"Handling of more than one number before the timdelta key isnt handled yet")
+    #                 if count_multiplier == 0:
+    #                     continue
+    #                     # raise NotImplementedError(f"Unhandled case of number or timedelta before timedelta, tokens before timedelta: {not_timedelta_tokens}")
+    #                 multiplier = self.numbers_map.get(multipliers[0])
+    #                 td = self.timedelta_map.get(token.lower_)
+    #                 if multiplier and td:
+    #                     converted.append(multiplier*td)
+    #     return converted if converted != [] else None
 
 class MatchFormater:
+    def __init__(self):
+        self.w2n = WordToNumberConverter()
+
     def parse_number(self, text):
         '''from https://github.com/hayj/SystemTools/blob/master/systemtools/number.py'''
         try:
@@ -133,11 +174,51 @@ class MatchFormater:
             multiplier = 1000000000
         return float(amount_float*multiplier)
     
-    def coerce_date_tokens_to_datetime(list[Token]):
-        pass
+    def coerce_tokens_to_datetime(self, tokens: list[Token]):
+        try:
+            date = pd.to_datetime("".join([i.text for i in tokens]))
+        except Exception:
+            return None
+        else:
+            return date
+
     
-    def coerce_date_tokens_to_timedelta(list[Token]):
-        pass
+    def coerce_tokens_to_timedelta(self, tokens: list[Token]):
+        multipliers = []
+        timdelta_ = None
+        current_idxs = []
+        converted = []
+        for idx, token in enumerate(tokens):
+            w2n_conversion = self.w2n.convert_spacy_token(token)
+            if w2n_conversion:
+                if isinstance(w2n_conversion, timedelta):
+                    timedelta_ = w2n_conversion
+                    current_idxs.append(idx)
+                    for prev_idx in range(idx-1, -1, -1):
+                        prev_token = tokens[prev_idx]
+                        try:
+                            current_idxs.append(prev_idx)
+                            number = int(prev_token.lower_)
+                        except ValueError:
+                            number = self.w2n.convert_spacy_token(prev_token)
+                            if isinstance(number, int):
+                                multipliers.append(number)
+                            else:
+                                timedelta_ = None
+                                multipliers = []
+                                current_idxs = []
+                                continue
+                    if multipliers != [] and timedelta_ is not None:
+                        if len(multipliers) > 1:
+                            raise NotImplementedError(f"multiple numbers before a timedelta token arent handled yet")
+                        converted.append((multipliers[0]*timedelta_, current_idxs))
+                        timedelta_ = None
+                        multipliers = []
+                        current_idxs = []
+        return converted
+
+            
+
     
 
     def issuable_relation_no_primary_secu():
@@ -1173,7 +1254,7 @@ class SpacyFilingTextSearch:
                 date = "".join([i.text for i in match[-1].subtree])
                 date = pd.to_datetime(date).date()
             except Exception as e:
-                pass
+                logger.debug(f"failed to format expiry match: {match}")
             else:
                 return date
         else:
@@ -1192,7 +1273,7 @@ class SpacyFilingTextSearch:
             if len(dates) == 2:
                 #handle anniversary with issuance date
                 for date in dates:
-                    formater.
+                    pass
                 pass
             elif len(dates) == 1:
                 #handle anniversary without issuance date
