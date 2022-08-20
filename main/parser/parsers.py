@@ -1405,9 +1405,9 @@ class HTMFilingParser(AbstractFilingParser):
                                 }
                             )
                             re_terms.remove(term)
-        logger.debug(
-            f"section_start_elements from  _get_front_page...: {section_start_elements}"
-        )
+        # logger.debug(
+        #     f"section_start_elements from  _get_front_page...: {section_start_elements}"
+        # )
         return section_start_elements
 
     # def _get_toc_list(self, doc: BeautifulSoup, start_table: element.Tag = None):

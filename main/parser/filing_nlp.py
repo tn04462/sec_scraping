@@ -174,10 +174,11 @@ class MatchFormater:
             multiplier = 1000000000
         return float(amount_float*multiplier)
     
-    def coerce_tokens_to_datetime(self, tokens: list[Token]):
+    def coerce_tokens_to_datetime(self, tokens: list[Token]|Span):
         try:
-            date = pd.to_datetime("".join([i.text for i in tokens]))
-        except Exception:
+            date = pd.to_datetime("".join([i.text_with_ws for i in tokens]))
+        except Exception as e:
+            logger.debug(e, exc_info=True)
             return None
         else:
             return date
@@ -199,23 +200,21 @@ class MatchFormater:
                         try:
                             current_idxs.append(prev_idx)
                             number = int(prev_token.lower_)
+                            multipliers.append(number)
                         except ValueError:
                             number = self.w2n.convert_spacy_token(prev_token)
                             if isinstance(number, int):
                                 multipliers.append(number)
                             else:
-                                timedelta_ = None
-                                multipliers = []
-                                current_idxs = []
-                                continue
+                                break
                     if multipliers != [] and timedelta_ is not None:
                         if len(multipliers) > 1:
                             raise NotImplementedError(f"multiple numbers before a timedelta token arent handled yet")
                         converted.append((multipliers[0]*timedelta_, current_idxs))
-                        timedelta_ = None
-                        multipliers = []
-                        current_idxs = []
-        return converted
+                timedelta_ = None
+                multipliers = []
+                current_idxs = []                    
+        return converted if converted != [] else None
 
             
 
@@ -1075,31 +1074,6 @@ class SpacyFilingTextSearch:
                 subtree = [i for i in token.subtree]
                 phrases.append(doc[subtree[0].i:subtree[-1].i])
         return phrases
-    
-    # def match_SECU_root_verb(self, doc: Doc, secu_root_token: Token, secu: Span):
-    #     dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-    #     patterns = [
-    #         [
-    #             {
-    #                 "RIGHT_ID": "secu_anchor",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-    #             },
-    #             {
-    #                 "LEFT_ID": "secu_anchor",
-    #                 "REL_OP": "<",
-    #                 "RIGHT_ID": "verb1",
-    #                 "RIGHT_ATTRS": {"POS": "VERB"}, 
-    #             },
-    #         ]
-    #     ]
-    #     dep_matcher.add("exercise_price", patterns)
-    #     matches = dep_matcher(doc)
-    #     if matches:
-    #         if len(matches) > 1:
-    #             raise AttributeError(f"secu_root_token cant have more than one root verb.")
-    #         matches = _convert_dep_matches_to_spans(doc, matches)
-    #         return matches[0]
-    #     return None
 
     def _create_secu_span_dependency_matcher_dict(self, secu: Span) -> dict:
         '''
@@ -1241,9 +1215,10 @@ class SpacyFilingTextSearch:
         if matches:
             matches = _convert_dep_matches_to_spans(doc, matches)
             logger.info(f"matches: {matches}")
+            formatted_matches = []
             for match in matches:
-                print(self._format_expiry_match(match))
-            return matches
+                formatted_matches.append(self._format_expiry_match(match))
+            return formatted_matches
     
     def _format_expiry_match(self, match):
         print([(i.ent_type_, i.text) for i in match])
@@ -1251,8 +1226,9 @@ class SpacyFilingTextSearch:
             match = match[:-1]
         if match[-1].lower_ != "anniversary":
             try:
-                date = "".join([i.text for i in match[-1].subtree])
-                date = pd.to_datetime(date).date()
+                date = "".join([i.text_with_ws for i in match[-1].subtree])
+                logger.debug(f"date tokens joined: {date}")
+                date = pd.to_datetime(date)
             except Exception as e:
                 logger.debug(f"failed to format expiry match: {match}")
             else:
@@ -1272,13 +1248,32 @@ class SpacyFilingTextSearch:
                 dates.append(date)
             if len(dates) == 2:
                 #handle anniversary with issuance date
+                issue_date = None
+                offset_delta = None
                 for date in dates:
-                    pass
-                pass
+                    possible_date = formater.coerce_tokens_to_datetime(date)
+                    if possible_date:
+                        issue_date = possible_date
+                    else:
+                        possible_delta = formater.coerce_tokens_to_timedelta(date)
+                        if possible_delta:
+                            if len(possible_delta) < 2:
+                                offset_delta = possible_delta[0][0]
+                if issue_date and offset_delta:
+                    return issue_date + offset_delta
             elif len(dates) == 1:
-                #handle anniversary without issuance date
-                pass
-
+                date = dates[0]
+                possible_date = formater.coerce_tokens_to_datetime(date)
+                if possible_date:
+                    return possible_date
+                else:
+                    possible_delta = formater.coerce_tokens_to_timedelta(date)
+                    if possible_delta:
+                        if len(possible_delta) == 1:
+                            return possible_delta[0][0]
+                        else:
+                            raise NotImplementedError("cant handle more than one timedelta occurence when formatting expiry match")
+        return None
 
             
 
@@ -1497,7 +1492,6 @@ class SpacyFilingTextSearch:
                 for token in match:
                     if token.tag_ == "CD":
                         return formater.money_string_to_float(token.text)
-            # print([_get_CD_object_from_match(match) for match in matches], matches)
             return [_get_CD_object_from_match(match) for match in matches]
 
 

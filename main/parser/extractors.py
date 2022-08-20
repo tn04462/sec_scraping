@@ -24,6 +24,9 @@ security_type_factory = SecurityTypeFactory()
 class UnhandledClassificationError(Exception):
     pass
 
+class UnclearInformationExtraction(Exception):
+    pass
+
 
 
 class AbstractFilingExtractor(ABC):
@@ -247,50 +250,44 @@ class BaseHTMExtractor():
                 if sent[end+1].ent_type_ != "SECU":
                     return True
         return False
-
-            
-
-    # def get_secu_exercise_price(self, doc: Doc, security_name: str):
-        ## POSSIBLE WASTE CODE
-        ## look through sentences and call matcher on sentence with alias/base
-        # secu_spans = self.get_queryable_secu_spans_from_key(doc, security_name)
-        # print(f"get_secu_exercise_price got following spans to query for: {secu_spans}")
-        # exercise_prices_seen = set()
-        # exercise_prices = []
-        # if secu_spans is None:
-        #     return None
-        # for secu in secu_spans:
-        #     start, end = secu.start, secu.end
-        #     for sent in doc.sents:
-        #         if sent[0].i <= start <= sent[-1].i:
-        #             temp_doc = doc[sent.start:sent.end]
-        #             exercies_price = self.spacy_text_search.match_secu_exercise_price(temp_doc, secu)
-        #             if exercies_price:
-        #                 for price in exercies_price:
-        #                     if price not in exercise_prices_seen:
-        #                         exercise_prices_seen.add(price)
-        #                         exercise_prices.append(price)
-        # print("exercise_prices found: ", exercise_prices)
-        # return exercise_prices
-
-
-
-        pass
     
     def get_secu_expiry(self, doc: Doc, security_name: str, security_spans: List[Span]):
-        pass
+        expiries_seen = set()
+        expiries = []
+        logger.debug("get_secu_expiry:")
+        logger.debug(f" getting expiry for:")
+        logger.debug(f"     security_name  - {security_name}")
+        logger.debug(f"     security_spans - {security_spans}")
+        for secu in security_spans:
+            for sent in doc.sents:
+                if self._is_span_in_sent(sent, secu):
+                    temp_doc = doc[sent.start:sent.end]
+                    expiry = self.spacy_text_search.match_secu_expiry(temp_doc, secu)
+                    if expiry:
+                        logger.info(expiry)
+                        if expiry not in expiries_seen:
+                            expiries_seen.add(expiry)
+                            expiries.append(expiry)
+        if len(expiries) > 1:
+            raise UnclearInformationExtraction(f"Couldnt get a definitive match for the expiry, got multiple: {expiries}")
+        else:
+            return expiries if expiries != [] else None
 
     def get_secu_multiplier(self, doc: Doc, security_name: str, security_spans: List[Span]):
-        pass
+        logger.debug("get_secu_multiplier returning dummy value: 1")
+        return 1
 
     def get_secu_latest_issue_date(self, doc: Doc, security_name: str, security_spans: List[Span]):
-        pass
+        logger.debug("get_secu_latest_issue_date returning dummy value: None")
+        return None
 
     def get_secu_interest_rate(self, doc: Doc, security_name: str, security_spans: List[Span]):
-        pass
+        logger.debug("get_secu_interest_rate returning dummy value: 0.05")
+        return 0.05
 
     def get_secu_right(self, doc: Doc, security_name: str, security_spans: List[Span]):
-        pass
+        logger.debug("get_secu_right returning dummy value: 'Call'")
+        return "Call"
 
     def get_secu_conversion(self, doc: Doc, security_name: str, security_spans: List[Span]):
         pass

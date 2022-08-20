@@ -4,6 +4,7 @@ from spacy.tokens import Span, Token, Doc
 from spacy.matcher import Matcher
 from main.parser.filing_nlp import SpacyFilingTextSearch
 from pandas import to_datetime
+import datetime
 
 @pytest.fixture
 def get_search():
@@ -86,17 +87,33 @@ def test_match_exercise_price(text, expected, secu_idx, get_search):
 
 
 
-# @pytest.mark.parametrize(["text", "expected", "secu_idx"], [
-#         (
-            
-#         )
-#     ])
-# def test_match_expiry(text, expected, secu_idx, get_search):
-#     search: SpacyFilingTextSearch = get_search
-#     doc = search.nlp(text)
-#     secu = doc[secu_idx[0]:secu_idx[1]]
-#     matches = search.match_secu_expiry(doc, secu)
-#     assert expected == matches[0]
+@pytest.mark.parametrize(["text", "expected", "secu_idx"], [
+        (
+            "The Warrants expires on August 6, 2025.",
+            datetime.datetime(2025, 8, 6),
+            (1, 2),
+
+        ),
+        (
+            "The Warrants are exercisable at an exercise price of $2.00 per share and expire on the fourth year anniversary of December 14, 2021, the initial issuance date of the Warrants",
+            datetime.datetime(2021, 12, 14) + 4*datetime.timedelta(365.25),
+            (1, 2),
+
+        ),
+        (
+            "The Warrants have an exercise price of $11.50 per share will be exercisable beginning on the calendar day following the six month anniversary of the date of issuance, will expire on March 17, 2026.",
+            datetime.datetime(2026, 3, 17),
+            (1, 2),
+
+        ),
+    ])
+def test_match_expiry(text, expected, secu_idx, get_search):
+    search: SpacyFilingTextSearch = get_search
+    doc = search.nlp(text)
+    secu = doc[secu_idx[0]:secu_idx[1]]
+    matches = search.match_secu_expiry(doc, secu)
+    print(matches)
+    assert expected == matches[0]
 
 
 def test_secu_alias_map(get_search):
