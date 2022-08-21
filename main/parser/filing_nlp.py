@@ -1,6 +1,6 @@
 from functools import partial
 from tkinter import E
-from typing import Callable, Dict, Set
+from typing import Callable, Dict, Optional, Set
 from attr import Attribute
 import spacy
 from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
@@ -13,8 +13,6 @@ import re
 import  pandas as pd
 from datetime import timedelta
 
-from main.security_models.naiv_models import CommonShare, Securities
-
 logger = logging.getLogger(__name__)
 
 PLURAL_SINGULAR_SECU_TAIL_MAP = {
@@ -23,6 +21,9 @@ PLURAL_SINGULAR_SECU_TAIL_MAP = {
 SINGULAR_PLURAL_SECU_TAIL_MAP = {
     "warrant": "warrants"
 }
+
+class UnclearInformationExtraction(Exception):
+    pass
 
 class WordToNumberConverter():
     numbers_map = {
@@ -197,6 +198,8 @@ class MatchFormater:
                     current_idxs.append(idx)
                     for prev_idx in range(idx-1, -1, -1):
                         prev_token = tokens[prev_idx]
+                        if prev_token.is_punct:
+                            continue
                         try:
                             current_idxs.append(prev_idx)
                             number = int(prev_token.lower_)
@@ -425,6 +428,28 @@ def get_secu_key(secu: Span|str):
     logger.debug(f"get_secu_key() returning key: {result} from secu: {secu}")
     return result
 
+def set_SECUMatcher_extensions():
+    span_extensions = [
+        {"name": "secuquantity", "kwargs": {"getter": get_secuquantity}},
+        {"name": "secuquantity_unit", "kwargs": {"default": None}}
+    ]
+    doc_extensions = [
+        {"name": "alias_set", "kwargs": {"default": set()}},
+        {"name": "tokens_to_alias_map", "kwargs": {"default": dict()}},
+        {"name": "single_secu_alias", "kwargs": {"default": dict()}},
+        {"name": "single_secu_alias_tuples", "kwargs": {"default": dict()}},
+        {"name": "is_alias", "kwargs": {"method": is_alias}},
+        {"name": "get_alias", "kwargs": {"method": get_alias}},
+        {"name": "secus", "kwargs": {"getter": _get_SECU_in_doc}},
+    ]
+    def _set_extension(cls, name, kwargs):
+        if not cls.has_extension(name):
+            cls.set_extension(name, **kwargs)
+    for each in span_extensions:
+        _set_extension(Span, each["name"], each["kwargs"])
+    for each in doc_extensions:
+        _set_extension(Doc, each["name"], each["kwargs"])
+
 class SECUMatcher:
     def __init__(self, vocab):
         self.vocab = vocab
@@ -433,16 +458,18 @@ class SECUMatcher:
         self.matcher_SECUATTR = Matcher(vocab)
         self.matcher_SECUQUANTITY = Matcher(vocab)
 
-        Span.set_extension("secuquantity", getter=get_secuquantity)
-        Span.set_extension("secuquantity_unit", default=None)
-        Doc.set_extension("get_alias", method=get_alias)
-        Doc.set_extension("alias_set", default=set())
-        Doc.set_extension("tokens_to_alias_map", default=dict())
+        set_SECUMatcher_extensions()
 
-        Doc.set_extension("is_alias", method=is_alias)
-        Doc.set_extension("single_secu_alias", default=dict())
-        Doc.set_extension("single_secu_alias_tuples", default=dict())
-        Doc.set_extension("secus", getter=_get_SECU_in_doc)
+        # Span.set_extension("secuquantity", getter=get_secuquantity)
+        # Span.set_extension("secuquantity_unit", default=None)
+        # Doc.set_extension("get_alias", method=get_alias)
+        # Doc.set_extension("alias_set", default=set())
+        # Doc.set_extension("tokens_to_alias_map", default=dict())
+
+        # Doc.set_extension("is_alias", method=is_alias)
+        # Doc.set_extension("single_secu_alias", default=dict())
+        # Doc.set_extension("single_secu_alias_tuples", default=dict())
+        # Doc.set_extension("secus", getter=_get_SECU_in_doc)
     
         
         self.add_SECU_ent_to_matcher(self.matcher_SECU)
@@ -791,22 +818,33 @@ class SECUMatcher:
         matcher.add("SECU_ENT", [*patterns, *depositary_patterns, *special_patterns], on_match=_add_SECU_ent)
 
     def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
+        
         regular_patterns = [
             [
                 {"ENT_TYPE": "CARDINAL", "OP": "+"},
                 {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
                 {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
             ],
+            
             [   
                 {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
                 {"LOWER": "of", "OP": "?"},
                 {"LOWER": "our", "OP": "?"},
                 {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
+            ],
+            [
+                {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
+                {"LOWER": "shares"},
+                {"OP": "*", "IS_SENT_START": False, "POS": {"NOT_IN": ["VERB"]}, "ENT_TYPE": {"NOT_IN": ["SECU", "SECUQUANTITY"]}},
+                {"LOWER": "of", "OP": "?"},
+                {"LOWER": "our", "OP": "?"},
+                {"ENT_TYPE": {"IN": ["SECU"]}}
             ]
+
         ]
 
         matcher.add("SECUQUANTITY_ENT", [*regular_patterns], on_match=_add_SECUQUANTITY_ent_regular_case)
-
+        logger.info("added SECUQUANTITY patterns to matcher")
 
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if end == len(doc):
@@ -851,7 +889,8 @@ def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
             "indebenture",
             # "rights",
             "shares"],
-            ent_callback=add_SECU_to_spans
+            ent_callback=add_SECU_to_spans,
+            always_overwrite=["ORG"]
             )
 
 def _add_SECUATTR_ent(matcher, doc: Doc, i: int, matches):
@@ -862,11 +901,13 @@ def _add_SECUATTR_ent(matcher, doc: Doc, i: int, matches):
 def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     _, match_start, match_end = matches[i]
     match_tokens = [t for t in doc[match_start:match_end]]
+    logger.debug(f"handling SECUQUANTITY for match: {match_tokens}")
     match_id, start, _ = matches[i]
     end = None
     wanted_tokens = []
     for token in match_tokens:
-        if token.ent_type_ in ["MONEY", "CARDINAL"]:
+        logger.debug(f"token: {token}, ent_type: {token.ent_type_}")
+        if token.ent_type_ in ["MONEY", "CARDINAL", "SECUQUANTITY"]:
             # end = token.i-1
             wanted_tokens.append(token.i)
     end = sorted(wanted_tokens)[-1]+1 if wanted_tokens != [] else None
@@ -891,7 +932,7 @@ def _set_secuquantity_unit_on_span(match_tokens: Span, span: Span):
     else:
         span._.secuquantity_unit = "COUNT"
 
-def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None, ent_exclude_condition: Callable=None):
+def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None, ent_exclude_condition: Callable=None, always_overwrite: Optional[list[str]]=None):
     '''add a custom entity through an on_match callback.
     
     Args:
@@ -911,27 +952,28 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
             logger.debug(f"Added entity: {entity} with label: {ent_label}")
         except ValueError as e:
             if "[E1010]" in str(e):
-                handle_overlapping_ents(doc, start, end, entity)
+                handle_overlapping_ents(doc, start, end, entity, overwrite_labels=always_overwrite)
         if (ent_callback) and (entity in doc.ents):
             ent_callback(doc, entity)
 
-def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span):
+def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwrite_labels: Optional[list[str]]=None):
     previous_ents = set(doc.ents)
-    conflicting_ents = get_conflicting_ents(doc, start, end)
+    conflicting_ents = get_conflicting_ents(doc, start, end, overwrite_labels=overwrite_labels)
     logger.debug(f"conflicting_ents: {conflicting_ents}")
-    if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
+    # if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
+    if conflicting_ents != []:
         [previous_ents.remove(k[1]) for k in conflicting_ents]
         logger.debug(f"removed conflicting ents: {[k[1] for k in conflicting_ents]}")
         previous_ents.add(entity)
         doc.ents = previous_ents
         logger.debug(f"Added entity: {entity} with label: {entity.label_}")
 
-def get_conflicting_ents(doc: Doc, start: int, end: int):
+def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optional[list[str]]=None):
     conflicting_ents = []
     for ent in doc.ents:                
         covered_tokens = range(ent.start + 1, ent.end + 1)
         if (start in covered_tokens) or (end in covered_tokens):
-            if (ent.end - ent.start) <= (end - start):
+            if ((ent.end - ent.start) <= (end - start)) or (ent.label_ in overwrite_labels if overwrite_labels else False):
                 conflicting_ents.append((ent.end - ent.start, ent))
     return conflicting_ents
 
@@ -954,6 +996,7 @@ def create_secu_act_matcher(nlp, name):
 @Language.factory("security_law_retokenizer")
 def create_regex_retokenizer(nlp, name):
     return FilingsSecurityLawRetokenizer(nlp.vocab)
+
 
 class SpacyFilingTextSearch:
     _instance = None
@@ -1221,63 +1264,61 @@ class SpacyFilingTextSearch:
             return formatted_matches
     
     def _format_expiry_match(self, match):
-        print([(i.ent_type_, i.text) for i in match])
+        # print([(i.ent_type_, i.text) for i in match])
+        logger.debug("_format_expiry_match:")
         if match[-1].ent_type_ == "ORDINAL":
             match = match[:-1]
         if match[-1].lower_ != "anniversary":
             try:
                 date = "".join([i.text_with_ws for i in match[-1].subtree])
-                logger.debug(f"date tokens joined: {date}")
+                logger.debug(f"     date tokens joined: {date}")
                 date = pd.to_datetime(date)
             except Exception as e:
-                logger.debug(f"failed to format expiry match: {match}")
+                logger.debug(f"     failed to format expiry match: {match}")
             else:
                 return date
         else:
             date_tokens = [i for i in match[-1].subtree]
-            print(date_tokens, [i.dep_ for i in date_tokens])
-            dates = []
+            # print(date_tokens, [i.dep_ for i in date_tokens])
+            date_spans = []
             date = []
             for token in date_tokens:
                 if token.dep_ != "prep":
                     date.append(token)
                 else:
-                    dates.append(date)
+                    date_spans.append(date)
                     date = []
             if date != []:
-                dates.append(date)
-            if len(dates) == 2:
+                date_spans.append(date)
+            logger.debug(f"     date_spans: {date_spans}")
+            dates = []
+            deltas = []
+            if len(date_spans) > 0:
                 #handle anniversary with issuance date
-                issue_date = None
-                offset_delta = None
-                for date in dates:
+                for date in date_spans:
                     possible_date = formater.coerce_tokens_to_datetime(date)
+                    # print(f"possible_date: {possible_date}")
                     if possible_date:
-                        issue_date = possible_date
+                        dates.append(possible_date)
                     else:
                         possible_delta = formater.coerce_tokens_to_timedelta(date)
+                        # print(f"possible_delta: {possible_delta}")
                         if possible_delta:
-                            if len(possible_delta) < 2:
-                                offset_delta = possible_delta[0][0]
-                if issue_date and offset_delta:
-                    return issue_date + offset_delta
-            elif len(dates) == 1:
-                date = dates[0]
-                possible_date = formater.coerce_tokens_to_datetime(date)
-                if possible_date:
-                    return possible_date
-                else:
-                    possible_delta = formater.coerce_tokens_to_timedelta(date)
-                    if possible_delta:
-                        if len(possible_delta) == 1:
-                            return possible_delta[0][0]
-                        else:
-                            raise NotImplementedError("cant handle more than one timedelta occurence when formatting expiry match")
-        return None
-
+                            for delta in possible_delta:
+                                deltas.append(delta[0])
+                if len(dates) == 1:
+                    if len(deltas) == 1:
+                        return dates[0] + deltas[0]
+                    if len(delta) == 0:
+                        return dates[0]
+                if len(dates) > 1:
+                    raise UnclearInformationExtraction(f"unhandled case of extraction found more than one date for the expiry: {dates}")
+                if len(deltas) == 1:
+                    return deltas[0]
+                elif len(deltas) > 1:
+                    raise UnclearInformationExtraction(f"unhandled case of extraction found more than one timedelta for the expiry: {deltas}")
+            return None
             
-
-
     
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)

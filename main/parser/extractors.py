@@ -16,7 +16,7 @@ from main.domain import model,  commands
 from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityTypeFactory, Warrant, Option
 from main.services.messagebus import Message, MessageBus
 from main.services.unit_of_work import AbstractUnitOfWork
-from .filing_nlp import SpacyFilingTextSearch, MatchFormater, get_secu_key
+from .filing_nlp import SpacyFilingTextSearch, MatchFormater, get_secu_key, UnclearInformationExtraction
 
 logger = logging.getLogger(__name__)
 security_type_factory = SecurityTypeFactory()
@@ -24,8 +24,7 @@ security_type_factory = SecurityTypeFactory()
 class UnhandledClassificationError(Exception):
     pass
 
-class UnclearInformationExtraction(Exception):
-    pass
+
 
 
 
@@ -116,7 +115,8 @@ class BaseHTMExtractor():
             attributes = {
                 "name": security_name,
                 "exercise_price": self.get_secu_exercise_price(**_kwargs),
-                "expiry": self.get_secu_expiry(**_kwargs),
+                "expiry_date": self.get_secu_expiry_by_type(wanted="datetime", **_kwargs),
+                "expiry_timedelta": self.get_secu_expiry_by_type(wanted="timedelta", **_kwargs),
                 "right": self.get_secu_right(**_kwargs),
                 "multiplier": self.get_secu_multiplier(**_kwargs),
                 "issue_date": self.get_secu_latest_issue_date(**_kwargs)
@@ -157,7 +157,7 @@ class BaseHTMExtractor():
             try:
                 security = model.Security(security_type(**security_attributes))
             except ValidationError:
-                logger.debug(f"Failed to construct model.Security from args: security_type={security_type}, security_attributes={security_attributes}")
+                logger.info(f"Failed to construct model.Security from args: security_type={security_type}, security_attributes={security_attributes}")
             else:
                 securities.append(security)
         return securities
@@ -196,7 +196,10 @@ class BaseHTMExtractor():
                                 exercise_prices.append(price)
                                 logger.debug(f"     exercise price found: {price}")
                                 logger.debug(f"     sentence: {temp_doc}")
-        return exercise_prices
+        if len(exercise_prices) > 1:
+            logger.info(UnclearInformationExtraction(f"unhandled case of exercise_price extraction, got more than one exercise_price for a security: {exercise_prices}"), exc_info=True)
+            return None
+        return exercise_prices[0] if exercise_prices != [] else None
     
     def _is_span_in_sent(self, sent: Span, span: Span|Token):
         token_idx_offset = sent[0].i
@@ -251,6 +254,26 @@ class BaseHTMExtractor():
                     return True
         return False
     
+    def get_secu_expiry_by_type(self, wanted: str, doc: Doc, security_name: str, security_spans: List[Span]):
+        '''
+        handle the case for the expiry as a timedelta from the issuance date or as a specific date in time.
+
+        Args:
+            wanted: 
+                "timedelta" to get only timedelta returns
+                "datetime" to get only date returns
+        
+        Returns:
+            timedelta, datetime or None
+        '''
+        expiry = self.get_secu_expiry(doc=doc, security_name=security_name, security_spans=security_spans)
+        if expiry:
+            if isinstance(expiry, timedelta) and wanted == "timedelta":
+                return expiry
+            if isinstance(expiry, datetime) and wanted == "datetime":
+                return expiry
+        return None
+    
     def get_secu_expiry(self, doc: Doc, security_name: str, security_spans: List[Span]):
         expiries_seen = set()
         expiries = []
@@ -264,14 +287,15 @@ class BaseHTMExtractor():
                     temp_doc = doc[sent.start:sent.end]
                     expiry = self.spacy_text_search.match_secu_expiry(temp_doc, secu)
                     if expiry:
-                        logger.info(expiry)
-                        if expiry not in expiries_seen:
-                            expiries_seen.add(expiry)
-                            expiries.append(expiry)
+                        for ex in expiry:
+                            logger.info(ex)
+                            if ex not in expiries_seen and ex is not None:
+                                expiries_seen.add(ex)
+                                expiries.append(ex)
         if len(expiries) > 1:
             raise UnclearInformationExtraction(f"Couldnt get a definitive match for the expiry, got multiple: {expiries}")
         else:
-            return expiries if expiries != [] else None
+            return expiries[0] if expiries != [] else None
 
     def get_secu_multiplier(self, doc: Doc, security_name: str, security_spans: List[Span]):
         logger.debug("get_secu_multiplier returning dummy value: 1")
@@ -715,12 +739,20 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     
     
 
-
-
 class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing):
         return [self.extract_outstanding_shares(filing)]
 
+
+class HTMSC13GExtractor(BaseHTMExtractor, AbstractFilingExtractor):
+    pass
+
+class HTMSC13DExtractor(BaseHTMExtractor, AbstractFilingExtractor):
+    pass
+
+# add model for ownership tracking
+# add commands for said model
+# add?
 
 
 

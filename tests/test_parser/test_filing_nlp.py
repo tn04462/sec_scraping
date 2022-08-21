@@ -2,15 +2,55 @@ import pytest
 import spacy
 from spacy.tokens import Span, Token, Doc
 from spacy.matcher import Matcher
-from main.parser.filing_nlp import SpacyFilingTextSearch
+from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher
 from pandas import to_datetime
 import datetime
+
+@pytest.fixture
+def get_en_core_web_lg_nlp():
+    nlp = spacy.load("en_core_web_lg")
+    yield nlp
+    del nlp
 
 @pytest.fixture
 def get_search():
     search = SpacyFilingTextSearch()
     yield search
     del search
+
+@pytest.fixture
+def get_secumatcher(get_en_core_web_lg_nlp):
+    nlp = get_en_core_web_lg_nlp
+    secu_matcher = SECUMatcher(nlp.vocab)
+    yield secu_matcher
+    del secu_matcher
+
+@pytest.mark.parametrize(["input", "expected"], [
+    (
+        "This prospectus covers the sale of an aggregate of 2,388,050 shares (the “shares”) of our common stock , $0.001 par value per share (the “ common stock ”), by the selling stockholders identified in this prospectus (collectively with any of the holder’s transferees, pledgees, donees or successors, the “selling stockholders”). The shares are issuable upon the exercise of warrants (the “ warrants ”) purchased by the selling stockholders in a private placement transaction exempt from registration under Section 4(a)(2) of the Securities Act of 1933, as amended (the “Securities Act”), pursuant to a Securities Purchase Agreement dated April 9, 2021 (the “Purchase Agreement”).",
+        ["2,388,050"]
+    ),
+    (
+        "This prospectus relates to an aggregate of up to 9,497,051 shares of common stock , par value $0.01 per share, of Basic Energy Services, Inc. (“Basic”) that may be resold from time to time by the selling stockholders named on page 5 of this prospectus for their own account.",
+        ["up", "to", "9,497,051"]
+    )
+])
+def test_matcher_SECUQUANTITY(input, expected, get_secumatcher, get_en_core_web_lg_nlp):
+    sm =  get_secumatcher
+    nlp = get_en_core_web_lg_nlp
+    doc = nlp(input)
+    sm.matcher_SECUQUANTITY(doc)
+    secuquantities = [i.text for i in filter(lambda x: x.ent_type_ == "SECUQUANTITY", doc)]
+    assert expected == secuquantities
+
+
+def test_matcher_SECU(get_secumatcher, get_en_core_web_lg_nlp):
+    sm = get_secumatcher
+    nlp = get_en_core_web_lg_nlp
+    doc = nlp("The Common stock, Series A Preferred stock and the Series C Warrants of company xyz is fairly valued.")
+    sm.matcher_SECU(doc)
+    secus = [i.text for i in filter(lambda x: x.ent_type_ == "SECU", doc)]
+    assert secus == ['Common', 'stock', 'Series', 'A', 'Preferred', 'stock', 'Series', 'C', 'Warrants']
 
 def test__create_secu_span_dependency_matcher_dict(get_search):
     search = get_search

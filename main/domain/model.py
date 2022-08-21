@@ -20,51 +20,6 @@ class AllowedSecurityTypes(Enum):
     Warrant = 'Warrant'
 
 
-class CommonShare(BaseModel):
-    name: str = "common stock"
-    par_value: float = 0.001
-
-    def __repr__(self):
-        return "CommonShare"
-
-class PreferredShare(BaseModel):
-    name: str
-    par_value: float = 0.001
-
-    def __repr__(self):
-        return "PreferredShare"
-
-class Option(BaseModel):
-    name: str
-    strike_price: float
-    expiry: datetime
-    right: str
-    multiplier: float = 100
-    issue_date: Optional[datetime] = None
-
-    def __repr__(self):
-        return "Option"
-
-class Warrant(BaseModel):
-    name: str
-    exercise_price: float
-    expiry: datetime
-    right: str = "Call" 
-    multiplier: float = 1.0
-    issue_date: Optional[datetime] = None
-
-    def __repr__(self):
-        return "Warrant"
-
-class DebtSecurity(BaseModel):
-    name: str
-    interest_rate: float
-    maturity: datetime
-    issue_date: Optional[datetime] = None
-
-    def __repr__(self):
-        return "DebtSecurity"
-
 class ResetFeature(BaseModel):
     '''resets feature to a certain value if certain conditions are met. eg: conversion price is adjusted if stock price is below x for y days'''
     duration: timedelta 
@@ -112,6 +67,54 @@ class ConvertibleFeature(BaseModel):
     call_features: list[CallFeature] = []
     put_features: list[PutFeature] = []
     reset_features: list[ResetFeature] = []
+    
+class CommonShare(BaseModel):
+    name: str = "common stock"
+    par_value: float = 0.001
+
+    def __repr__(self):
+        return "CommonShare"
+
+class PreferredShare(BaseModel):
+    name: str
+    par_value: float = 0.001
+    convertible_feature: Optional[ConvertibleFeature] = None
+
+    def __repr__(self):
+        return "PreferredShare"
+
+class Option(BaseModel):
+    name: str
+    strike_price: float
+    expiry: datetime
+    right: str
+    multiplier: float = 100
+    issue_date: Optional[datetime] = None
+
+    def __repr__(self):
+        return "Option"
+
+class Warrant(BaseModel):
+    name: str
+    exercise_price: float
+    right: str = "Call" 
+    multiplier: float = 1.0
+    expiry_date: Optional[datetime] = None
+    expiry_timedelta: Optional[timedelta] = None
+    issue_date: Optional[datetime] = None
+
+    def __repr__(self):
+        return "Warrant"
+
+class DebtSecurity(BaseModel):
+    name: str
+    interest_rate: float
+    maturity: datetime
+    issue_date: Optional[datetime] = None
+
+    def __repr__(self):
+        return "DebtSecurity"
+
     
 
 SecurityType: TypeAlias =  Union[CommonShare, PreferredShare, Option, Warrant, DebtSecurity, NoneType]
@@ -382,7 +385,6 @@ class ShelfRegistration:
 @dataclass
 class ResaleSecurityRegistration:
     security: Security
-    amount_dollar: int
     amount_security: int
     source_security: Optional[Security] = field(default=None)
 
@@ -390,7 +392,6 @@ class ResaleSecurityRegistration:
         if isinstance(other, ResaleSecurityRegistration):
             if (
                 (self.security == other.security) and
-                (self.amount_dollar == other.amount_dollar) and
                 (self.amount_security == other.amount_security) and
                 (self.source_security == other.source_security)
             ):
@@ -398,12 +399,11 @@ class ResaleSecurityRegistration:
         return False
     
     def __hash__(self):
-        return hash((self.amount_dollar, self.amount_security, self.source_security, self.security))
+        return hash((self.amount_security, self.source_security, self.security))
 
 @dataclass
 class ResaleSecurityComplete:
     security: Security
-    amount_dollar: int
     amount_security: int
     source_security: Optional[Security] = field(default=None)
 
@@ -411,7 +411,6 @@ class ResaleSecurityComplete:
         if isinstance(other, ResaleSecurityComplete):
             if (
                 (self.security == other.security) and
-                (self.amount_dollar == other.amount_dollar) and
                 (self.amount_security == other.amount_security) and
                 (self.source_security == other.source_security)
             ):
@@ -419,7 +418,7 @@ class ResaleSecurityComplete:
         return False
 
     def __hash__(self):
-        return hash((self.amount_dollar, self.amount_security, self.source_security, self.security))
+        return hash((self.amount_security, self.source_security, self.security))
 
 @dataclass
 class ResaleRegistration:
