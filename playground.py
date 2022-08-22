@@ -926,20 +926,29 @@ if __name__ == "__main__":
     texts = [
         # RESALE SECURITY REGISTRATION SENTENCES (ONLY COVER PAGE)
         # "The selling stockholders may offer and sell from time to time up to 9,193,766 shares of our common stock. Certain of such shares of common stock are issuable upon exercise of a warrant to purchase common stock issued to one of the selling stockholders.",
-        "This prospectus relates to an aggregate of up to 9,497,051 shares of common stock , par value $0.01 per share, of Basic Energy Services, Inc. (“Basic”) that may be resold from time to time by the selling stockholders named on page 5 of this prospectus for their own account.",
-        "This prospectus covers the sale of an aggregate of 2,388,050 shares (the “shares”) of our common stock , $0.001 par value per share (the “ common stock ”), by the selling stockholders identified in this prospectus (collectively with any of the holder’s transferees, pledgees, donees or successors, the “selling stockholders”). The shares are issuable upon the exercise of warrants (the “ warrants ”) purchased by the selling stockholders in a private placement transaction exempt from registration under Section 4(a)(2) of the Securities Act of 1933, as amended (the “Securities Act”), pursuant to a Securities Purchase Agreement dated April 9, 2021 (the “Purchase Agreement”).",
-        "his prospectus covers the sale of an aggregate of 223,880 shares (the “shares”) of our common stock , $0.001 par value per share (the “ common stock ”), by the selling stockholders identified in this prospectus (collectively with any of the holder’s transferees, pledgees, donees or successors, the “selling stockholders”). The shares are issuable upon exercise of warrants (the “ warrants ”) purchased by the selling stockholders in private placement transactions exempt from registration under Section 4(a)(2) of the Securities Act of 1933, as amended (the “Securities Act”), pursuant to Securities Purchase Agreements, dated November 17, 2021 (the “Purchase Agreements”), with the selling stockholders.",
-        "This prospectus relates to the resale, from time to time, by the selling stockholders named herein (the “Selling Stockholders”) of (i) an aggregate of 5,600,001 shares of our common stock , par value $0.0001 per share, issuable upon the conversion of certain outstanding convertible promissory notes and (ii) and aggregate of 3,135,789 shares of common stock issuable upon exercise of certain outstanding warrants (the “Warrants”).",
-        "Further, the selling stockholders identified in this prospectus (the “selling stockholders”) may offer and sell from time to time, in one or more offerings, up to 16,022,824 shares of our common stock as described in this prospectus.",
-        "This prospectus relates to the resale, from time to time, of up to an aggregate of 16,000,002 shares of common stock , par value $0.000001 per share, of Xtant Medical Holdings, Inc. by the selling stockholders named in this prospectus, including their respective donees, pledgees, transferees, assignees or other successors-in-interest.",
-        "In addition, this prospectus relates to the resale, from time to time, of up to an aggregate of 18,218,374 shares of our common stock by the selling stockholders named in this prospectus, including their respective donees, pledgees, transferees, assignees or other successors-in-interest. ",
-        # "This prospectus relates to the possible resale, from time to time, by the selling stockholders named in this prospectus of up to 52,435 shares of our Class A common stock , par value $0.01 per share (“ Class A common stock ”) currently outstanding and up to 13,100 shares of Class A common stock issuable upon redemption of units of limited partnership designated as “Class A Units” (“Class A units”) in New York City Operating Partnership, L.P., a Delaware limited partnership that is our operating partnership and of which we are the sole general partner (the “OP”). The shares of our Class A common stock covered by this prospectus include (i) 52,398 shares of Class A common stock that were issued to the Advisor upon the conversion of an equal number of limited partnership interests designated as “Class B Units” (“Class B units”) in the OP into an equal number of Class A units, and the redemption of those Class A units for an equal number of shares of 	our Class A common stock when trading of Class A common stock on The New York Stock Exchange (“NYSE”) commenced on August 18, 2020, (ii) 37 shares that were issued by us to the Advisor upon the redemption of an equal number of Class A units held by the Advisor when trading of Class A common stock on the NYSE commenced on August 18, 2020, and (iii) 13,100 shares of Class A common stock issuable upon redemption of Class A units that were issued to a former holder of equity interests in the entities that own and control the Advisor upon the conversion of an equal number of Class B units in accordance with their terms into Class A units when trading of Class A common stock on the NYSE commenced on August 18, 2020.",
+        # "This prospectus relates to an aggregate of up to 9,497,051 shares of common stock of Basic Energy Services, Inc. (“Basic”) that may be resold from time to time by the selling stockholders named on page 5 of this prospectus for their own account.",
+        # "This prospectus covers the sale of an aggregate of 2,388,050 shares (the “shares”) of our common stock , $0.001 par value per share (the “ common stock ”), by the selling stockholders identified in this prospectus (collectively with any of the holder’s transferees, pledgees, donees or successors, the “selling stockholders”). The shares are issuable upon the exercise of warrants (the “ warrants ”) purchased by the selling stockholders in a private placement transaction exempt from registration under Section 4(a)(2) of the Securities Act of 1933, as amended (the “Securities Act”), pursuant to a Securities Purchase Agreement dated April 9, 2021 (the “Purchase Agreement”).",
+        # "his prospectus covers the sale of an aggregate of 223,880 shares (the “shares”) of our common stock , $0.001 par value per share (the “ common stock ”), by the selling stockholders identified in this prospectus (collectively with any of the holder’s transferees, pledgees, donees or successors, the “selling stockholders”). The shares are issuable upon exercise of warrants (the “ warrants ”) purchased by the selling stockholders in private placement transactions exempt from registration under Section 4(a)(2) of the Securities Act of 1933, as amended (the “Securities Act”), pursuant to Securities Purchase Agreements, dated November 17, 2021 (the “Purchase Agreements”), with the selling stockholders.",
+        # "This prospectus relates to the resale, from time to time, by the selling stockholders named herein (the “Selling Stockholders”) of (i) an aggregate of 5,600,001 shares of our common stock , par value $0.0001 per share, issuable upon the conversion of certain outstanding convertible promissory notes and (ii) and aggregate of 3,135,789 shares of common stock issuable upon exercise of certain outstanding warrants (the “Warrants”).",
+        # "Further, the selling stockholders identified in this prospectus (the “selling stockholders”) may offer and sell from time to time, in one or more offerings, up to 16,022,824 shares of our common stock as described in this prospectus.",
+        # "This prospectus relates to the resale, from time to time, of up to an aggregate of 16,000,002 shares of common stock , par value $0.000001 per share, of Xtant Medical Holdings, Inc. by the selling stockholders named in this prospectus, including their respective donees, pledgees, transferees, assignees or other successors-in-interest.",
+        # "In addition, this prospectus relates to the resale, from time to time, of up to an aggregate of 18,218,374 shares of our common stock by the selling stockholders named in this prospectus, including their respective donees, pledgees, transferees, assignees or other successors-in-interest. ",
+        "This prospectus relates to the possible resale, from time to time, by the selling stockholders named in this prospectus, of up to 52,435 shares of our Class A common stock currently outstanding and up to 13,100 shares of Class A common stock issuable upon redemption of units of limited partnership designated as “Class A Units” (“Class A units”) in New York City Operating Partnership, L.P., a Delaware limited partnership that is our operating partnership and of which we are the sole general partner (the “OP”). The shares of our Class A common stock covered by this prospectus include (i) 52,398 shares of Class A common stock that were issued to the Advisor upon the conversion of an equal number of limited partnership interests designated as “Class B Units” (“Class B units”) in the OP into an equal number of Class A units, and the redemption of those Class A units for an equal number of shares of 	our Class A common stock when trading of Class A common stock on The New York Stock Exchange (“NYSE”) commenced on August 18, 2020, (ii) 37 shares that were issued by us to the Advisor upon the redemption of an equal number of Class A units held by the Advisor when trading of Class A common stock on the NYSE commenced on August 18, 2020, and (iii) 13,100 shares of Class A common stock issuable upon redemption of Class A units that were issued to a former holder of equity interests in the entities that own and control the Advisor upon the conversion of an equal number of Class B units in accordance with their terms into Class A units when trading of Class A common stock on the NYSE commenced on August 18, 2020.",
         # "This prospectus relates to the offer and sale from time to time, on a resale basis, by the selling stockholders identified herein (the “Selling Stockholders”) or their permitted transferees, of up to an aggregate of 33,132,056 shares of our common stock , par value $0.001 per share (“ Common Stock ”), consisting of: (i) 31,438,253 shares of Common Stock issued in connection with the Business Combination (as defined herein) that are currently issued and outstanding and (ii) 1,693,803 shares of Common Stock issuable in connection with the Earnout (as defined herein).",
         # "This prospectus relates to the offer and sale from time to time, on a resale basis, by the selling stockholders identified herein (the “Selling Stockholders”) or their permitted transferees, of up to an aggregate of 53,571,408 shares of our common stock , par value $0.001 per share (“ Common Stock ”), consisting of: (i) 35,714,272 shares of Common Stock that are issued and outstanding (the “Private Placement Common Stock”) and (ii) 17,857,136 shares of Common Stock issuable upon exercise of Series A warrants held by the Selling Stockholders (the “ Series A Warrants ”).",
 
     ]
+    secq = []
     for text in texts:
         doc = search.nlp(text)
+        for secu in doc.spans["SECU"]:
+            root_token = search._get_compound_SECU_root(secu)
+            if root_token:
+                secq.append((secu, search.get_head_verbs(root_token)))
+        #     print(secu.root)
+        # for token in doc:
+        #     print(token.pos_, token.tag_, token.text)
+
         docs.append(doc)
     
         # print("prep_phrases: ")
@@ -960,6 +969,7 @@ if __name__ == "__main__":
         #             print("->".join([i.text for i in secu.subtree]))
         #             print("head: ", secu.head.text)
 
+    print(secq)
 
             # for token in sent:
             #     if token.text == "price":
@@ -977,13 +987,19 @@ if __name__ == "__main__":
             #             print("found: ", [i if i.dep_ == "compound" else  for i in t.lefts], [i for i in t.rights], t.i) 
         # print("root: ", doc.root)
         # docs.append(doc)
-    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
-    displacy.serve(docs, style="ent", options={
-        "ents": ["SECU", "SECUQUANTITY"],
-        "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
-        },
-        port=5000
-    )
+    
+
+    # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
+    # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
+    # output_path.open("w", encoding="utf-8").write(svg)
+    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
+
+    # displacy.serve(docs, style="ent", options={
+    #     "ents": ["SECU", "SECUQUANTITY"],
+    #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
+    #     },
+    #     port=5000
+    # )
     
     #     print(doc._.single_secu_alias)
 

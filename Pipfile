@@ -9,6 +9,7 @@ pytest-postgresql = "*"
 psycopg2 = "*"
 pytest = "*"
 matplotlib = "*"
+coreferee = "*"
 
 [dev-packages]
 

@@ -1,5 +1,4 @@
 from functools import partial
-from tkinter import E
 from typing import Callable, Dict, Optional, Set
 from attr import Attribute
 import spacy
@@ -264,6 +263,29 @@ def alphabetic_list():
 
 def numeric_list():
     return ["(" + str(number) + ")" for number in range(150)]
+
+class CommonFinancialRetokenizer:
+    def __init__(self,  vocab):
+        pass
+    
+    def __call__(self, doc):
+        expressions = [
+            re.compile(r'par\svalue', re.I),
+            ]
+        match_spans = []
+        for expression in expressions:
+            for match in re.finditer(expression, doc.text):
+                start, end = match.span()
+                span = doc.char_span(start, end)
+                if match is not None:
+                    match_spans.append([span, start, end])
+        with doc.retokenize() as retokenizer:
+            for span in match_spans:
+                span = span[0]
+                if span is not None:
+                    retokenizer.merge(span)
+        return doc
+
 
 class FilingsSecurityLawRetokenizer:
     def __init__(self,  vocab):
@@ -997,6 +1019,10 @@ def create_secu_act_matcher(nlp, name):
 def create_regex_retokenizer(nlp, name):
     return FilingsSecurityLawRetokenizer(nlp.vocab)
 
+@Language.factory("common_financial_retokenizer")
+def create_common_financial_retokenizer(nlp, name):
+    return CommonFinancialRetokenizer(nlp.vocab)
+
 
 class SpacyFilingTextSearch:
     _instance = None
@@ -1012,6 +1038,7 @@ class SpacyFilingTextSearch:
             cls._instance.nlp = spacy.load("en_core_web_lg")
             cls._instance.nlp.add_pipe("secu_act_matcher", first=True)
             cls._instance.nlp.add_pipe("security_law_retokenizer", after="secu_act_matcher")
+            cls._instance.nlp.add_pipe("common_financial_retokenizer", after="security_law_retokenizer")
             cls._instance.nlp.add_pipe("secu_matcher")
         return cls._instance
     
@@ -1603,14 +1630,22 @@ class SpacyFilingTextSearch:
         return matches if matches is not None else []
     
     def get_secus_and_secuquantity(self,  doc: Doc):
-        found = []
-        for ent in doc.ents:
-            print(ent.text, ent.label_)
-            if ent.label_ == "SECUQUANTITY":
-                found.append({"amount": ent.text})
-            if ent.label_ == "SECU":
-                found.append({"security": ent})
-        return found
+        all = []
+        for sent in doc.sents:
+            found = []
+            for ent in sent.ents:
+                if ent.label_ in ["SECUQUANTITY", "SECU"]:
+                    found.append(ent)
+            all.append(found)
+        return all
+    
+    def get_head_verbs(self, token: Token):
+        verbs = []
+        for t in [i for i in token.ancestors] + [i for i  in token.children]:
+            if t.pos_ == "VERB":
+                verbs.append(t)
+        return verbs
+
 
     def match_outstanding_shares(self, text):
         pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]
