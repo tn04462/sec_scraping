@@ -1,7 +1,7 @@
 from abc import ABC
 from functools import reduce
 import logging
-from types import NotImplementedType
+from types import NoneType, NotImplementedType
 from typing import Dict, List, Optional
 
 from pydantic import ValidationError
@@ -12,8 +12,8 @@ from spacy.matcher import Matcher, PhraseMatcher
 from spacy.tokens import Doc, Span, Token
 
 from main.parser.filings_base import Filing, FilingSection
-from main.domain import model,  commands
-from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityTypeFactory, Warrant, Option
+from main.domain import model, commands
+from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityType, SecurityTypeFactory, Warrant, Option
 from main.services.messagebus import Message, MessageBus
 from main.services.unit_of_work import AbstractUnitOfWork
 from .filing_nlp import SpacyFilingTextSearch, MatchFormater, get_secu_key, UnclearInformationExtraction
@@ -40,7 +40,7 @@ class BaseHTMExtractor():
         self.spacy_text_search = SpacyFilingTextSearch()
         self.formater = MatchFormater()
     
-    def get_secu_key(self, security: Span|str):
+    def get_secu_key(self, security: Span|str) -> str:
         if isinstance(security, str):
             doc = self.spacy_text_search.nlp(security)
             security = doc[0:]
@@ -49,7 +49,7 @@ class BaseHTMExtractor():
         else:
             raise TypeError(f"BaseHTMExtractor.get_secu_key is expecting type:Span got:{type(security)}")
     
-    def get_mentioned_secus(self, doc: Doc, secus: Optional[Dict]=None):
+    def get_mentioned_secus(self, doc: Doc, secus: Optional[Dict]=None) -> Dict[str, ]:
         if secus is None:
             secus = dict()
         single_secu_alias_tuples = doc._.single_secu_alias_tuples
@@ -85,11 +85,11 @@ class BaseHTMExtractor():
     #             secus[key]["alias"] += doc._.single_secu_alias[key]["alias"]
     #     return secus
     
-    def get_security_type(self, security_name: str):
+    def get_security_type(self, security_name: str) -> SecurityType:
         return security_type_factory.get_security_type(security_name)
     
-    def merge_attributes(self, d1: dict, d2: dict):
-        print(d1, d2)
+    def merge_attributes(self, d1: dict, d2: dict) -> Dict:
+        logger.debug(f"merging: {d1} and {d2}")
         if (d2 is None) or (d2 == {}):
             return d1
         for d2key in d2.keys():
@@ -100,7 +100,7 @@ class BaseHTMExtractor():
                 d1[d2key] = d2[d2key]
         return d1 
 
-    def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security, security_spans):  
+    def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security, security_spans) -> Dict:  
         attributes = {}
         _kwargs = {"doc": doc, "security_name": security_name, "security_spans": security_spans}
         if security_type == CommonShare:
@@ -162,22 +162,22 @@ class BaseHTMExtractor():
                 securities.append(security)
         return securities
 
-    def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
-        # POSSIBLE WASTE CODE
-        # print("security_key when getting queryable_secu_spans: ", security_key)
-        single_secu_alias = doc._.single_secu_alias.get(security_key)
-        # print(f"working with single_secu_alias map: {doc._.single_secu_alias}")
-        # print(f"got single_secu_alias: {single_secu_alias}")
-        if single_secu_alias:
-            base = single_secu_alias.get("base")
-            alias = single_secu_alias.get("alias")
-            return base + alias
-            # need to think how i handle bases that arent unique -> only return alias? or only search until we encounter next sentence containing a base span?
-            # maybe apply a flag when creating the alias map
-        return None
-        # now build queries which take the span as arg to search for features
+    # def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
+    #     # POSSIBLE WASTE CODE
+    #     # print("security_key when getting queryable_secu_spans: ", security_key)
+    #     single_secu_alias = doc._.single_secu_alias.get(security_key)
+    #     # print(f"working with single_secu_alias map: {doc._.single_secu_alias}")
+    #     # print(f"got single_secu_alias: {single_secu_alias}")
+    #     if single_secu_alias:
+    #         base = single_secu_alias.get("base")
+    #         alias = single_secu_alias.get("alias")
+    #         return base + alias
+    #         # need to think how i handle bases that arent unique -> only return alias? or only search until we encounter next sentence containing a base span?
+    #         # maybe apply a flag when creating the alias map
+    #     return None
+    #     # now build queries which take the span as arg to search for features
 
-    def get_secu_exercise_price(self, doc: Doc, security_name: str, security_spans: List[Span]):
+    def get_secu_exercise_price(self, doc: Doc, security_name: str, security_spans: List[Span]) -> str|NoneType:
         exercise_prices_seen = set()
         exercise_prices = []
         logger.debug("get_secu_exercise_price:")
@@ -201,7 +201,7 @@ class BaseHTMExtractor():
             return None
         return exercise_prices[0] if exercise_prices != [] else None
     
-    def _is_span_in_sent(self, sent: Span, span: Span|Token):
+    def _is_span_in_sent(self, sent: Span, span: Span|Token) -> bool:
         token_idx_offset = sent[0].i
         if isinstance(span, Span):
             span_length = len(span)
@@ -209,13 +209,9 @@ class BaseHTMExtractor():
             for token in sent:
                 if token == first_token:
                     first_idx = token.i - token_idx_offset
-                    # logger.info(f"sent: {sent}")
-                    # logger.info(f"first_idx|end_idx: {first_idx, first_idx+span_length}")
-                    # logger.info(f"is this valid_span?: {sent[first_idx:first_idx+span_length]}")
                     try:
                         if sent[first_idx:first_idx+span_length] == span:
                             if self._span_neighbors_arent_SECU(sent, span):
-                                # logger.info("valid span")
                                 return True
                     except IndexError:
                         logger.debug("excepted IndexError in _assert_any_secu_span_is_in_match; passing.")
@@ -226,13 +222,13 @@ class BaseHTMExtractor():
         return False
                 
     
-    def _is_single_token_SECU_in_sent(self, sent: Span, token: Token):
+    def _is_single_token_SECU_in_sent(self, sent: Span, token: Token) -> bool:
         if token in sent:
             if self._span_neighbors_arent_SECU(sent, token):
                 return True
         return False
     
-    def _span_neighbors_arent_SECU(self, sent: Span, span: Span|Token):
+    def _span_neighbors_arent_SECU(self, sent: Span, span: Span|Token) -> bool:
         token_idx_offset = sent[0].i
         if isinstance(span, Token):
             start = span.i
@@ -254,7 +250,7 @@ class BaseHTMExtractor():
                     return True
         return False
     
-    def get_secu_expiry_by_type(self, wanted: str, doc: Doc, security_name: str, security_spans: List[Span]):
+    def get_secu_expiry_by_type(self, wanted: str, doc: Doc, security_name: str, security_spans: List[Span]) -> str|NoneType:
         '''
         handle the case for the expiry as a timedelta from the issuance date or as a specific date in time.
 
@@ -274,7 +270,7 @@ class BaseHTMExtractor():
                 return expiry
         return None
     
-    def get_secu_expiry(self, doc: Doc, security_name: str, security_spans: List[Span]):
+    def get_secu_expiry(self, doc: Doc, security_name: str, security_spans: List[Span]) -> str|NoneType:
         expiries_seen = set()
         expiries = []
         logger.debug("get_secu_expiry:")
@@ -337,10 +333,10 @@ class BaseHTMExtractor():
 
     # def _handle_issuable_primary_secu_match(self, match):
     
-    def doc_from_section(self, section: FilingSection):
+    def doc_from_section(self, section: FilingSection) -> Doc:
         return self.spacy_text_search.nlp(section.text_only)
 
-    def extract_outstanding_shares(self, filing: Filing):
+    def extract_outstanding_shares(self, filing: Filing) -> list[model.SecurityOutstanding]|NoneType:
         text = filing.get_text_only()
         if text is None:
             logger.debug(filing)

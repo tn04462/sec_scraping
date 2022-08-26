@@ -141,7 +141,7 @@ class SecurityTypeFactory:
                 self.keywords.append(kw)
                 self.keywords.sort(key=lambda x: len(x))
     
-    def get_security_type(self, name: str):
+    def get_security_type(self, name: str) -> SecurityType:
         for kw in self.keywords:
             if kw in name:
                 return self.builders[kw]
