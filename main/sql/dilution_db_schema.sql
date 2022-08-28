@@ -1,13 +1,15 @@
 
-
-CREATE TYPE SECURITY_TYPES as ENUM (
-    'CommonShare',
-    'PreferredShare',
-    'DebtSecurity',
-    'Option',
-    'Warrant'
+DO $$ BEGIN
+    CREATE TYPE SECURITY_TYPES as ENUM (
+        'CommonShare',
+        'PreferredShare',
+        'DebtSecurity',
+        'Option',
+        'Warrant'
     );
-
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 CREATE TABLE IF NOT EXISTS files_last_update(
     submissions_zip_lud TIMESTAMP,
@@ -317,8 +319,8 @@ CREATE TABLE IF NOT EXISTS securities (
     CONSTRAINT fk_underlying_security_id
         FOREIGN KEY (underlying_security_id)
             REFERENCES securities(id),
-    CONSTRAINT unique_name_company_attributes
-        UNIQUE(company_id, security_name, security_attributes)
+    CONSTRAINT unique_name_company_type
+        UNIQUE(company_id, security_name, security_type)
 
 );
 

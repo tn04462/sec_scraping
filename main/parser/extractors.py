@@ -49,7 +49,7 @@ class BaseHTMExtractor():
         else:
             raise TypeError(f"BaseHTMExtractor.get_secu_key is expecting type:Span got:{type(security)}")
     
-    def get_mentioned_secus(self, doc: Doc, secus: Optional[Dict]=None) -> Dict[str, ]:
+    def get_mentioned_secus(self, doc: Doc, secus: Optional[Dict]=None) -> Dict:
         if secus is None:
             secus = dict()
         single_secu_alias_tuples = doc._.single_secu_alias_tuples

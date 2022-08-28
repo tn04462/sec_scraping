@@ -6,6 +6,7 @@ from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
 from spacy import Language
 from spacy.util import filter_spans
+import coreferee
 import logging
 import string
 import re
@@ -283,7 +284,7 @@ class CommonFinancialRetokenizer:
             for span in match_spans:
                 span = span[0]
                 if span is not None:
-                    retokenizer.merge(span)
+                    retokenizer.merge(span, attrs={"POS": "NOUN", "TAG": "NN"})
         return doc
 
 
@@ -1040,6 +1041,7 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("security_law_retokenizer", after="secu_act_matcher")
             cls._instance.nlp.add_pipe("common_financial_retokenizer", after="security_law_retokenizer")
             cls._instance.nlp.add_pipe("secu_matcher")
+            cls._instance.nlp.add_pipe("coreferee")
         return cls._instance
     
 
@@ -1630,6 +1632,7 @@ class SpacyFilingTextSearch:
         return matches if matches is not None else []
     
     def get_secus_and_secuquantity(self,  doc: Doc):
+        # DEBUG CODE
         all = []
         for sent in doc.sents:
             found = []
@@ -1640,11 +1643,20 @@ class SpacyFilingTextSearch:
         return all
     
     def get_head_verbs(self, token: Token):
+        # DEBUG CODE
         verbs = []
         for t in [i for i in token.ancestors] + [i for i  in token.children]:
             if t.pos_ == "VERB":
                 verbs.append(t)
         return verbs
+    
+    def get_SECU_subtree_adjectives(self, token: Token):
+        # DEBUG CODE
+        adj = []
+        for t in [i for i in token.subtree]:
+            if (t.tag_ == "JJ") and (t.ent_type_ != "SECU"):
+                adj.append(t)
+        return adj
 
 
     def match_outstanding_shares(self, text):

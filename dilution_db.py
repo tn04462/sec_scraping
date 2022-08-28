@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from email.parser import Parser
-from typing import Callable
+import platform
+from typing import Callable, Optional
 from numpy import number
 from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError, UniqueViolation, ForeignKeyViolation
@@ -97,7 +98,7 @@ else:
 
 
 class DilutionDB:
-    def __init__(self, config: GlobalConfig, uow: AbstractUnitOfWork, message_bus: MessageBus):
+    def __init__(self, config: GlobalConfig, uow: AbstractUnitOfWork, message_bus: MessageBus, tracked_tickers: Optional[list[str]]=None, tracked_forms: Optional[list[str]]=None):
         self.uow = uow
         self.bus = message_bus
         self.config = config
@@ -105,14 +106,14 @@ class DilutionDB:
             config.DILUTION_DB_CONNECTION_STRING, kwargs={"row_factory": dict_row}
         )
         self.conn = self.pool.connection
-        self.tracked_tickers = self._get_tracked_tickers_from_config()
-        self.tracked_forms = self._get_tracked_forms_from_config()
+        self.tracked_tickers = self._get_tracked_tickers_from_config() if tracked_tickers is None else tracked_tickers
+        self.tracked_forms = self._get_tracked_forms_from_config() if tracked_forms is None else tracked_forms
         self.util = DilutionDBUtil(self)
         self.updater = DilutionDBUpdater(self)
        
 
     def _get_tracked_tickers_from_config(self):
-        return self.configf.APP_CONFIG.TRACKED_TICKERS
+        return self.config.APP_CONFIG.TRACKED_TICKERS
     
     def _get_tracked_forms_from_config(self):
         return self.config.APP_CONFIG.TRACKED_FORMS
@@ -142,6 +143,21 @@ class DilutionDB:
             res = c.execute(query, values)
             rows = [row for row in res]
             return rows
+    
+    def inital_setup(self):
+        self.util.inital_table_setup()
+        self.updater.update_bulk_files()
+        self.util.inital_company_setup(
+            cnf.DOWNLOADER_ROOT_PATH,
+            cnf.POLYGON_OVERVIEW_FILES_PATH,
+            cnf.POLYGON_API_KEY,
+            cnf.APP_CONFIG.TRACKED_FORMS,
+            cnf.APP_CONFIG.TRACKED_TICKERS,
+            after="2010-01-01",
+            before=None
+        )
+        for ticker in cnf.APP_CONFIG.TRACKED_TICKERS:
+            self.updater.update_ticker(ticker)
     
     def read_all_companies(self):
         return self.read("SELECT id, cik, symbol, name_ as name FROM companies", [])
@@ -691,9 +707,11 @@ class DilutionDBUpdater:
     
 
     def update_filing_values(self, connection: Connection, ticker: str):
+        # rework the return value of parse_filings
         for filings_list in self.db.util.parse_filings(connection, ticker):
-            for issued_commands in filings_list:
-                 pass # should publish commands over messagebus and only init update in this function
+            for idx, extracted_info in enumerate(filings_list):
+                logger.debug(f"extracted_info {idx}: {extracted_info}")
+                
 
     def _filings_needs_update(self, ticker: str, max_age=24):
         '''checks if the ticker has newer filings available with submissions.zip
@@ -760,7 +778,18 @@ class DilutionDBUpdater:
             # download said filings with downloader by accn
             pass
     
-    def _file_needs_update(self, col_name: str, max_age: int):
+    def _file_needs_update_lud_filesystem(self, file_path: Path, max_age: int):
+        if not file_path.exists():
+            return True
+        if platform.system() == "Windows":
+            if pd.to_datetime(file_path.stat().st_ctime) + timedelta(hours=max_age) < datetime.now():
+                return True
+            else:
+                return False
+        else:
+            raise OSError(f"this function only works properly on Windows systems for now.") 
+    
+    def _file_needs_update_lud_database(self, col_name: str, max_age: int):
         '''check if files need an update
         
         Args:
@@ -787,21 +816,20 @@ class DilutionDBUpdater:
     
     def update_bulk_files(self):
         '''update submissions and companyfacts bulk files'''
-        update = False
         with self.db.conn() as conn:
-            if self._file_needs_update("submissions_zip_lud", max_age=24):
-                print("updating submissions")
+            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH / "submissions"), max_age=24):
+            # if self._file_needs_update_lud_database("submissions_zip_lud", max_age=24):
+                logger.debug("updating submissions.zip...")
                 self.dl.get_bulk_submissions()
                 self.db._update_files_lud(conn, "submissions_zip_lud", datetime.utcnow())
-                update = True
-            if self._file_needs_update("companyfacts_zip_lud", max_age=24):
+                logger.debug("successfully updated submissions.zip")
+            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH / "companyfacts"), max_age=24):
+            # if self._file_needs_update_lud_database("companyfacts_zip_lud", max_age=24):
+                logger.debug("updating companyfacts.zip...")
                 self.dl.get_bulk_companyfacts()
                 self.db._update_files_lud(conn, "companyfacts_zip_lud", datetime.utcnow())
-                update = True
-            if update is False:
-                logger.info("Bulk Files were NOT updated as they are still current enough.")
-            else:
-                logger.info("Bulk Files were successfully updated")
+                logger.debug("successfully updated companyfacts.zip")
+            
     
     def update_net_cash_and_equivalents(self, connection: Connection, ticker: str):
         '''update the net_cash_and_equivalents information table and the cash_finacing, cash_investing and cash_operationg.
@@ -972,6 +1000,10 @@ class DilutionDBUtil:
     def reset_database(self):
         '''delete all data and recreate the tables'''
         self.db._delete_all_tables()
+        self.inital_table_setup()
+    
+    def inital_table_setup(self):
+        self.db._delete_all_tables()
         self.db._create_tables()
         self.db.create_sics()
         self.db.create_form_types()
@@ -997,7 +1029,7 @@ class DilutionDBUtil:
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
             logger.debug(f"values passed to _parse_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
             filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
-            logger.debug(f"_create_filing created: {len(filings)} out of one file.")
+            logger.debug(f"_create_filing created: {len(filings)} filings out of one file.")
             for filing in filings:
                 commands_issued.append(self._parse_filing(filing))
         return commands_issued
@@ -1084,7 +1116,7 @@ class DilutionDBUtil:
         return urljoin(urljoin(urljoin(base_url, cik), accession_number), primary_document)
 
     
-    def inital_setup(
+    def inital_company_setup(
             self,
             dl_root_path: str,
             polygon_overview_files_path: str,
