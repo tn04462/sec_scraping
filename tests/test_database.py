@@ -203,6 +203,8 @@ def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
     test_tickers = ["CEI"]
     test_forms = ["S-3"]
     db: DilutionDB = get_bootstrapped_dilution_db
+    db.tracked_forms = test_forms
+    db.tracked_tickers = test_tickers
     # setup tables/make sure they exist
     db.util.inital_table_setup()
     # make sure bulk zip files are up to date

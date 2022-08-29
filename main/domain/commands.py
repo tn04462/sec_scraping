@@ -13,6 +13,7 @@ class Command:
 @dataclass
 class CompanyCommand(Command):
     cik: str
+    symbol: str
 
 @dataclass
 class SecuritiesCommand(CompanyCommand):

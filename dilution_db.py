@@ -703,7 +703,6 @@ class DilutionDBUpdater:
             # make sure we are working with the newest filings
             self.update_local_filings(conn, ticker)
             # parsing of filings goes here
-            # -- parsing --
             self.update_filing_values(conn, ticker)
             # update all the information tables
             self.update_outstanding_shares(conn, ticker)
@@ -712,10 +711,10 @@ class DilutionDBUpdater:
     
 
     def update_filing_values(self, connection: Connection, ticker: str):
-        # rework the return value of parse_filings
+        # rework this to use the domain model
         for filings_list in self.db.util.parse_filings(connection, ticker):
             for idx, extracted_info in enumerate(filings_list):
-                logger.debug(f"extracted_info {idx}: {extracted_info}")
+                logger.info(f"extracted_info {idx}: {extracted_info}")
                 
 
     def _filings_needs_update(self, ticker: str, max_age=24):
@@ -1014,14 +1013,19 @@ class DilutionDBUtil:
         self.db.create_sics()
         self.db.create_form_types()
 
-    def parse_filings(self, connection: Connection, ticker: str):
+    def parse_filings(self, connection: Connection, ticker: str, forms: Optional[list[str]]=None):
+        
         '''
         parses the unparsed local filings of a ticker.
         
         Args:
             connection: connection from the database connection pool
             ticker: symbol associated with a company
+            forms: what form types to parse, defaults to None (uses the tracked_forms variable of the supplied DilutionDB list)
+                   Can be supplied with 'all' to try and parse all filings regardless of form_type
         '''
+        if forms is None:
+            forms = set(self.db.tracked_forms)
         company = self.db.read_company_by_symbol(ticker)
         if company != []:
             company = company[0]
@@ -1029,19 +1033,36 @@ class DilutionDBUtil:
             id = company["id"]
         else:
             raise ValueError(f"no company with that symbol was found. ticker: {ticker}")
+        with self.db.uow as uow:
+            company = uow.company.get(ticker)
+            if not company:
+                raise ValueError(f"no company with that symbol({ticker}) was found.")
+            logger.info(f"parsing filings for: {company}")
+            cik = company.cik
+            id = company.id
+            logger.info(f"company has id({id}) and cik({cik})")
+
         # get unparsed_filings
         commands_issued = []
-        for unparsed in self.get_unparsed_filings(id, cik):
+        unparsed_filings = self.get_unparsed_filings(id, cik)
+        logger.info(f"found {len(unparsed_filings)} unparsed filings.")
+        logger.info(f"only allowing forms: {forms}")
+        for unparsed in unparsed_filings:
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
-            logger.debug(f"values passed to _parse_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
-            try:
-                filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
-            except ValueError as e:
-                logger.warning(f"_create_filing ran into a ValueError: {e}", exc_info=True)
-            else:
-                logger.debug(f"_create_filing created: {len(filings)} filings out of one file.")
-                for filing in filings:
-                    commands_issued.append(self._parse_filing(filing))
+            if (form_type in forms) or (forms == "all"):
+                logger.debug(f"values passed to _create_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
+                try:
+                    filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
+                except ValueError as e:
+                    logger.warning(f"_create_filing ran into a ValueError: {e}", exc_info=True)
+                else:
+                    logger.debug(f"_create_filing created: {len(filings)} filings out of one file.")
+                    for filing in filings:
+                        with self.db.uow as uow:
+                            company = uow.company.get(ticker)
+                            commands = self._parse_filing(filing, company)
+                            logger.info(f"issued following commands: {commands}")
+                        commands_issued.append(commands)
         return commands_issued
 
     def _create_filing(self,
@@ -1067,13 +1088,15 @@ class DilutionDBUtil:
             return [filings]
 
     def _parse_filing(self, 
-        filing: Filing
+        filing: Filing,
+        company: model.Company
         ) -> list[list[commands.Command]]:
         try:
             extractor: extractors.AbstractFilingExtractor = extractors.extractor_factory.get_extractor(filing.form_type, filing.extension)
-        except ValueError:
+        except ValueError as e:
+            logger.info(f"excepted ValueError in _parse_filing: {e}", exc_info=True)
             return []
-        return extractor.extract_form_values(filing, self.db.bus)
+        return extractor.extract_form_values(filing, company, self.db.bus)
    
     
     def get_unparsed_filings(self, id: int, cik: str):
@@ -1233,7 +1256,6 @@ class DilutionDBUtil:
                     return None
                 else:
                     connection.commit()
-                
                 
             with db.conn() as connection:
                 try:

@@ -30,7 +30,7 @@ class UnhandledClassificationError(Exception):
 
 class AbstractFilingExtractor(ABC):
     def extract_form_values(self, filing: Filing, bus: MessageBus):
-        """extracts values and issues commands.Command to MessageBus"""
+        """extracts values and issues Command to MessageBus"""
         pass
 
 
@@ -354,7 +354,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         form_case = self.classify_s3(filing)
         cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
         # self.extract_securities(filing, company, bus, cover_page_doc)
-        self.extract_securities(filing, company, bus, complete_doc)
+        securities = self.extract_securities(filing, company, bus, complete_doc)
+        logger.info(f"found {len(securities)} securities.")
         form_classifications = form_case["classifications"]
         if "shelf" in form_classifications:
             logger.info(f"Handling classification case: 'shelf' in form_case: {form_case}")
@@ -386,7 +387,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             offering = model.ShelfOffering(**kwargs)
             shelf.add_offering(offering)
             logger.info("Added ShelfOffering")
-            bus.handle(commands.AddShelfOffering(company.cik, offering))
+            bus.handle(commands.AddShelfOffering(company.cik, company.symbol, offering))
             self.handle_ATM_security_registrations(filing, company, bus, cover_page_doc)
 
     def handle_ATM_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
@@ -467,7 +468,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
         for security in securities:
             company.add_security(security)
-        bus.handle(commands.AddSecurities(company.cik, securities))
+        bus.handle(commands.AddSecurities(company.cik, company.symbol, securities))
         return securities
     
     def extract_aggregate_offering_amount(self, cover_page: Doc) -> dict:
@@ -776,7 +777,8 @@ class ExtractorFactory:
 
 extractor_factory_default = [
     ("S-1", ".htm", HTMS1Extractor),
-    ("DEF 14A", ".htm", HTMDEF14AExtractor)
+    ("DEF 14A", ".htm", HTMDEF14AExtractor),
+    ("S-3", ".htm", HTMS3Extractor)
     # (None, ".htm", BaseHTMExtractor)
     ]
 

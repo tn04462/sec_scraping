@@ -10,7 +10,7 @@ def add_company(cmd: commands.AddCompany, uow: AbstractUnitOfWork):
 
 def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(cik=cmd.cik)
+        company: model.Company = u.company.get(symbol=cmd.symbol)
         for security in cmd.securities:
             company.add_security(security)
         u.company.add(company)
@@ -18,21 +18,21 @@ def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
 
 def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(cik=cmd.cik)
+        company: model.Company = u.company.get(symbol=cmd.symbol)
         company.add_shelf(cmd.shelf_registration)
         u.company.add(company)
         u.commit()
 
 def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(cik=cmd.cik)
+        company: model.Company = u.company.get(symbol=cmd.symbol)
         company.add_resale(cmd.resale_registration)
         u.company.add(company)
         u.commit()
 
 def add_shelf_security_registration(cmd: commands.AddShelfSecurityRegistration, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(cik=cmd.cik)
+        company: model.Company = u.company.get(symbol=cmd.symbol)
         offering: model.ShelfOffering = company.get_shelf_offering(offering_accn=cmd.offering_accn)
         if offering:
             offering.add_registration(registered=cmd.security_registration)

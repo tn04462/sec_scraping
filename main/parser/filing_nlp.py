@@ -975,6 +975,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
             logger.debug(f"Added entity: {entity} with label: {ent_label}")
         except ValueError as e:
             if "[E1010]" in str(e):
+                logger.debug(f"handling overlapping entities for entity: {entity}")
                 handle_overlapping_ents(doc, start, end, entity, overwrite_labels=always_overwrite)
         if (ent_callback) and (entity in doc.ents):
             ent_callback(doc, entity)
@@ -988,15 +989,36 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwr
         [previous_ents.remove(k[1]) for k in conflicting_ents]
         logger.debug(f"removed conflicting ents: {[k[1] for k in conflicting_ents]}")
         previous_ents.add(entity)
-        doc.ents = previous_ents
+        try:
+            doc.ents = previous_ents
+        except ValueError as e:
+            if "E1010" in str(e):
+                token_idx = int(sorted(re.findall(r"token \d*", str(e)), key=lambda x: len(x))[0][6:])
+                token_conflicting = doc[token_idx]
+                logger.debug(f"token conflicting: {token_conflicting} with idx: {token_idx}")
+                logger.debug(f"sent: {token_conflicting.sent}")
+                conflicting_entity = []
+                for i in range(token_idx, 0, -1):
+                    if doc[i].ent_type_ == token_conflicting.ent_type_:
+                        conflicting_entity.insert(0, doc[i])
+                    else:
+                        break
+                for i in range(token_idx+1, 10000000, 1):
+                    if doc[i].ent_type_ == token_conflicting.ent_type_:
+                        conflicting_entity.append(doc[i])
+                    else:
+                        break
+
+                logger.debug(f"conflicting with entity: {conflicting_entity}")
+                raise e
         logger.debug(f"Added entity: {entity} with label: {entity.label_}")
 
 def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optional[list[str]]=None):
     conflicting_ents = []
     for ent in doc.ents:                
-        covered_tokens = range(ent.start + 1, ent.end + 1)
+        covered_tokens = range(ent.start, ent.end + 1)
         if (start in covered_tokens) or (end in covered_tokens):
-            if ((ent.end - ent.start) <= (end - start)) or (ent.label_ in overwrite_labels if overwrite_labels else False):
+            if ((ent.end - ent.start) <= (end - start)) or (ent.label_ in overwrite_labels if overwrite_labels else False) is True:
                 conflicting_ents.append((ent.end - ent.start, ent))
     return conflicting_ents
 
