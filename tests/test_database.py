@@ -1,3 +1,4 @@
+import inspect
 from multiprocessing.sharedctypes import Value
 import pytest
 from pytest_postgresql import factories
@@ -22,6 +23,15 @@ from boot import bootstrap_dilution_db
 cnf = FactoryConfig(GlobalConfig(ENV_STATE="dev").ENV_STATE)()
 dilution_db_schema = str(Path(__file__).parent.parent / "main" / "sql" / "dilution_db_schema.sql")
 delete_tables = str(Path(__file__).parent.parent / "main" / "sql" / "db_delete_all_tables.sql")
+
+fake_filing_link = {
+    "company_id": 1,
+    'filing_html': 'https://www.sec.gov/Archives/edgar/data/0001309082/000158069520000391/cei-s4a_101220.htm',
+    'form_type': 'S-4/A',
+    'filing_date': '2020-10-14',
+    'description': 'AMENDMENT TO FORM S-4',
+    'file_number': '333-238927',
+}
 
 company_data = {
         "sics": {
@@ -178,11 +188,20 @@ def test_inserts(get_session, populate_database):
         for v1, v2 in zip(tuple(expected.values()), received[0]):
             assert v1 == v2
 
+def test_addition_of_filing_link_with_unknown_form_type(get_bootstrapped_dilution_db, populate_database, get_session):
+    db: DilutionDB = get_bootstrapped_dilution_db
+    session = get_session
+    db.create_filing_link(
+        **fake_filing_link
+    )
+    assert ('S-4/A', 'unspecified') in session.execute(text("SELECT * FROM form_types")).fetchall()
+    
 
 def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
     if cnf.ENV_STATE != "dev":
         raise ValueError("config other than 'dev' loaded, aborting test.")
     test_tickers = ["CEI"]
+    test_forms = ["S-3"]
     db: DilutionDB = get_bootstrapped_dilution_db
     # setup tables/make sure they exist
     db.util.inital_table_setup()
@@ -193,23 +212,26 @@ def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
         cnf.DOWNLOADER_ROOT_PATH,
         cnf.POLYGON_OVERVIEW_FILES_PATH,
         cnf.POLYGON_API_KEY,
-        cnf.APP_CONFIG.TRACKED_FORMS,
+        test_forms,
         test_tickers,
-        after="2021-01-01",
-        before="2021-05-01")
+        after="2016-01-01",
+        before="2017-06-01")
     # do parse of existing filings
     for ticker in test_tickers:
         with db.conn() as conn:
             db.updater.update_filing_values(conn, ticker)
     # do download and parse of newer filings
-    for ticker in test_tickers:
-        db.updater.update_ticker(ticker)
+    # for ticker in test_tickers:
+    #     db.updater.update_ticker(ticker)
     
     uow = get_uow
     for ticker in test_tickers:
         with uow as u:
             company = u.company.get(ticker)
             print(f"Company({ticker}): {company}")
+            print("resales:",company.resales)
+            print("shelfs:", company.shelfs)
+            print("securities:", company.securities)
     
     assert 1 == 2
     

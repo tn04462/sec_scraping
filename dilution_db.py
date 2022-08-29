@@ -19,6 +19,7 @@ from scipy.fftpack import idct
 from tqdm import tqdm
 import json
 from datetime import datetime
+from abc import ABC
 
 
 from pysec_downloader.downloader import Downloader
@@ -94,7 +95,6 @@ if cnf.ENV_STATE != "prod":
     logger.setLevel(logging.DEBUG)
 else:
     logger.setLevel(logging.INFO)
-
 
 
 class DilutionDB:
@@ -201,6 +201,7 @@ class DilutionDB:
                 [form_type, category],
             )
 
+
     def create_sics(self):
         sics_path = path.normpath(
             path.join(path.dirname(path.abspath(__file__)), ".", "main/resources/sics.csv")
@@ -288,27 +289,31 @@ class DilutionDB:
             raise e
 
     def create_filing_link(
-        self, c: Connection, company_id, filing_html, form_type, filing_date, description, file_number
+        self, company_id, filing_html, form_type, filing_date, description, file_number
     ):
-        try:
-            c.execute(
-                "INSERT INTO filing_links(company_id, filing_html, form_type, filing_date, description_, file_number) VALUES(%s, %s, %s, %s, %s, %s)",
-                [
-                    company_id,
-                    filing_html,
-                    form_type,
-                    filing_date,
-                    description,
-                    file_number,
-                ],
-            )
-        except ForeignKeyViolation as e:
-            if "fk_form_type" in str(e):
-                logger.debug(f"fk_form_type violaton is trying to be resolved for {company_id, filing_html, form_type, filing_date, description, file_number}")
-                self.create_form_type(form_type, "unspecified")
-                self.create_filing_link(c, company_id, filing_html, form_type, filing_date, description, file_number)      
+        with self.conn() as co:
+            try:
+                co.execute(
+                    "INSERT INTO filing_links(company_id, filing_html, form_type, filing_date, description_, file_number) VALUES(%s, %s, %s, %s, %s, %s)",
+                    [
+                        company_id,
+                        filing_html,
+                        form_type,
+                        filing_date,
+                        description,
+                        file_number,
+                    ],
+                )
+            except ForeignKeyViolation as e:
+                if "fk_form_type" in str(e):
+                    co.rollback()
+                    logger.debug(f"fk_form_type violaton is trying to be resolved for {company_id, filing_html, form_type, filing_date, description, file_number}")
+                    self.create_form_type(form_type, "unspecified")
+                    self.create_filing_link(company_id, filing_html, form_type, filing_date, description, file_number)      
+                else:
+                    raise e
             else:
-                raise e
+                co.commit()
 
     def create_cash_operating(self, c: Connection, company_id, from_date, to_date, amount):
         try:
@@ -782,12 +787,13 @@ class DilutionDBUpdater:
         if not file_path.exists():
             return True
         if platform.system() == "Windows":
-            if pd.to_datetime(file_path.stat().st_ctime) + timedelta(hours=max_age) < datetime.now():
-                return True
-            else:
-                return False
+            folder_mtime = get_folder_mtime(file_path)
+            logger.info(f"folder_ctime: {folder_mtime}")
+            return is_outdated(folder_mtime, max_age=timedelta(hours=max_age), now=datetime.now())
         else:
             raise OSError(f"this function only works properly on Windows systems for now.") 
+    
+
     
     def _file_needs_update_lud_database(self, col_name: str, max_age: int):
         '''check if files need an update
@@ -817,13 +823,13 @@ class DilutionDBUpdater:
     def update_bulk_files(self):
         '''update submissions and companyfacts bulk files'''
         with self.db.conn() as conn:
-            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH / "submissions"), max_age=24):
+            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH) / "submissions", max_age=48):
             # if self._file_needs_update_lud_database("submissions_zip_lud", max_age=24):
                 logger.debug("updating submissions.zip...")
                 self.dl.get_bulk_submissions()
                 self.db._update_files_lud(conn, "submissions_zip_lud", datetime.utcnow())
                 logger.debug("successfully updated submissions.zip")
-            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH / "companyfacts"), max_age=24):
+            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH) / "companyfacts", max_age=48):
             # if self._file_needs_update_lud_database("companyfacts_zip_lud", max_age=24):
                 logger.debug("updating companyfacts.zip...")
                 self.dl.get_bulk_companyfacts()
@@ -1028,10 +1034,14 @@ class DilutionDBUtil:
         for unparsed in self.get_unparsed_filings(id, cik):
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
             logger.debug(f"values passed to _parse_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
-            filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
-            logger.debug(f"_create_filing created: {len(filings)} filings out of one file.")
-            for filing in filings:
-                commands_issued.append(self._parse_filing(filing))
+            try:
+                filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
+            except ValueError as e:
+                logger.warning(f"_create_filing ran into a ValueError: {e}", exc_info=True)
+            else:
+                logger.debug(f"_create_filing created: {len(filings)} filings out of one file.")
+                for filing in filings:
+                    commands_issued.append(self._parse_filing(filing))
         return commands_issued
 
     def _create_filing(self,
@@ -1251,21 +1261,17 @@ class DilutionDBUtil:
                         ov["cik"],
                         submissions_file)
                     for s in submissions:
-                        with db.conn() as connection2:
-                            try:
-                                db.create_filing_link(
-                                    connection2,
-                                    id,
-                                    s["filing_html"],
-                                    s["form"],
-                                    s["filingDate"],
-                                    s["primaryDocDescription"],
-                                    s["fileNumber"])
-                            except Exception as e:
-                                logger.debug((e, s))
-                                connection2.rollback()
-                            else:
-                                connection2.commit()
+                        try:
+                            db.create_filing_link(
+                                id,
+                                s["filing_html"],
+                                s["form"],
+                                s["filingDate"],
+                                s["primaryDocDescription"],
+                                s["fileNumber"])
+                        except Exception as e:
+                            logger.debug((e, s))
+                                
                 except Exception as e:
                     logger.critical(("Phase3", e, ticker), exc_info=True)
                     connection1.rollback()
@@ -1317,6 +1323,19 @@ class DilutionDBUtil:
                 continue
             with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
                 dump(ov, f)
+
+def get_folder_mtime(file_path: Path):
+    if not file_path.exists():
+        raise OSError(f"folder doesnt exist: {file_path}")
+    if file_path.is_file():
+        raise OSError(f"file_path isnt a folder but a file: {file_path}")
+    return pd.to_datetime(file_path.stat().st_mtime, unit="s")
+
+def is_outdated(comparison_time: datetime, max_age: timedelta, now: datetime=datetime.now()):
+    if (comparison_time + max_age) < now:
+        return True
+    else:
+        return False 
 
     # def create_tracked_companies(self):
     #     base_path = config["polygon"]["overview_files_path"]
