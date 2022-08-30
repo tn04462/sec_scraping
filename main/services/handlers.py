@@ -12,21 +12,25 @@ def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
         for security in cmd.securities:
-            company.add_security(security)
+            if security not in company.securities:
+                local_security_object = u.session.merge(security)
+                company.add_security(local_security_object)
         u.company.add(company)
         u.commit()
 
 def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
-        company.add_shelf(cmd.shelf_registration)
+        local_shelf_object = u.session.merge(cmd.shelf_registration)
+        company.add_shelf(local_shelf_object)
         u.company.add(company)
         u.commit()
 
 def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
-        company.add_resale(cmd.resale_registration)
+        local_resale_object = u.session.merge(cmd.resale_registration)
+        company.add_resale(local_resale_object)
         u.company.add(company)
         u.commit()
 
@@ -35,7 +39,8 @@ def add_shelf_security_registration(cmd: commands.AddShelfSecurityRegistration, 
         company: model.Company = u.company.get(symbol=cmd.symbol)
         offering: model.ShelfOffering = company.get_shelf_offering(offering_accn=cmd.offering_accn)
         if offering:
-            offering.add_registration(registered=cmd.security_registration)
+            local_registration_object = u.session.merge(cmd.security_registration)
+            offering.add_registration(registered=local_registration_object)
             u.company.add(company)
             u.commit()
         else:

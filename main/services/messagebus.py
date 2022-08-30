@@ -47,7 +47,7 @@ class MessageBus:
         try:
             handler = self.command_handlers[type(command)]
             handler(command)
-            self.queue.extend(self.uow.collect_new_events())
+            # self.queue.extend(self.uow.collect_new_events())
         except KeyError:
             logger.warning("Exception handling command %s. No Handler for Command registered", command)
         except Exception:

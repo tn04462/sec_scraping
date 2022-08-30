@@ -1043,27 +1043,25 @@ class DilutionDBUtil:
             logger.info(f"company has id({id}) and cik({cik})")
 
         # get unparsed_filings
-        commands_issued = []
         unparsed_filings = self.get_unparsed_filings(id, cik)
         logger.info(f"found {len(unparsed_filings)} unparsed filings.")
         logger.info(f"only allowing forms: {forms}")
-        for unparsed in unparsed_filings:
+        for idx, unparsed in enumerate(unparsed_filings):
+            logger.debug(f"currently on unparsed_filing number {idx}")
             form_type, file_number, file_path, filing_date, accession_number = unparsed.values()
             if (form_type in forms) or (forms == "all"):
                 logger.debug(f"values passed to _create_filing: {form_type, accession_number, file_path, filing_date, cik, file_number}")
                 try:
                     filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
                 except ValueError as e:
-                    logger.warning(f"_create_filing ran into a ValueError: {e}", exc_info=True)
+                    logger.error(f"_create_filing ran into a ValueError: {e}", exc_info=True)
                 else:
                     logger.debug(f"_create_filing created: {len(filings)} filings out of one file.")
                     for filing in filings:
                         with self.db.uow as uow:
                             company = uow.company.get(ticker)
-                            commands = self._parse_filing(filing, company)
-                            logger.info(f"issued following commands: {commands}")
-                        commands_issued.append(commands)
-        return commands_issued
+                            company = self._parse_filing(filing, company)
+
 
     def _create_filing(self,
         form_type: str,

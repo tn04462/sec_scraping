@@ -32,105 +32,105 @@ COMPILED_DATE_OF_REPORT_PATTERN = re.compile(
     DATE_OF_REPORT_PATTERN, re.I | re.MULTILINE | re.X | re.DOTALL
 )
 ITEMS_8K = {
-    "Item1.01": "Item(?:.){0,2}1\.01(?:.){0,2}Entry(?:.){0,2}into(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
-    "Item1.02": "Item(?:.){0,2}1\.02(?:.){0,2}Termination(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
-    "Item1.03": "Item(?:.){0,2}1\.03(?:.){0,2}Bankruptcy(?:.){0,2}or(?:.){0,2}Receivership",
-    "Item1.04": "Item(?:.){0,2}1\.04(?:.){0,2}Mine(?:.){0,2}Safety",
-    "Item2.01": "Item(?:.){0,2}2\.01(?:.){0,2}Completion(?:.){0,2}of(?:.){0,2}Acquisition(?:.){0,2}or(?:.){0,2}Disposition(?:.){0,2}of(?:.){0,2}Assets",
-    "Item2.02": "Item(?:.){0,2}2\.02(?:.){0,2}Results(?:.){0,2}of(?:.){0,2}Operations(?:.){0,2}and(?:.){0,2}Financial(?:.){0,2}Condition",
-    "Item2.03": "Item(?:.){0,2}2\.03(?:.){0,2}Creation(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Direct(?:.){0,2}Financial(?:.){0,2}Obligation(?:.){0,2}or(?:.){0,2}an(?:.){0,2}Obligation(?:.){0,2}under(?:.){0,2}an(?:.){0,2}Off-Balance(?:.){0,2}Sheet(?:.){0,2}Arrangement(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Registrant",
-    "Item2.04": "Item(?:.){0,2}2\.04(?:.){0,2}Triggering(?:.){0,2}Events(?:.){0,2}That(?:.){0,2}Accelerate(?:.){0,2}or(?:.){0,2}Increase(?:.){0,2}a(?:.){0,2}Direct(?:.){0,2}Financial(?:.){0,2}Obligation(?:.){0,2}or(?:.){0,2}an(?:.){0,2}Obligation(?:.){0,2}under(?:.){0,2}an(?:.){0,2}Off-Balance(?:.){0,2}Sheet(?:.){0,2}Arrangement",
-    "Item2.05": "Item(?:.){0,2}2\.05(?:.){0,2}Costs(?:.){0,2}Associated(?:.){0,2}with(?:.){0,2}Exit(?:.){0,2}or(?:.){0,2}Disposal(?:.){0,2}Activities",
-    "Item2.06": "Item(?:.){0,2}2\.06(?:.){0,2}Material(?:.){0,2}Impairments",
-    "Item3.01": "Item(?:.){0,2}3\.01(?:.){0,2}Notice(?:.){0,2}of(?:.){0,2}Delisting(?:.){0,2}or(?:.){0,2}Failure(?:.){0,2}to(?:.){0,2}Satisfy(?:.){0,2}a(?:.){0,2}Continued(?:.){0,2}Listing(?:.){0,2}Rule(?:.){0,2}or(?:.){0,2}Standard;(?:.){0,2}Transfer(?:.){0,2}of(?:.){0,2}Listing",
-    "Item3.02": "Item(?:.){0,2}3\.02(?:.){0,2}Unregistered(?:.){0,2}Sales(?:.){0,2}of(?:.){0,2}Equity(?:.){0,2}Securities",
-    "Item3.03": "Item(?:.){0,2}3\.03(?:.){0,2}Material(?:.){0,2}Modification(?:.){0,2}to(?:.){0,2}Rights(?:.){0,2}of(?:.){0,2}Security(?:.){0,2}Holders",
-    "Item4.01": "Item(?:.){0,2}4\.01(?:.){0,2}Changes(?:.){0,2}in(?:.){0,2}Registrant's(?:.){0,2}Certifying(?:.){0,2}Accountant",
-    "Item4.02": "Item(?:.){0,2}4\.02(?:.){0,2}Non-Reliance(?:.){0,2}on(?:.){0,2}Previously(?:.){0,2}Issued(?:(?:.){0,2} | \.)((Financial(?:.){0,2}Statements)|(Related(?:.){0,2}Audit(?:.){0,2}Report)|(Completed(?:.){0,2}Interim(?:.){0,2}Review))",
-    "Item5.01": "Item(?:.){0,2}5\.01(?:.){0,2}Changes(?:.){0,2}in(?:.){0,2}Control(?:.){0,2}of(?:.){0,2}Registrant",
-    "Item5.02": "Item(?:.){0,2}5\.02(?:.){0,2}(?:(Departure(?:.){0,2}of(?:.){0,2}Directors(?:.){0,2}or(?:.){0,2}Certain(?:.){0,2}Officers)|(.Election(?:.){0,2}of(?:.){0,2}Directors)|(.Appointment(?:.){0,2}of(?:.){0,2}Certain(?:.){0,2}Officers)|(.Compensatory(?:.){0,2}Arrangements(?:.){0,2}of(?:.){0,2}Certain(?:.){0,2}Officers))",
-    "Item5.03": "Item(?:.){0,2}5\.03(?:.){0,2}Amendments(?:.){0,2}to(?:.){0,2}Articles(?:.){0,2}of(?:.){0,2}Incorporation(?:.){0,2}or(?:.){0,2}Bylaws;(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Fiscal(?:.){0,2}Year",
-    "Item5.04": "Item(?:.){0,2}5\.04(?:.){0,2}Temporary(?:.){0,2}Suspension(?:.){0,2}of(?:.){0,2}Trading(?:.){0,2}Under(?:.){0,2}Registrant's(?:.){0,2}Employee(?:.){0,2}Benefit(?:.){0,2}Plans",
-    "Item5.05": "Item(?:.){0,2}5\.05(?:.){0,2}Amendment(?:.){0,2}to(?:.){0,2}Registrant's(?:.){0,2}Code(?:.){0,2}of(?:.){0,2}Ethics,(?:.){0,2}or(?:.){0,2}Waiver(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Provision(?:.){0,2}of(?:.){0,2}the(?:.){0,2}Code(?:.){0,2}of(?:.){0,2}Ethics",
-    "Item5.06": "Item(?:.){0,2}5\.06(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Shell(?:.){0,2}Company(?:.){0,2}Status",
-    "Item5.07": "Item(?:.){0,2}5\.07(?:.){0,2}Submission(?:.){0,2}of(?:.){0,2}Matters(?:.){0,2}to(?:.){0,2}a(?:.){0,2}Vote(?:.){0,2}of(?:.){0,2}Security(?:.){0,2}Holders",
-    "Item5.08": "Item(?:.){0,2}5\.08(?:.){0,2}Shareholder(?:.){0,2}Director(?:.){0,2}Nominations",
-    "Item6.01": "Item(?:.){0,2}6\.01(?:.){0,2}ABS(?:.){0,2}Informational(?:.){0,2}and(?:.){0,2}Computational(?:.){0,2}Material",
-    "Item6.02": "Item(?:.){0,2}6\.02(?:.){0,2}Change(?:.){0,2}of(?:.){0,2}Servicer(?:.){0,2}or(?:.){0,2}Trustee",
-    "Item6.03": "Item(?:.){0,2}6\.03(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Credit(?:.){0,2}Enhancement(?:.){0,2}or(?:.){0,2}Other(?:.){0,2}External(?:.){0,2}Support",
-    "Item6.04": "Item(?:.){0,2}6\.04(?:.){0,2}Failure(?:.){0,2}to(?:.){0,2}Make(?:.){0,2}a(?:.){0,2}Required(?:.){0,2}Distribution",
-    "Item6.05": "Item(?:.){0,2}6\.05(?:.){0,2}Securities(?:.){0,2}Act(?:.){0,2}Updating(?:.){0,2}Disclosure",
-    "Item7.01": "Item(?:.){0,2}7\.01(?:.){0,2}Regulation(?:.){0,2}FD(?:.){0,2}Disclosure",
-    "Item8.01": "Item(?:.){0,2}8\.01(?:.){0,2}Other(?:.){0,2}Events",
-    "Item9.01": "Item(?:.){0,2}9\.01(?:.){0,2}Financial(?:.){0,2}Statements(?:.){0,2}and(?:.){0,2}Exhibits",
+    "Item1.01": r"Item(?:.){0,2}1\.01(?:.){0,2}Entry(?:.){0,2}into(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
+    "Item1.02": r"Item(?:.){0,2}1\.02(?:.){0,2}Termination(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Material(?:.){0,2}Definitive(?:.){0,2}Agreement",
+    "Item1.03": r"Item(?:.){0,2}1\.03(?:.){0,2}Bankruptcy(?:.){0,2}or(?:.){0,2}Receivership",
+    "Item1.04": r"Item(?:.){0,2}1\.04(?:.){0,2}Mine(?:.){0,2}Safety",
+    "Item2.01": r"Item(?:.){0,2}2\.01(?:.){0,2}Completion(?:.){0,2}of(?:.){0,2}Acquisition(?:.){0,2}or(?:.){0,2}Disposition(?:.){0,2}of(?:.){0,2}Assets",
+    "Item2.02": r"Item(?:.){0,2}2\.02(?:.){0,2}Results(?:.){0,2}of(?:.){0,2}Operations(?:.){0,2}and(?:.){0,2}Financial(?:.){0,2}Condition",
+    "Item2.03": r"Item(?:.){0,2}2\.03(?:.){0,2}Creation(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Direct(?:.){0,2}Financial(?:.){0,2}Obligation(?:.){0,2}or(?:.){0,2}an(?:.){0,2}Obligation(?:.){0,2}under(?:.){0,2}an(?:.){0,2}Off-Balance(?:.){0,2}Sheet(?:.){0,2}Arrangement(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Registrant",
+    "Item2.04": r"Item(?:.){0,2}2\.04(?:.){0,2}Triggering(?:.){0,2}Events(?:.){0,2}That(?:.){0,2}Accelerate(?:.){0,2}or(?:.){0,2}Increase(?:.){0,2}a(?:.){0,2}Direct(?:.){0,2}Financial(?:.){0,2}Obligation(?:.){0,2}or(?:.){0,2}an(?:.){0,2}Obligation(?:.){0,2}under(?:.){0,2}an(?:.){0,2}Off-Balance(?:.){0,2}Sheet(?:.){0,2}Arrangement",
+    "Item2.05": r"Item(?:.){0,2}2\.05(?:.){0,2}Costs(?:.){0,2}Associated(?:.){0,2}with(?:.){0,2}Exit(?:.){0,2}or(?:.){0,2}Disposal(?:.){0,2}Activities",
+    "Item2.06": r"Item(?:.){0,2}2\.06(?:.){0,2}Material(?:.){0,2}Impairments",
+    "Item3.01": r"Item(?:.){0,2}3\.01(?:.){0,2}Notice(?:.){0,2}of(?:.){0,2}Delisting(?:.){0,2}or(?:.){0,2}Failure(?:.){0,2}to(?:.){0,2}Satisfy(?:.){0,2}a(?:.){0,2}Continued(?:.){0,2}Listing(?:.){0,2}Rule(?:.){0,2}or(?:.){0,2}Standard;(?:.){0,2}Transfer(?:.){0,2}of(?:.){0,2}Listing",
+    "Item3.02": r"Item(?:.){0,2}3\.02(?:.){0,2}Unregistered(?:.){0,2}Sales(?:.){0,2}of(?:.){0,2}Equity(?:.){0,2}Securities",
+    "Item3.03": r"Item(?:.){0,2}3\.03(?:.){0,2}Material(?:.){0,2}Modification(?:.){0,2}to(?:.){0,2}Rights(?:.){0,2}of(?:.){0,2}Security(?:.){0,2}Holders",
+    "Item4.01": r"Item(?:.){0,2}4\.01(?:.){0,2}Changes(?:.){0,2}in(?:.){0,2}Registrant's(?:.){0,2}Certifying(?:.){0,2}Accountant",
+    "Item4.02": r"Item(?:.){0,2}4\.02(?:.){0,2}Non-Reliance(?:.){0,2}on(?:.){0,2}Previously(?:.){0,2}Issued(?:(?:.){0,2} | \.)((Financial(?:.){0,2}Statements)|(Related(?:.){0,2}Audit(?:.){0,2}Report)|(Completed(?:.){0,2}Interim(?:.){0,2}Review))",
+    "Item5.01": r"Item(?:.){0,2}5\.01(?:.){0,2}Changes(?:.){0,2}in(?:.){0,2}Control(?:.){0,2}of(?:.){0,2}Registrant",
+    "Item5.02": r"Item(?:.){0,2}5\.02(?:.){0,2}(?:(Departure(?:.){0,2}of(?:.){0,2}Directors(?:.){0,2}or(?:.){0,2}Certain(?:.){0,2}Officers)|(.Election(?:.){0,2}of(?:.){0,2}Directors)|(.Appointment(?:.){0,2}of(?:.){0,2}Certain(?:.){0,2}Officers)|(.Compensatory(?:.){0,2}Arrangements(?:.){0,2}of(?:.){0,2}Certain(?:.){0,2}Officers))",
+    "Item5.03": r"Item(?:.){0,2}5\.03(?:.){0,2}Amendments(?:.){0,2}to(?:.){0,2}Articles(?:.){0,2}of(?:.){0,2}Incorporation(?:.){0,2}or(?:.){0,2}Bylaws;(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Fiscal(?:.){0,2}Year",
+    "Item5.04": r"Item(?:.){0,2}5\.04(?:.){0,2}Temporary(?:.){0,2}Suspension(?:.){0,2}of(?:.){0,2}Trading(?:.){0,2}Under(?:.){0,2}Registrant's(?:.){0,2}Employee(?:.){0,2}Benefit(?:.){0,2}Plans",
+    "Item5.05": r"Item(?:.){0,2}5\.05(?:.){0,2}Amendment(?:.){0,2}to(?:.){0,2}Registrant's(?:.){0,2}Code(?:.){0,2}of(?:.){0,2}Ethics,(?:.){0,2}or(?:.){0,2}Waiver(?:.){0,2}of(?:.){0,2}a(?:.){0,2}Provision(?:.){0,2}of(?:.){0,2}the(?:.){0,2}Code(?:.){0,2}of(?:.){0,2}Ethics",
+    "Item5.06": r"Item(?:.){0,2}5\.06(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Shell(?:.){0,2}Company(?:.){0,2}Status",
+    "Item5.07": r"Item(?:.){0,2}5\.07(?:.){0,2}Submission(?:.){0,2}of(?:.){0,2}Matters(?:.){0,2}to(?:.){0,2}a(?:.){0,2}Vote(?:.){0,2}of(?:.){0,2}Security(?:.){0,2}Holders",
+    "Item5.08": r"Item(?:.){0,2}5\.08(?:.){0,2}Shareholder(?:.){0,2}Director(?:.){0,2}Nominations",
+    "Item6.01": r"Item(?:.){0,2}6\.01(?:.){0,2}ABS(?:.){0,2}Informational(?:.){0,2}and(?:.){0,2}Computational(?:.){0,2}Material",
+    "Item6.02": r"Item(?:.){0,2}6\.02(?:.){0,2}Change(?:.){0,2}of(?:.){0,2}Servicer(?:.){0,2}or(?:.){0,2}Trustee",
+    "Item6.03": r"Item(?:.){0,2}6\.03(?:.){0,2}Change(?:.){0,2}in(?:.){0,2}Credit(?:.){0,2}Enhancement(?:.){0,2}or(?:.){0,2}Other(?:.){0,2}External(?:.){0,2}Support",
+    "Item6.04": r"Item(?:.){0,2}6\.04(?:.){0,2}Failure(?:.){0,2}to(?:.){0,2}Make(?:.){0,2}a(?:.){0,2}Required(?:.){0,2}Distribution",
+    "Item6.05": r"Item(?:.){0,2}6\.05(?:.){0,2}Securities(?:.){0,2}Act(?:.){0,2}Updating(?:.){0,2}Disclosure",
+    "Item7.01": r"Item(?:.){0,2}7\.01(?:.){0,2}Regulation(?:.){0,2}FD(?:.){0,2}Disclosure",
+    "Item8.01": r"Item(?:.){0,2}8\.01(?:.){0,2}Other(?:.){0,2}Events",
+    "Item9.01": r"Item(?:.){0,2}9\.01(?:.){0,2}Financial(?:.){0,2}Statements(?:.){0,2}and(?:.){0,2}Exhibits",
 }
 
 ITEMS_SC13D = {
-    "Security and Issuer": "(Item(?:.|\n){0,2}1\.)",
-    "Identity and Background": "(Item(?:.|\n){0,2}2\.)",
-    "Source and Amount of Funds or Other Consideration": "(Item(?:.|\n){0,2}3\.)",
-    "Purpose of Transaction": "(Item(?:.|\n){0,2}4\.)",
-    "Interest in Securities of the Issuer": "(Item(?:.|\n){0,2}5\.)",
-    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": "(Item(?:.|\n){0,2}6\.)",
-    "Material to Be Filed as Exhibits": "(Item(?:.|\n){0,2}7\.)",
+    "Security and Issuer": r"(Item(?:.|\n){0,2}1\.)",
+    "Identity and Background": r"(Item(?:.|\n){0,2}2\.)",
+    "Source and Amount of Funds or Other Consideration": r"(Item(?:.|\n){0,2}3\.)",
+    "Purpose of Transaction": r"(Item(?:.|\n){0,2}4\.)",
+    "Interest in Securities of the Issuer": r"(Item(?:.|\n){0,2}5\.)",
+    "Contracts, Arrangements, Understandings or Relationships with Respect to Securities of the Issuer": r"(Item(?:.|\n){0,2}6\.)",
+    "Material to Be Filed as Exhibits": r"(Item(?:.|\n){0,2}7\.)",
 }
 
 ITEMS_SC13G = {
-    "Issuer": "(Item(?:.){0,2}2)\.(.*$\n?(?:^Issuer.*$)?)",
-    "Filing Person": "(Item(?:.){0,2}1)\.(.*$\n?(?:^Filing(?:\s){0,2}Person.*$)?)",
-    "Checkboxes": "(Item(?:.){0,2}3)\.(.*$\n?(?:^If(?:\s){0,2}this(?:\s){0,2}statement(?:\s){0,2}is(?:\s){0,2}filed(?:\s){0,2}pursuant(?:\s){0,2}to(?:\s){0,2}.*$)?)",
-    "Ownership": "(Item(?:.){0,2}4)\.(.*$\n?(?:^Ownership.*$)?)",
-    "Five or less": "(Item(?:.){0,2}5)\.(.*$\n?(?:Ownership(?:\s){0,2}of(?:\s){0,2}Five(?:\s){0,2}Percent(?:\s){0,2}or(?:\s){0,2}Less.*$)?)",
-    "Five or more": "(Item(?:.){0,2}6)\.(.*$\n?(?:^Ownership(?:\s){0,2}of(?:\s){0,2}More(?:\s){0,2}than(?:\s){0,2}Five(?:\s){0,2}Percent.*$)?)",
-    "Subsidiary": "(Item(?:.){0,2}7)\.(.*$\n?(?:^Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
-    "Members of group": "(Item(?:.){0,2}8)\.(.*$\n?(?:^	Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
-    "Dissolution": "(Item(?:.){0,2}9)\.(.*$\n?(?:^Notice(?:\s){0,2}of(?:\s){0,2}Dissolution.*$)?)",
-    "Certifications": "(Item(?:.){0,2}10)\.(.*$\n?(?:^Certification.*$)?)",
+    "Issuer": r"(Item(?:.){0,2}2)\.(.*$\n?(?:^Issuer.*$)?)",
+    "Filing Person": r"(Item(?:.){0,2}1)\.(.*$\n?(?:^Filing(?:\s){0,2}Person.*$)?)",
+    "Checkboxes": r"(Item(?:.){0,2}3)\.(.*$\n?(?:^If(?:\s){0,2}this(?:\s){0,2}statement(?:\s){0,2}is(?:\s){0,2}filed(?:\s){0,2}pursuant(?:\s){0,2}to(?:\s){0,2}.*$)?)",
+    "Ownership": r"(Item(?:.){0,2}4)\.(.*$\n?(?:^Ownership.*$)?)",
+    "Five or less": r"(Item(?:.){0,2}5)\.(.*$\n?(?:Ownership(?:\s){0,2}of(?:\s){0,2}Five(?:\s){0,2}Percent(?:\s){0,2}or(?:\s){0,2}Less.*$)?)",
+    "Five or more": r"(Item(?:.){0,2}6)\.(.*$\n?(?:^Ownership(?:\s){0,2}of(?:\s){0,2}More(?:\s){0,2}than(?:\s){0,2}Five(?:\s){0,2}Percent.*$)?)",
+    "Subsidiary": r"(Item(?:.){0,2}7)\.(.*$\n?(?:^Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
+    "Members of group": r"(Item(?:.){0,2}8)\.(.*$\n?(?:^	Identification(?:\s){0,2}and(?:\s){0,2}Classification(?:\s){0,2}of.*$)?)",
+    "Dissolution": r"(Item(?:.){0,2}9)\.(.*$\n?(?:^Notice(?:\s){0,2}of(?:\s){0,2}Dissolution.*$)?)",
+    "Certifications": r"(Item(?:.){0,2}10)\.(.*$\n?(?:^Certification.*$)?)",
 }
 
 MAIN_TABLE_ITEMS_SC13G = {
-    "1": "(Name(?:s)?(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:s)?)(?::)?",
-    "2": "(Check(?:\s){0,2}the(?:\s){0,2}appropriate(?:\s){0,2}box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
-    "3": "(Sec(?:\s){0,2}Use(?:\s){0,2}Only)(?::)?",
-    "4": "(Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization)(?::)?",
-    "5": "(Sole(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
-    "6": "(Shared(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
-    "7": "(Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
-    "8": "(Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
-    "9": "(Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person)(?::)?",
-    "10": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}aggregate(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}\(?9\)?(?:\s){0,2}excludes(?:\s){0,2}certain(?:\s){0,2}shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
-    "11": "(Percent(?:\s){0,2}of(?:\s){0,2}class(?:\s){0,2}represented(?:\s){0,2}by(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}\(?9\)?)(?::)?",
-    "12": "(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "1": r"(Name(?:s)?(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:s)?)(?::)?",
+    "2": r"(Check(?:\s){0,2}the(?:\s){0,2}appropriate(?:\s){0,2}box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "3": r"(Sec(?:\s){0,2}Use(?:\s){0,2}Only)(?::)?",
+    "4": r"(Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization)(?::)?",
+    "5": r"(Sole(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "6": r"(Shared(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "7": r"(Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "8": r"(Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "9": r"(Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person)(?::)?",
+    "10": r"(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}aggregate(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}\(?9\)?(?:\s){0,2}excludes(?:\s){0,2}certain(?:\s){0,2}shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "11": r"(Percent(?:\s){0,2}of(?:\s){0,2}class(?:\s){0,2}represented(?:\s){0,2}by(?:\s){0,2}amount(?:\s){0,2}in(?:\s){0,2}row(?:\s){0,2}\(?9\)?)(?::)?",
+    "12": r"(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
 }
 
 MAIN_TABLE_ITEMS_SC13D = {
-    "1": "(Name(?:s)?(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:s)?)(?::)?",
-    "2": "(Check(?:\s){0,2}the(?:\s){0,2}Appropriate(?:\s){0,2}Box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}Member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
-    "3": "(SEC(?:\s){0,2}Use(?:\s){0,2}Only)(?::)?",
-    "4": "(Source(?:\s){0,2}of(?:\s){0,2}Funds(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
-    "5": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}Disclosure(?:\s){0,2}of(?:\s){0,2}Legal(?:\s){0,2}Proceedings(?:\s){0,2}Is(?:\s){0,2}Required(?:\s){0,2}Pursuant(?:\s){0,2}to(?:\s){0,2}(?:.){,30}2\(e\))(?::)?",
-    "6": "(Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization)(?::)?",
-    "7": "(Sole(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
-    "8": "(Shared(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
-    "9": "(Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
-    "10": "(Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
-    "11": "(Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person)(?::)?",
-    "12": "(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}Aggregate(?:\s){0,2}Amount(?:\s){0,2}in(?:\s){0,2}Row(?:\s){0,2}\(11\)(?:\s){0,2}Excludes(?:\s){0,2}Certain(?:\s){0,2}Shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
-    "13": "(Percent(?:\s){0,2}of(?:\s){0,2}Class(?:\s){0,2}Represented(?:\s){0,2}by(?:\s){0,2}Amount(?:\s){0,2}in(?:\s){0,2}Row(?:\s){0,2}\(11\))(?::)?",
-    "14": "(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "1": r"(Name(?:s)?(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:s)?)(?::)?",
+    "2": r"(Check(?:\s){0,2}the(?:\s){0,2}Appropriate(?:\s){0,2}Box(?:\s){0,2}if(?:\s){0,2}a(?:\s){0,2}Member(?:\s){0,2}of(?:\s){0,2}a(?:\s){0,2}Group(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "3": r"(SEC(?:\s){0,2}Use(?:\s){0,2}Only)(?::)?",
+    "4": r"(Source(?:\s){0,2}of(?:\s){0,2}Funds(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "5": r"(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}Disclosure(?:\s){0,2}of(?:\s){0,2}Legal(?:\s){0,2}Proceedings(?:\s){0,2}Is(?:\s){0,2}Required(?:\s){0,2}Pursuant(?:\s){0,2}to(?:\s){0,2}(?:.){,30}2\(e\))(?::)?",
+    "6": r"(Citizenship(?:\s){0,2}or(?:\s){0,2}Place(?:\s){0,2}of(?:\s){0,2}Organization)(?::)?",
+    "7": r"(Sole(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "8": r"(Shared(?:\s){0,2}Voting(?:\s){0,2}Power)(?::)?",
+    "9": r"(Sole(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "10": r"(Shared(?:\s){0,2}Dispositive(?:\s){0,2}Power)(?::)?",
+    "11": r"(Aggregate(?:\s){0,2}Amount(?:\s){0,2}Beneficially(?:\s){0,2}Owned(?:\s){0,2}by(?:\s){0,2}Each(?:\s){0,2}Reporting Person)(?::)?",
+    "12": r"(Check(?:\s){0,2}(?:Box)?(?:\s){0,2}if(?:\s){0,2}the(?:\s){0,2}Aggregate(?:\s){0,2}Amount(?:\s){0,2}in(?:\s){0,2}Row(?:\s){0,2}\(11\)(?:\s){0,2}Excludes(?:\s){0,2}Certain(?:\s){0,2}Shares(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
+    "13": r"(Percent(?:\s){0,2}of(?:\s){0,2}Class(?:\s){0,2}Represented(?:\s){0,2}by(?:\s){0,2}Amount(?:\s){0,2}in(?:\s){0,2}Row(?:\s){0,2}\(11\))(?::)?",
+    "14": r"(Type(?:\s){0,2}of(?:\s){0,2}Reporting(?:\s){0,2}Person(?:\s){0,2}(?:\(see(?:\s){0,2}instructions\))?)(?::)?",
 }
 
 REGISTRATION_TABLE_HEADERS_S3 = [
-    re.compile("Amount(\s*)of(\s*)Registration(\s*)Fee", re.I),
-    re.compile("Title(\s*)of(\s*)Each(\s*)Class(\s*)(.*)Regi(.*)", re.I),
-    re.compile("Amount(\s*)(Being|to(\s*)be)(\s*)Registered", re.I),
+    re.compile(r"Amount(\s*)of(\s*)Registration(\s*)Fee", re.I),
+    re.compile(r"Title(\s*)of(\s*)Each(\s*)Class(\s*)(.*)Regi(.*)", re.I),
+    re.compile(r"(Amount(\s*)(Being|to(\s*)be)(\s*)Registered)|(Proposed\s(?:Maximum)?\s*(?:Aggregate)?\s*Offering\s*Price)", re.I),
 ]
 
 REQUIRED_TOC_ITEMS_S3 = [
     # re.compile("(ABOUT(\s)*THIS(\s)*PROSPECTUS) | (PROSPECTUS(\s)*SUMMARY)", re.I),
     # re.compile("RISK(\s*)FACTORS(\s*)", re.I),
-    re.compile("(PLAN(\s*)OF(\s*)DISTRIBUTION)|(Rescission(\s*)Offer)|(legal\s*matters)", re.I),
-    re.compile("USE(\s*)OF(\s*)PROCEEDS", re.I),
+    re.compile(r"(PLAN(\s*)OF(\s*)DISTRIBUTION)|(Rescission(\s*)Offer)|(legal\s*matters)", re.I),
+    re.compile(r"USE(\s*)OF(\s*)PROCEEDS", re.I),
 ]
 
 TOC_ALTERNATIVES = {
@@ -144,9 +144,9 @@ IGNORE_HEADERS_BASED_ON_STYLE = set("TABLE OF CONTENTS")
 HEADERS_TO_DISCARD = ["(unaudited)"]
 
 RE_COMPILED = {
-    "two_newlines_or_more": re.compile("(\n){2,}", re.MULTILINE),
-    "one_newline": re.compile("(\n)", re.MULTILINE),
-    "two_spaces_or_more": re.compile("(\s){2,}", re.MULTILINE),
+    "two_newlines_or_more": re.compile(r"(\n){2,}", re.MULTILINE),
+    "one_newline": re.compile(r"(\n)", re.MULTILINE),
+    "two_spaces_or_more": re.compile(r"(\s){2,}", re.MULTILINE),
 }
 
 
@@ -908,22 +908,22 @@ class HTMFilingParser(AbstractFilingParser):
         section_content.replace("\u200b", " ")
         # fold multiple empty newline rows into one
         section_content = re.sub(
-            re.compile("(\n){2,}", re.MULTILINE), "\n", section_content
+            re.compile(r"(\n){2,}", re.MULTILINE), "\n", section_content
         )
         
         # fold multiple spaces into one
         section_content = re.sub(
-            re.compile("(\s){2,}", re.MULTILINE), " ", section_content
+            re.compile(r"(\s){2,}", re.MULTILINE), " ", section_content
         )
-        section_content = re.sub(re.compile("(?<!(\.|\?|!))(\n)(?![A-Z0-9])", re.MULTILINE), " ", section_content)
-        section_content = re.sub(re.compile("(?<!(\.|\?|!)(\s))(\n)((\s)?![A-Z0-9])", re.MULTILINE), " ", section_content)
-        section_content = re.sub(re.compile("(?<!(\.|\?|!)(\s))(\n)(?![A-Z0-9])", re.MULTILINE), " ", section_content)
-        section_content = re.sub(re.compile("(?<!(\.|\?|!))(\n)((\s)?![A-Z0-9])", re.MULTILINE), " ", section_content)
+        section_content = re.sub(re.compile(r"(?<!(\.|\?|!))(\n)(?![A-Z0-9])", re.MULTILINE), " ", section_content)
+        section_content = re.sub(re.compile(r"(?<!(\.|\?|!)(\s))(\n)((\s)?![A-Z0-9])", re.MULTILINE), " ", section_content)
+        section_content = re.sub(re.compile(r"(?<!(\.|\?|!)(\s))(\n)(?![A-Z0-9])", re.MULTILINE), " ", section_content)
+        section_content = re.sub(re.compile(r"(?<!(\.|\?|!))(\n)((\s)?![A-Z0-9])", re.MULTILINE), " ", section_content)
         section_content = re.sub(
-            re.compile("(\s){2,}", re.MULTILINE), " ", section_content
+            re.compile(r"(\s){2,}", re.MULTILINE), " ", section_content
         )
         section_content = re.sub(
-            re.compile("(\s)", re.MULTILINE), " ", section_content
+            re.compile(r"(\s)", re.MULTILINE), " ", section_content
         )
         return section_content
 
@@ -1323,10 +1323,10 @@ class HTMFilingParser(AbstractFilingParser):
     def _get_cover_page_start_ele_from_toc(self, toc_element: element.Tag):
         cover_page_start_ele = None
         cover_page_end_ele = None
-        start_re_term = re.compile("(^\s*PROSPECTUS)|(^\s*PRELIMINARY\s*PROSPECTUS)", re.MULTILINE)
-        alternative_start_re_term = re.compile("subject(\s)*to(\s)*completion,", re.I)
+        start_re_term = re.compile(r"(^\s*PROSPECTUS)|(^\s*PRELIMINARY\s*PROSPECTUS)", re.MULTILINE)
+        alternative_start_re_term = re.compile(r"subject(\s)*to(\s)*completion,", re.I)
         end_re_term = re.compile(
-            "(the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}(?:supplement)?(?:\s){,3}is)|(this(?:\s){,3}prospectus(?:\s){,3}is(?:\s){,3}dated)",
+            r"(the(?:\s){,3}date(?:\s){,3}of(?:\s){,3}this(?:\s){,3}prospectus(?:\s){,3}(?:supplement)?(?:\s){,3}is)|(this(?:\s){,3}prospectus(?:\s){,3}is(?:\s){,3}dated)|(Prospectus(?:\s){0,3}dated)",
             re.I,
         )
         ele = toc_element
@@ -1372,7 +1372,7 @@ class HTMFilingParser(AbstractFilingParser):
     def _get_front_page_sections_from_first_cover_page(
         self,
         start_ele: element.Tag,
-        re_terms: list[re.Pattern] = [re.compile("EXPLANATORY(\s)*NOTE")],
+        re_terms: list[re.Pattern] = [re.compile(r"EXPLANATORY(\s)*NOTE")],
     ):
         """
 
@@ -1585,7 +1585,7 @@ class HTMFilingParser(AbstractFilingParser):
             pass
         return (
             re.compile(
-                "^\s*" + re.sub("(\s){1,}", "(?:.){0,4}", search_term) + "\s*$",
+                r"^\s*" + re.sub(r"(\s){1,}", r"(?:.){0,4}", search_term) + r"\s*$",
                 re.I | re.DOTALL | re.MULTILINE,
             ),
             max_length,
@@ -1723,7 +1723,7 @@ class HTMFilingParser(AbstractFilingParser):
         re_toc_titles = [
             (
                 re.compile(
-                    "^\s*" + re.sub("(\s|\n)", "(?:.){0,4}", t) + "\s*$",
+                    r"^\s*" + re.sub(r"(\s|\n)", r"(?:.){0,4}", t) + r"\s*$",
                     re.I | re.DOTALL | re.MULTILINE,
                 ),
                 len(t) + 3,
@@ -1781,8 +1781,8 @@ class HTMFilingParser(AbstractFilingParser):
                         break
         for match in alternative_matches:
             if len(match) > 1:
-                print(alternative_matches)
-                print("--------->>>!! address this now !!<<<-------------")
+                logger.warning(alternative_matches)
+                logger.warning("--------->>>!! address this now !!<<<-------------")
             else:
                 title_matches.append(match[0])
         section_start_elements = []
@@ -1885,18 +1885,18 @@ class HTMFilingParser(AbstractFilingParser):
             logger.debug(f"inital close_to_toc in split with hrefs: {close_to_toc}")
             if isinstance(close_to_toc, NavigableString):
                 close_to_toc = close_to_toc.parent
-                logger.debug("close_to_toc was navigable string")
+                # logger.debug("close_to_toc was navigable string")
             if "href" in close_to_toc.attrs:
-                logger.debug(f"found href in close_to_toc")
+                # logger.debug(f"found href in close_to_toc")
                 name_or_id = close_to_toc["href"][1:]
-                logger.debug(f"close_to_toc href attr: {close_to_toc['href']}")
-                logger.debug(f"name_or_id: {name_or_id}")
+                # logger.debug(f"close_to_toc href attr: {close_to_toc['href']}")
+                # logger.debug(f"name_or_id: {name_or_id}")
                 close_to_toc = doc.find(True, {"name": name_or_id})
                 if close_to_toc is None:
                     close_to_toc = doc.find(True, {"id": name_or_id})
-                logger.debug(
-                    f"close_to_toc after looking for the name and id: {close_to_toc}"
-                )
+                # logger.debug(
+                #     f"close_to_toc after looking for the name and id: {close_to_toc}"
+                # )
             toc_table = close_to_toc.find_next("table")
             hrefs = toc_table.findChildren("a", href=True)
             logger.debug(f"hrefs from toc: {hrefs}")
@@ -2000,13 +2000,11 @@ class ParserS3(HTMFilingParser):
         logger.debug(
             f"found following TOCs: {[self.primitive_htmltable_parse(toc) for toc in tocs]}"
         )
-        # for t in tocs:
-        #     print(self.primitive_htmltable_parse(t))
         cover_page_list = []
         drop = []
         for idx, toc in enumerate(tocs):
             _toc = self._parse_toc_table_element(toc)
-            print(f"toc after parse: {_toc}")
+            logger.debug(f"toc after parse: {_toc}")
             if _toc is None:
                 drop.insert(0, idx)
         if drop != []:
@@ -2014,7 +2012,6 @@ class ParserS3(HTMFilingParser):
                 tocs.pop(idx)
         for idx, toc in enumerate(tocs):
             logger.debug(f"working on toc number: {idx}")
-            logger.debug(f"parsed toc table: {self._parse_toc_table_element(toc)}")
             section_start_elements.append(
                 {"section_title": "toc " + str(idx), "ele": toc}
             )
@@ -2078,7 +2075,7 @@ class ParserS3(HTMFilingParser):
         re_toc_titles = [
             (
                 re.compile(
-                    "^\s*" + re.sub("(\s|\n)", "(?:.){0,4}", t) + "\s*$",
+                    r"^\s*" + re.sub(r"(\s|\n)", r"(?:.){0,4}", t) + r"\s*$",
                     re.I | re.DOTALL | re.MULTILINE,
                 ),
                 len(t) + 3,
@@ -2136,8 +2133,8 @@ class ParserS3(HTMFilingParser):
                         break
         for match in alternative_matches:
             if len(match) > 1:
-                print(alternative_matches)
-                print("--------->>>!! address this now !!<<<-------------")
+                logger.warning(alternative_matches)
+                logger.warning("--------->>>!! address this now !!<<<-------------")
             else:
                 title_matches.append(match[0])
         section_start_elements = []
@@ -2191,7 +2188,7 @@ class ParserS3(HTMFilingParser):
         for entry in table:
             logger.debug(f"looking for section start element of entry: {entry}")
             id = entry["href"]
-            logger.debug(f"working on id: {id}")
+            # logger.debug(f"working on id: {id}")
             if id not in track_ids_done:
                 id_match = doc.find(attrs={"id": id[1:]})
                 if id_match is None:
@@ -2199,7 +2196,7 @@ class ParserS3(HTMFilingParser):
                 track_ids_done.append(id)
                 if id_match:
                     # print(id_match.sourceline, id_match.sourcepos, entry)
-                    logger.debug(f"id_match found: {type(id_match), id_match}")
+                    # logger.debug(f"id_match found: {type(id_match), id_match}")
                     section_start_elements.append(
                         {"ele": id_match, "section_title": entry["title"]}
                     )

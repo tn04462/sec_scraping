@@ -351,7 +351,11 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
         complete_doc = self.spacy_text_search.nlp(filing.get_text_only())
-        form_case = self.classify_s3(filing)
+        try:
+            form_case = self.classify_s3(filing)
+        except AttributeError as e:
+            logger.error(f"excepted AttributeError in classify_s3 for filing({filing.path}) e: {e}", exc_info=True)
+            return company
         cover_page_doc = self.doc_from_section(filing.get_section(re.compile("cover page")))
         # self.extract_securities(filing, company, bus, cover_page_doc)
         securities = self.extract_securities(filing, company, bus, complete_doc)
@@ -410,7 +414,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             }
         resale = model.ResaleRegistration(**kwargs)
         company.add_resale(resale)
-        bus.handle(commands.AddResaleRegistration(filing.cik, resale))
+        bus.handle(commands.AddResaleRegistration(filing.cik, company.symbol, resale))
         self.handle_resale_security_registrations(filing, company, bus)
     
     def handle_resale_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus):
@@ -421,16 +425,20 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 
     def handle_shelf(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):
+        capacity = self.format_total_shelf_capacity(self.extract_shelf_capacity(filing))
+        if not capacity:
+            logger.error(f"couldnt find shelf capacity for filing: {filing.path}")
+            return
         kwargs = {
                 "accn": filing.accession_number,
                 "form_type": filing.form_type,
                 "file_number": filing.file_number,
-                "capacity": self.format_total_shelf_capacity(self.extract_shelf_capacity(filing)),
+                "capacity": capacity,
                 "filing_date": filing.filing_date
             }
         shelf = model.ShelfRegistration(**kwargs)
         company.add_shelf(shelf)
-        bus.handle(commands.AddShelfRegistration(filing.cik, shelf))
+        bus.handle(commands.AddShelfRegistration(filing.cik, company.symbol, shelf))
                 # if no registrations can be found add whole dollar amount as common
                 # add ShelfOffering
                 # get underwriters, registrations and completed then modify
@@ -439,7 +447,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def handle_shelf_security_registration(self, filing: Filing, company: model.Company, bus: MessageBus, security_registration: model.ShelfSecurityRegistration):
         offering = company.get_shelf_offering(filing.accession_number)
         offering.add_registration(security_registration)
-        cmd = commands.AddShelfSecurityRegistration(filing.cik, filing.accession_number, security_registration=security_registration)
+        cmd = commands.AddShelfSecurityRegistration(filing.cik, company.symbol, filing.accession_number, security_registration=security_registration)
         bus.handle(cmd)
     
     def get_ATM_security_registrations(self, filing: Filing, company: model.Company, cover_page: Doc):
@@ -454,16 +462,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 
     def extract_securities(self, filing: Filing, company: model.Company, bus: MessageBus, security_doc: Doc) -> List[model.Security]:
-        '''extract securities from cover_page and descriptions of securities.'''
-        # raw_secus = self.get_mentioned_secus(security_doc)
-        # description_sections = filing.get_sections(re.compile("description\s*of", re.I))
-        # description_docs = [self.doc_from_section(x) for x in description_sections]
-        # security_relevant_docs = [
-        #     self.doc_from_section(x) for x in filing.get_sections(
-        #         re.compile("(description)|(summary)|(about)|(selling)", re.I))]
-        # logger.info(f"security_relevant_docs_found: {[s.title if s is not None else None for s in filing.get_sections(re.compile('(description)|(summary)|(about)|(selling)', re.I))]}")
-        # securities = self.get_securities_from_docs(security_relevant_docs)
-
+        '''extract securities from security_doc.'''
         securities = self.get_securities_from_docs([security_doc])
 
         for security in securities:
@@ -487,7 +486,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             return offering_data if (offering_data["amount"] is not None) else None
  
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
-        description_sections = filing.get_sections(re.compile("description\s*of", re.I))
+        description_sections = filing.get_sections(re.compile(r"description\s*of", re.I))
         description_docs = [self.doc_from_section(x) for x in description_sections]
         conversions = []
         for security in company.securities:
@@ -513,7 +512,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         cover_page = filing.get_section(re.compile("cover page"))
         distribution = filing.get_section(re.compile("distribution", re.I))
         summary = filing.get_section(re.compile("summary", re.I))
-        about = filing.get_section(re.compile("about\s*this", re.I))
+        about = filing.get_section(re.compile(r"about\s*this", re.I))
         if cover_page == []:
             raise AttributeError(f"couldnt get the cover page section; sections present: {[s.title for s in filing.sections]}")
         cover_page_doc = self.doc_from_section(cover_page)
@@ -703,13 +702,17 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         if registration_table is not None:
             if len(registration_table) == 1:
                 registration_table = registration_table[0]["parsed_table"]
-                print(registration_table)
+                logger.debug(f"registration_table: {registration_table}")
                 try:
                     if re.search(re.compile("^total.*", re.I | re.MULTILINE), registration_table[-1][0]):
                         registration_table[-1][0] = "total"
                 except IndexError:
                     pass
-                registration_df = pd.DataFrame(registration_table[1:], columns=["Title", "Amount", "Price Per Unit", "Price Aggregate", "Fee"])
+
+                column_names = self._get_registration_table_column_names(registration_table)
+                if len(column_names) != len(registration_table[0]):
+                    raise ValueError(f"Couldnt determine the correct column names for the registration_table to registration_df conversion. got column_names({column_names}) from first row({registration_table[0]})")
+                registration_df = pd.DataFrame(registration_table[1:], columns=column_names)
                 # values = []
                 logger.debug(f"registration_df: {registration_df}")
                 row = None
@@ -718,14 +721,39 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 elif len(registration_df["Title"].values) == 1:
                     row = registration_df.iloc[0]
                 if row is None:
-                    raise ValueError(f"couldnt determine correct row while extracting from registration table: {registration_df}")
-                if row["Amount"].item() != "":
-                    return {"total_shelf_capacity": {"amount": row["Amount"].item(), "unit": "shares"}}
-                elif row["Price Aggregate"].item() != "":
-                    return {"total_shelf_capacity": {"amount": row['Price Aggregate'].item(), "unit": "$"}}
+                    raise ValueError(f"Couldnt determine correct row while extracting from registration table: {registration_df}")
+                if "Price Aggregate" in column_names:
+                    if row["Price Aggregate"].item() != "":
+                        return {"total_shelf_capacity": {"amount": row['Price Aggregate'].item(), "unit": "$"}}
+                if "Amount" in column_names:
+                    if row["Amount"].item() != "":
+                        return {"total_shelf_capacity": {"amount": row["Amount"].item(), "unit": "shares"}}
+                raise ValueError(f"Couldnt extract the offering amount with current cases handled, registration_df: {registration_df}")
+        else:
+            logger.info("Couldnt find registration table.. returning None")
         return None
     
+    def _get_registration_table_column_names(self, registration_table: list[list]):
+        middle_rows_re_to_column_title = [
+                    (re.compile(r"Maximum.*offering.*Price", re.I), "Price Aggregate"),
+                    (re.compile(r"Amount.*Registered", re.I), "Amount"),
+                    (re.compile(r"Price.*per.*Unit"), "Price Per Unit")
+                ]
+        column_names = []
+        for t in middle_rows_re_to_column_title:
+            re_term = t[0]
+            title = t[1]
+            for col in registration_table[0]:
+                if re.search(re_term, col):
+                    column_names.append(title)
+                    break
+        column_names.insert(0, "Title")
+        column_names.append("Fee")
+        return column_names
+    
     def format_total_shelf_capacity(self, capacity_dict: Dict):
+        if not capacity_dict:
+            return None
         if "total_shelf_capacity" not in capacity_dict.keys():
             return None
         capacity = capacity_dict["total_shelf_capacity"]

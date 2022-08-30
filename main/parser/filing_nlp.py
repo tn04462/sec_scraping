@@ -6,7 +6,6 @@ from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
 from spacy import Language
 from spacy.util import filter_spans
-import coreferee
 import logging
 import string
 import re
@@ -1063,7 +1062,7 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("security_law_retokenizer", after="secu_act_matcher")
             cls._instance.nlp.add_pipe("common_financial_retokenizer", after="security_law_retokenizer")
             cls._instance.nlp.add_pipe("secu_matcher")
-            cls._instance.nlp.add_pipe("coreferee")
+            # cls._instance.nlp.add_pipe("coreferee")
         return cls._instance
     
 
