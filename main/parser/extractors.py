@@ -431,8 +431,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             return
         kwargs = {
                 "accn": filing.accession_number,
-                "form_type": filing.form_type,
                 "file_number": filing.file_number,
+                "form_type": filing.form_type,
                 "capacity": capacity,
                 "filing_date": filing.filing_date
             }
