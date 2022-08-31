@@ -1,7 +1,11 @@
 from dataclasses import asdict
+import inspect
 from typing import List, Dict, Callable, Type, TYPE_CHECKING
 from main.domain import commands, model
 from main.services.unit_of_work import AbstractUnitOfWork
+import logging
+
+logger = logging.getLogger(__name__)
 
 def add_company(cmd: commands.AddCompany, uow: AbstractUnitOfWork):
     with uow as u:
@@ -21,7 +25,10 @@ def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
 def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
-        local_shelf_object = u.session.merge(cmd.shelf_registration)
+        logger.info(f"shelf before merge: {cmd.shelf_registration}")
+        # add info of session state here for debug
+        local_shelf_object = u.session.merge(cmd.shelf_registration, load=False)
+        logger.info(f"shelf after merge: {inspect(local_shelf_object)}")
         company.add_shelf(local_shelf_object)
         u.company.add(company)
         u.commit()
@@ -29,7 +36,9 @@ def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnit
 def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
+        logger.info(f"resale before merge: {cmd.resale_registration}")
         local_resale_object = u.session.merge(cmd.resale_registration)
+        logger.info(f"resale after merge: {local_resale_object}")
         company.add_resale(local_resale_object)
         u.company.add(company)
         u.commit()
