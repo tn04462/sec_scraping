@@ -1,12 +1,20 @@
 from pathlib import Path
 import os
 import pytest
+from main.parser.filings_base import Filing
 from main.parser.parsers import filing_factory, HTMFilingParser
+import datetime
 
 s3_rel_path = r"test_resources\filings\0001325879\S-3\000119312518218817\d439397ds3.htm"
+s3_shelf = r"test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
+'''
+needs test for:
+    * each table classification
+    *
+'''
 
 def _get_absolute_path(rel_path):
-    return str(Path(__file__).parent.parent / s3_rel_path)
+    return str(Path(__file__).parent.parent / rel_path)
 
 # @pytest.mark.parser_splitting
 def test_s3_splitting_by_toc_hrefs():
@@ -23,6 +31,27 @@ def test_s3_splitting_by_toc_headers():
     parser = HTMFilingParser()
     doc = parser.get_doc(s3_path)
     sections = parser._split_by_table_of_content_based_on_headers(parser.make_soup(doc))
+
+def test_s3_filing_creation2():
+    path = _get_absolute_path(s3_shelf)
+    info = {
+            "path": path,
+            "filing_date": datetime.date(2018, 9, 28),
+            "accession_number": Path(path).parents[0].name,
+            "cik": Path(path).parents[2].name,
+            "file_number": "1",
+            "form_type": "S-3",
+            "extension": ".htm"
+            }
+    filing = filing_factory.create_filing(**info)
+    sections = [s.title for s in filing.sections]
+    front_page = filing.get_section("front page")
+    assert front_page is not None
+    for each in ['front page', 'cover page 0', 'toc 0', 'about this prospectus', 'cautionary note regarding forward-looking statements', 'the company', 'the offering', 'use of proceeds', 'risk factors', 'risk factors', 'ratio of earnings to fixed charges', 'ratio of earnings to fixed charges (1) :', 'use of proceeds', 'description of securities', 'description of capital stock', 'description of senior and subordinated debt securities', 'description of depositary shares', 'description of depositary shares', 'description of purchase contracts', 'description of units', 'description of warrants', 'description of rights', 'plan of distribution', 'legal matters', 'experts']:
+        assert each in sections
+    reg = front_page.get_tables("registration_table", "extracted")
+    assert reg is not None
+
 
 def test_s3_filing_creation():
     s3_path = _get_absolute_path(s3_rel_path)
@@ -47,13 +76,14 @@ def test_s3_filing_creation():
         "dilution",
         "plan of distribution",
         "description of securities",
-        "material u.s federal tax consideration for non-u.s holders of common stock",
+        "material u.s. federal tax considerations for non-u.s. holders of common stock",
         "legal matters",
         "where you can find more information",
         "incorporation of certain documents by reference"
         ]
     filing = filing_factory.create_filing(**info)
     filing_titles = set(s.title for s in filing.sections)
+    print(filing_titles)
     for rsec in required_sections:
         assert rsec in filing_titles
         assert len(filing.get_section(rsec).content) > 10

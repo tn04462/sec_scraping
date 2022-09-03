@@ -2924,7 +2924,7 @@ def table_header_has_fields(table_header: list, re_terms: list[re.Pattern]) -> b
         for re_term in re_terms:
             if table_field_contains_content(field, re_term):
                 header_matches.append(True)
-    return _list_is_true(header_matches) and (len(header_matches) == len(re_terms))
+    return _list_is_true(header_matches) and (len(header_matches) >= len(re_terms))
 
 
 parser_factory_default = [
