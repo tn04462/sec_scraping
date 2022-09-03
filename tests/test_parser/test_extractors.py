@@ -212,6 +212,16 @@ def test_extract_ATM_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_ATM
     aggregate_offering = extractor.extract_aggregate_offering_amount(cover_page_doc)
     expected_aggregate_offering = {'SECU': ['common stock'], 'amount': 75000000}
     assert aggregate_offering == expected_aggregate_offering
+
+def test_extract_form_values_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
+    shelf_filing = get_filing_s3_shelf
+    extractor = get_s3_extractor
+    bus = get_fake_messagebus
+    company = get_fake_company()
+    result = extractor.extract_form_values(shelf_filing, company, bus)
+    print(result)
+    assert 1 == 2
+
     
 
 

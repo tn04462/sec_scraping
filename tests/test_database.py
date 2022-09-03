@@ -236,9 +236,94 @@ def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
             print("securities:", company.securities)
     
     assert 1 == 2
+
+
+def test_live_add_company(get_uow, get_session, postgresql_np):
+    sic = model.Sic(9000, "random sector", "random industry", "random divison")
+    uow = get_uow
+    session = get_session
+    with uow as u:
+        u.session.add(sic)
+        u.session.commit()
+    result = session.execute(text("SELECT * FROM sics")).fetchall()
+    assert result == [(9000, 'random sector', 'random industry', 'random divison')]
+
+    company = model.Company(
+        name="random company",
+        cik="0000000001",
+        sic=9000,
+        symbol="RANC",
+        description_="random description"
+    )
+    with uow as u:
+        u.company.add(company)
+        u.commit()
+    with uow as u:
+        result:model.Company = u.company.get(symbol="RANC")
+        
+    with uow as u:
+        local_res = u.session.merge(result)
+        local_res.add_security(
+            model.Security(**{
+            "name": "common stock",
+            "secu_attributes": model.CommonShare(name="common stock")
+        })
+        )
+        print(local_res, company)
+        assert local_res == company
+
+def test_make_model_object_transient(get_uow, postgresql_np):
+    uow = get_uow
+    sic = model.Sic(9000, "random sector", "random industry", "random divison")
+    with uow as u:
+        u.session.add(sic)
+        u.session.commit()
     
-    
-    
+    company = model.Company(
+        name="random company",
+        cik="0000000001",
+        sic=9000,
+        symbol="RANC",
+        description_="random description"
+    )
+    with uow as u:
+        u.company.add(company)
+        u.commit()
+
+    with uow as uow1:
+        
+        # uow1.session.commit()
+        with uow as uow2:
+            shelf = model.ShelfRegistration(
+            accn='000143774918017591',
+            file_number='1',
+            form_type='S-3',
+            capacity=75000000.0,
+            filing_date=datetime.date(2018, 9, 28),
+            effect_date=None,
+            last_update=None,
+            expiry=None,
+            total_amount_raised=None)
+            from sqlalchemy.orm import make_transient
+            from sqlalchemy import inspect
+            insp = inspect(shelf)
+            print([x.value for x  in insp.attrs])
+            print(insp.detached, " detached")
+            print(insp.persistent, " persistent")
+            print(insp.identity, " identity")
+            print(insp.transient, " transient")
+            print(insp.pending, " pending")
+            print(shelf.__dict__)
+            make_transient(shelf)
+            print(shelf)
+            # shelf = uow2.session.merge(shelf, load=False)
+            # print(shelf)
+            company = uow2.company.get("RANC")
+            company.add_shelf(shelf)
+            uow2.company.add(company)
+            uow2.commit()
+    assert 1 == 2
+
     
 
 

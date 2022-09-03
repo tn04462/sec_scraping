@@ -19,7 +19,7 @@ from scipy.fftpack import idct
 from tqdm import tqdm
 import json
 from datetime import datetime
-from abc import ABC
+from sqlalchemy import inspect
 
 
 from pysec_downloader.downloader import Downloader

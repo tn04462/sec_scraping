@@ -389,9 +389,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                     "end_date": commencment_date + timedelta(days=1095)
                 }
             offering = model.ShelfOffering(**kwargs)
-            shelf.add_offering(offering)
             logger.info("Added ShelfOffering")
             bus.handle(commands.AddShelfOffering(company.cik, company.symbol, offering))
+            shelf.add_offering(offering)
             self.handle_ATM_security_registrations(filing, company, bus, cover_page_doc)
 
     def handle_ATM_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
@@ -413,8 +413,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 "filing_date": filing.filing_date
             }
         resale = model.ResaleRegistration(**kwargs)
-        company.add_resale(resale)
         bus.handle(commands.AddResaleRegistration(filing.cik, company.symbol, resale))
+        logger.info("completed bus resaleregistration")
+        company.add_resale(resale)
         self.handle_resale_security_registrations(filing, company, bus)
     
     def handle_resale_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus):
@@ -437,8 +438,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 "filing_date": filing.filing_date
             }
         shelf = model.ShelfRegistration(**kwargs)
-        company.add_shelf(shelf)
         bus.handle(commands.AddShelfRegistration(filing.cik, company.symbol, shelf))
+        company.add_shelf(shelf)
                 # if no registrations can be found add whole dollar amount as common
                 # add ShelfOffering
                 # get underwriters, registrations and completed then modify
@@ -446,9 +447,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     
     def handle_shelf_security_registration(self, filing: Filing, company: model.Company, bus: MessageBus, security_registration: model.ShelfSecurityRegistration):
         offering = company.get_shelf_offering(filing.accession_number)
-        offering.add_registration(security_registration)
         cmd = commands.AddShelfSecurityRegistration(filing.cik, company.symbol, filing.accession_number, security_registration=security_registration)
         bus.handle(cmd)
+        offering.add_registration(security_registration)
     
     def get_ATM_security_registrations(self, filing: Filing, company: model.Company, cover_page: Doc):
         registrations = []
@@ -465,8 +466,8 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         '''extract securities from security_doc.'''
         securities = self.get_securities_from_docs([security_doc])
 
-        for security in securities:
-            company.add_security(security)
+        # for security in securities:
+        #     company.add_security(security)
         bus.handle(commands.AddSecurities(company.cik, company.symbol, securities))
         return securities
     
@@ -694,7 +695,16 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             return True
         return False
 
-    def extract_shelf_capacity(self, filing: Filing):
+    def extract_shelf_capacity(self, filing: Filing) -> dict:
+        '''
+        Extract the maximum offering amount (preferring $ over shares) from the registration table on the front page.
+        
+        Returns:
+            Dict with keys: 'amount' and 'unit' or None.
+        
+        Raises:
+            ValueError: if unhandled case is encountered.
+        '''
         fp = filing.get_section("front page")
         if isinstance(fp, list):
             raise AttributeError(f"couldnt get the front page section; sections present: {[s.title for s in filing.sections]}")
@@ -728,27 +738,27 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 if "Amount" in column_names:
                     if row["Amount"].item() != "":
                         return {"total_shelf_capacity": {"amount": row["Amount"].item(), "unit": "shares"}}
-                raise ValueError(f"Couldnt extract the offering amount with current cases handled, registration_df: {registration_df}")
+                raise ValueError(f"Couldnt extract the offering amount with current cases handled, registration_df: {registration_df.columns, registration_df}")
         else:
             logger.info("Couldnt find registration table.. returning None")
         return None
     
     def _get_registration_table_column_names(self, registration_table: list[list]):
         middle_rows_re_to_column_title = [
-                    (re.compile(r"Maximum.*offering.*Price", re.I), "Price Aggregate"),
+                    (re.compile(r"Aggregate\s*offering.*Price", re.I), "Price Aggregate"),
                     (re.compile(r"Amount.*Registered", re.I), "Amount"),
-                    (re.compile(r"Price.*per.*Unit"), "Price Per Unit")
+                    (re.compile(r"Price.*per.*Unit", re.I), "Price Per Unit")
                 ]
-        column_names = []
+        column_names  = [x for x in range(len(registration_table[0]))]
         for t in middle_rows_re_to_column_title:
             re_term = t[0]
             title = t[1]
-            for col in registration_table[0]:
+            for idx, col in enumerate(registration_table[0]):
                 if re.search(re_term, col):
-                    column_names.append(title)
+                    column_names[idx] = title
                     break
-        column_names.insert(0, "Title")
-        column_names.append("Fee")
+        column_names[0] = "Title"
+        column_names[-1] = "Fee"
         return column_names
     
     def format_total_shelf_capacity(self, capacity_dict: Dict):
