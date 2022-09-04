@@ -1191,6 +1191,34 @@ class DilutionDBUtil:
             sub = json.load(f)
             return sub
     
+    # def _inital_population_with_domain_model(self, db: DilutionDB, dl: Downloader, polygon_client: PolygonClient, polygon_overview_files_path: str, ticker: str):
+    #     logger.info(f"starting inital_population_with_domain_model for ticker: {ticker}")
+    #     try:
+    #         ov = polygon_client.get_overview_single_ticker(ticker)
+    #     except HTTPError as e:
+    #         logger.critical((e, ticker, "couldnt get overview file"))
+    #         logger.info("couldnt get overview file")
+    #         return None
+    #     with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
+    #         json.dump(ov, f)
+    #     logger.debug(f"overview_data: {ov}")
+    #     # check that we have a sic otherwise assign  9999 --> nonclassifable
+    #     try:
+    #         ov["sic_code"]
+    #     except KeyError:
+    #         ov["sic_code"] = "9999"
+    #         ov["sic_description"] = "Nonclassifiable"
+    #     db.bus.handle(
+    #         commands.AddCompany(
+    #             model.Company(
+    #                 name=ov["name"],
+    #                 cik=ov["cik"],
+    #                 sic=ov["sic_code"],
+    #                 description_=ov["description"],
+    #             )
+    #     ))
+    
+    
     def _inital_population(self, db: DilutionDB,  dl: Downloader, polygon_client: PolygonClient, polygon_overview_files_path: str, ticker: str):
         '''
         download none filing data and populate base information for a company.
@@ -1231,7 +1259,8 @@ class DilutionDBUtil:
                         connection,
                         ov["cik"],
                         ov["sic_code"],
-                        ticker, ov["name"],
+                        ticker,
+                        ov["name"],
                         ov["description"],
                         ov["sic_description"])
                     if not id:
@@ -1319,10 +1348,9 @@ class DilutionDBUtil:
                 self.logger.info((ticker, form, e), exc_info=True)
                 pass
 
-    def _get_overview_files(self, dl_root_path: str, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
+    def _get_overview_files(self, polygon_overview_files_path: str, polygon_api_key: str, tickers: list):
         # get the polygon overview files
         polygon_client = PolygonClient(polygon_api_key)
-        dl = Downloader(dl_root_path)
         if not Path(polygon_overview_files_path).exists():
             Path(polygon_overview_files_path).mkdir(parents=True)
             logger.debug(
@@ -1339,7 +1367,7 @@ class DilutionDBUtil:
             try:
                 ov["cik"]
             except KeyError as e:
-                print(e)
+                logger.error(f"Error during access of 'cik': {e}", exc_info=True)
                 continue
             with open(Path(polygon_overview_files_path) / (ov["cik"] + ".json"), "w+") as f:
                 dump(ov, f)

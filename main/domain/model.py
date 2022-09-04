@@ -587,6 +587,10 @@ class NetCashAndEquivalents:
     def __hash__(self):
         return hash((self.instant, self.amount))
 
+# @dataclass
+# class CompanyLastUpdate:
+#     pass
+
 
 class Company:
     def __init__(self, name: str, cik: str, sic: int, symbol: str, description_: Optional[str]=None):
