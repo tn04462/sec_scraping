@@ -1014,8 +1014,11 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwr
 
 def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optional[list[str]]=None):
     conflicting_ents = []
-    for ent in doc.ents:                
-        covered_tokens = range(ent.start, ent.end + 1)
+    for ent in doc.ents:
+        if ent.end == ent.start:
+            covered_tokens = [ent.start]
+        else:               
+            covered_tokens = range(ent.start, ent.end+1)
         if (start in covered_tokens) or (end in covered_tokens):
             if ((ent.end - ent.start) <= (end - start)) or (ent.label_ in overwrite_labels if overwrite_labels else False) is True:
                 conflicting_ents.append((ent.end - ent.start, ent))

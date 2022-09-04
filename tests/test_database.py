@@ -272,11 +272,13 @@ def test_live_add_company(get_uow, get_session, postgresql_np):
         print(local_res, company)
         assert local_res == company
 
-def test_make_model_object_transient(get_uow, postgresql_np):
+def test_transient_model_object_requeried_in_subtransaction(get_uow, postgresql_np):
     uow = get_uow
     sic = model.Sic(9000, "random sector", "random industry", "random divison")
+    ft = model.FormType("S-3", "whatever")
     with uow as u:
         u.session.add(sic)
+        u.session.add(ft)
         u.session.commit()
     
     company = model.Company(
@@ -289,40 +291,49 @@ def test_make_model_object_transient(get_uow, postgresql_np):
     with uow as u:
         u.company.add(company)
         u.commit()
-
-    with uow as uow1:
-        
-        # uow1.session.commit()
-        with uow as uow2:
+    
+    
+    try:
+        with uow as uow1:
             shelf = model.ShelfRegistration(
-            accn='000143774918017591',
-            file_number='1',
-            form_type='S-3',
-            capacity=75000000.0,
-            filing_date=datetime.date(2018, 9, 28),
-            effect_date=None,
-            last_update=None,
-            expiry=None,
-            total_amount_raised=None)
+                accn='000143774918017591',
+                file_number='1',
+                form_type='S-3',
+                capacity=75000000.0,
+                filing_date=datetime.date(2018, 9, 28),
+                effect_date=None,
+                last_update=None,
+                expiry=None,
+                total_amount_raised=None)
+            company1 = uow1.company.get("RANC")
             from sqlalchemy.orm import make_transient
-            from sqlalchemy import inspect
-            insp = inspect(shelf)
-            print([x.value for x  in insp.attrs])
-            print(insp.detached, " detached")
-            print(insp.persistent, " persistent")
-            print(insp.identity, " identity")
-            print(insp.transient, " transient")
-            print(insp.pending, " pending")
-            print(shelf.__dict__)
-            make_transient(shelf)
-            print(shelf)
-            # shelf = uow2.session.merge(shelf, load=False)
-            # print(shelf)
-            company = uow2.company.get("RANC")
-            company.add_shelf(shelf)
-            uow2.company.add(company)
-            uow2.commit()
-    assert 1 == 2
+            uow1.session.expunge(company1)
+            company1.add_shelf(shelf)
+            
+            # uow1.session.commit()
+            with uow as uow2:
+                
+                from sqlalchemy import inspect
+                insp = inspect(shelf)
+                print([x.value for x  in insp.attrs])
+                print(insp.detached, " detached")
+                print(insp.persistent, " persistent")
+                print(insp.identity, " identity")
+                print(insp.transient, " transient")
+                print(insp.pending, " pending")
+                print(insp.dict, " dict")
+                print(insp.mapper, " mapper")
+                print(insp.object, " object")
+                # print(shelf)
+                company = uow2.company.get("RANC")
+                company.add_shelf(shelf)
+                shelf = uow2.session.merge(shelf)
+                uow2.company.add(company)
+                uow2.commit()
+    except Exception as e:
+        raise e
+    else:
+        assert 1 == 1
 
     
 

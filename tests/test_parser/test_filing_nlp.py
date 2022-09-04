@@ -196,3 +196,13 @@ def test_match_outstanding_shares(get_search):
     for sent, ex in zip(phrases, expected):
         res = search.match_outstanding_shares(sent)
         assert res[0] == ex
+
+def test_get_conflicting_ents(get_search, get_secumatcher):
+    search = get_search
+    text = "one or three or five."
+    doc = search.nlp(text)
+    from main.parser.filing_nlp import get_conflicting_ents
+    print([ent for ent in doc.ents])
+    print(get_conflicting_ents(doc, 1, 2))
+    assert 1 == 2
+
