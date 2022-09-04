@@ -306,13 +306,11 @@ def test_transient_model_object_requeried_in_subtransaction(get_uow, postgresql_
                 expiry=None,
                 total_amount_raised=None)
             company1 = uow1.company.get("RANC")
-            from sqlalchemy.orm import make_transient
             uow1.session.expunge(company1)
             company1.add_shelf(shelf)
             
             # uow1.session.commit()
             with uow as uow2:
-                
                 from sqlalchemy import inspect
                 insp = inspect(shelf)
                 print([x.value for x  in insp.attrs])
@@ -324,7 +322,6 @@ def test_transient_model_object_requeried_in_subtransaction(get_uow, postgresql_
                 print(insp.dict, " dict")
                 print(insp.mapper, " mapper")
                 print(insp.object, " object")
-                # print(shelf)
                 company = uow2.company.get("RANC")
                 company.add_shelf(shelf)
                 shelf = uow2.session.merge(shelf)

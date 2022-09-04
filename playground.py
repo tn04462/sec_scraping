@@ -889,12 +889,12 @@ if __name__ == "__main__":
         # "Warrants to purchase 560,192 shares of common stock at any time on or prior to July 6, 2025 at an initial exercise price of $0.15 per share for 315,689 of the warrants and $0.72 per share for 244,503 of the warrants."
         # "The Placement Agent Warrant have an exercise price of $2.8125 per share, subject to customary anti-dilution, but not price protection, adjustments.",
         # "We will be prohibited from effecting an exercise of the Investor Warrant to the extent that, as a result of such exercise, the Investor would beneficially own more than 9.99% of the number of shares of our common stock outstanding immediately after giving effect to the Warrant Shares."
-        
+        "Warrants to purchase 33,334 shares of common stock at any time on or prior to September 26, 2022 at an initial exercise price of $3.00 per share.",
         ## EXPIRY SENTENCES
         # "The Warrants are immediately exercisable and expire on the five-year anniversary of the date of issuance.",
         # "The Warrants expire on the five-year anniversary of the date of issuance.",
         # "The Warrants expires on August 6, 2025.",
-        "The Warrants are exercisable at an exercise price of $2.00 per share and expire on the fourth year anniversary of December 14, 2021, the initial issuance date of the Warrants",
+        # "The Warrants are exercisable at an exercise price of $2.00 per share and expire on the fourth year anniversary of December 14, 2021, the initial issuance date of the Warrants",
         # "The Warrants have an exercise price of $11.50 per share will be exercisable beginning on the calendar day following the six month anniversary of the date of issuance, will expire on March 17, 2026.",
         # "Holders of our Series A Warrants may exercise their Series A Warrants at any time beginning on the first anniversary of the date of issuance of such shares up to 5:00 p.m., New York time, on the date that is the fifth anniversary of such date of issuance (the “Series A Warrant Expiration Date”).",
         
@@ -904,24 +904,25 @@ if __name__ == "__main__":
         ]
     secu_idxs = [
         # (1, 2),
-        (1, 2),
+        # (1, 2),
         # (1, 2),
         # (1, 2),
         # (1, 2)
         # (3, 6),
+        (0, 1),
     ]
     docs = []
     ex = []
-    # for text, idxs in zip(texts, secu_idxs):
-    #     doc = search.nlp(text)
-    #     print(doc)
+    for text, idxs in zip(texts, secu_idxs):
+        doc = search.nlp(text)
+        print(doc)
     #     print(ex.append(extractor.spacy_text_search.match_secu_expiry(doc, doc[idxs[0]:idxs[1]])))
     #     for token in doc:
     #         print(token.lemma_, token.ent_type_)
-    #     # ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[0:1]))
+        ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[idxs[0]:idxs[1]]))
     #     # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
-    #     docs.append(doc)
-    # print(ex)
+        docs.append(doc)
+    print(ex)
 
     texts = [
         # RESALE SECURITY REGISTRATION SENTENCES (ONLY COVER PAGE)
@@ -951,13 +952,13 @@ if __name__ == "__main__":
         # "The Common Stock is issuable upon redemption of warrants.",
         # "The Shares of our Common Stock, par value $ 0.001 per share, is the only security issued."
     ]
-    secq = []
-    for text in texts:
-        doc = search.nlp(text)
-        for secu in doc.spans["SECU"]:
-            root_token = search._get_compound_SECU_root(secu)
-            if root_token:
-                secq.append((secu, search.get_SECU_subtree_adjectives(root_token)))
+    # secq = []
+    # for text in texts:
+    #     doc = search.nlp(text)
+    #     for secu in doc.spans["SECU"]:
+    #         root_token = search._get_compound_SECU_root(secu)
+    #         if root_token:
+    #             secq.append((secu, search.get_SECU_subtree_adjectives(root_token)))
                 # secq.append((secu, search.get_head_verbs(root_token)))
         #     print(secu.root)
         # for x in (set([token.pos_ for token in doc])):
@@ -969,7 +970,7 @@ if __name__ == "__main__":
         # for token in doc:
         #     print(token.pos_, token.tag_)
 
-        docs.append(doc)
+        # docs.append(doc)
     
         # print("prep_phrases: ")
         # [print("    ", x) for x  in extractor.spacy_text_search.get_prep_phrases(doc)]
@@ -989,7 +990,7 @@ if __name__ == "__main__":
         #             print("->".join([i.text for i in secu.subtree]))
         #             print("head: ", secu.head.text)
 
-    print(secq)
+    # print(secq)
 
             # for token in sent:
             #     if token.text == "price":

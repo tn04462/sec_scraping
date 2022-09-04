@@ -144,25 +144,32 @@ def test_security_extraction_s3_warrant(get_s3_extractor, get_fake_messagebus, g
     bus = get_fake_messagebus
     filing = get_filing_s3_resale_with_warrants
     company = get_fake_company()
-    cover_page = filing.get_section(re.compile("cover page"))
-    # cover_page_doc = extractor.doc_from_section(cover_page)
     filing_text = filing.get_text_only()
     filing_text_doc = extractor.spacy_text_search.nlp(filing_text)
-    print(f"single_secu_alias_tuples: {filing_text_doc._.single_secu_alias_tuples}")
     securities = extractor.extract_securities(filing, company, bus, filing_text_doc)
-    print(securities)
-    assert 1 == 2
+    print("securities extracted: ", securities)
+    assert all([isinstance(secu, model.Security) for secu in securities])
+    assert [secu.name for secu in securities] == [
+        "common stock",
+        "investor warrant",
+        "placement agent warrant",
+        "preferred stock",
+        ]
 
 def test_security_extraction_s3_ATM(get_s3_extractor, get_fake_messagebus, get_filing_s3_ATM):
     extractor: extractors.HTMS3Extractor = get_s3_extractor
     bus = get_fake_messagebus
     filing = get_filing_s3_ATM
     company = get_fake_company()
-    cover_page = filing.get_section(re.compile("cover page"))
-    cover_page_doc = extractor.doc_from_section(cover_page)
-    securities = extractor.spacy_text_search.get_secus_and_secuquantity(cover_page_doc)
-    print(securities)
-    assert 1 == 2
+    filing_text = filing.get_text_only()
+    filing_text_doc = extractor.spacy_text_search.nlp(filing_text)
+    securities = extractor.extract_securities(filing, company, bus, filing_text_doc)
+    print("securities extracted: ", securities)
+    assert all([isinstance(secu, model.Security) for secu in securities])
+    assert [secu.name for secu in securities] == [
+        "common stock",
+        "preferred stock",
+        ]
 
 
 def test_extract_shelf_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
@@ -213,15 +220,19 @@ def test_extract_ATM_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_ATM
     expected_aggregate_offering = {'SECU': ['common stock'], 'amount': 75000000}
     assert aggregate_offering == expected_aggregate_offering
     
-
 def test_extract_form_values_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_shelf):
     shelf_filing = get_filing_s3_shelf
     extractor = get_s3_extractor
     bus = get_fake_messagebus
     company = get_fake_company()
-    result = extractor.extract_form_values(shelf_filing, company, bus)
-    print(result)
-    assert 1 == 2
+    try:
+        result = extractor.extract_form_values(shelf_filing, company, bus)
+    except Exception as e:
+        print(e)
+        assert 1 == 2
+    else:
+        assert isinstance(result, model.Company) is True
+        
 
 
     

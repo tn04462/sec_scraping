@@ -67,13 +67,13 @@ def test__create_secu_span_dependency_matcher_dict(get_search):
             'LEFT_ID': 'secu_anchor',
             'REL_OP': '>',
             'RIGHT_ID': 'series__1',
-            'RIGHT_ATTRS': {'LOWER': 'Series'}
+            'RIGHT_ATTRS': {'LOWER': 'series'}
         },
         {
             'LEFT_ID': 'secu_anchor',
             'REL_OP': '>',
             'RIGHT_ID': 'a__2',
-            'RIGHT_ATTRS': {'LOWER': 'A'}
+            'RIGHT_ATTRS': {'LOWER': 'a'}
         }
         ]
     
@@ -123,6 +123,8 @@ def test_match_exercise_price(text, expected, secu_idx, get_search):
     doc = search.nlp(text)
     secu = doc[secu_idx[0]:secu_idx[1]]
     matches = search.match_secu_exercise_price(doc, secu)
+    print("matches: ", matches)
+    print("expected: ", expected)
     assert expected == matches[0]
 
 
@@ -163,11 +165,12 @@ def test_secu_alias_map(get_search):
     doc = search.nlp(text)
     # print(doc._.single_secu_alias_tuples)
     # print(doc._.single_secu_alias)
-    expected_bases = ["common stock", "common stock", "warrant"]
+    expected_bases = ["common stock", "common stock", "warrant", "Warrant"]
     expected_alias = ["Investor Warrant"]
     alias_map = doc._.single_secu_alias
     received_bases = sum([alias_map[k]["base"] for k, v in alias_map.items()], [])
     received_alias = sum([alias_map[k]["alias"] for k, v in alias_map.items()], [])
+    print(f"doc._.single_secu_alias: {alias_map}")
     assert len(expected_bases) == len(received_bases)
     assert len(expected_alias) == len(received_alias)
     for expected, received in zip(expected_bases, received_bases):
@@ -176,7 +179,7 @@ def test_secu_alias_map(get_search):
         assert expected == received.text
 
 def test_match_outstanding_shares(get_search):
-    search = get_search
+    search: SpacyFilingTextSearch = get_search
     phrases = (
         "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
         "The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022",
@@ -188,30 +191,27 @@ def test_match_outstanding_shares(get_search):
     expected = [
         {"date": to_datetime("May 4, 2021"),"amount": 46522759},
         {"date": to_datetime("May 16, 2022"),"amount": 399794291},
-        {"date": to_datetime("January  17, 2020"),"amount": 34190415},
+        {"date": to_datetime("January 17, 2020"),"amount": 34190415},
         {"date": to_datetime("April 11, 2022"),"amount": 30823573},
         {"date": to_datetime("October 18, 2021"),"amount": 70067147},
         {"date": to_datetime("October 26, 2020"),"amount": 41959545},
     ]
     for sent, ex in zip(phrases, expected):
         res = search.match_outstanding_shares(sent)
+        print(f"sent: {sent}")
+        print(f"res: {res}")
         assert res[0] == ex
 
 def test_get_conflicting_ents(get_search, get_secumatcher):
     search = get_search
-    text = "one or three or five."
+    text = "one or three or five are the magic numbers."
     doc = search.nlp(text)
     from main.parser.filing_nlp import get_conflicting_ents
-    # print([ent for ent in doc.ents])
-    # print([(t.i, t) for t in doc])
-    # span = doc[1:2]
-    # pents = set(doc.ents)
-    # pents.add(span)
-    # doc.ents = pents
+    print("ents in test doc: ", [ent for ent in doc.ents])
     conflicting = get_conflicting_ents(doc, 0, 1)
-    assert conflicting == [(1, doc.ents[0])]
+    assert conflicting == [doc.ents[0]]
     conflicting = get_conflicting_ents(doc, 0, 5)
-    assert conflicting == [(1, doc.ents[0]), (3, doc.ents[1])]
+    assert conflicting == [doc.ents[0], doc.ents[1]]
     conflicting = get_conflicting_ents(doc, 1, 2)
     assert conflicting == []
 

@@ -187,15 +187,6 @@ def test_add_company(get_session):
     print(received.__dict__, company.__dict__)
     assert company == received
 
-def test_add_security_to_company_across_sessions(get_uow, add_base_company):
-    uow = get_uow
-    with uow as u:
-        company = company.get(symbol=company_data["companies"]["symbol"])
-        print(inspect(company))
-    # create security outside of uow
-    # add security inside new uow
-    # check attributes of security before and after using merge
-
 
 
 def test_add_sic(get_session):

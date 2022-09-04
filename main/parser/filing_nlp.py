@@ -985,8 +985,8 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwr
     logger.debug(f"conflicting_ents: {conflicting_ents}")
     # if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
     if conflicting_ents != []:
-        [previous_ents.remove(k[1]) for k in conflicting_ents]
-        logger.debug(f"removed conflicting ents: {[k[1] for k in conflicting_ents]}")
+        [previous_ents.remove(k) for k in conflicting_ents]
+        logger.debug(f"removed conflicting ents: {[k for k in conflicting_ents]}")
         previous_ents.add(entity)
         try:
             doc.ents = previous_ents
@@ -1014,14 +1014,21 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwr
 
 def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optional[list[str]]=None):
     conflicting_ents = []
+    seen_conflicting_ents = []
+    covered_tokens = range(start, end)
     for ent in doc.ents:
-        if ent.end == ent.start:
-            covered_tokens = [ent.start]
-        else:               
-            covered_tokens = range(ent.start, ent.end+1)
-        if (start in covered_tokens) or (end in covered_tokens):
+        # if ent.end == ent.start-1:
+        #     covered_tokens = [ent.start]
+        # else:               
+        # covered_tokens = range(ent.start, ent.end)
+        if (ent.start in covered_tokens) or (ent.end-1 in covered_tokens):
+            if conflicting_ents == []:
+                seen_conflicting_ents.append(ent)
             if ((ent.end - ent.start) <= (end - start)) or (ent.label_ in overwrite_labels if overwrite_labels else False) is True:
-                conflicting_ents.append((ent.end - ent.start, ent))
+                if conflicting_ents == []:
+                    conflicting_ents = seen_conflicting_ents
+                else:
+                    conflicting_ents.append(ent)
     return conflicting_ents
 
 def _get_singular_or_plural_of_SECU_token(token):
@@ -1386,11 +1393,58 @@ class SpacyFilingTextSearch:
 		nsubj (SECU) <- VERB (purchase) -> 					 prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
 		nsubj (SECU) <- VERB (purchase) -> conj (remain)  -> prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
 		nsubj (SECU) <- VERB (purchase) -> 					 prep (at) ->      [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
+        
+        relcl (SECU) <- VERB (purchase) >> prep(at) -> 
         '''
         secu_root_dict = self._create_secu_span_dependency_matcher_dict(secu)
         if secu_root_dict is None:
             return None
         patterns = [
+            [
+                *secu_root_dict,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "prepverb1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
+                },
+                {
+                    "LEFT_ID": "prepverb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "price",
+                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "compound",
+                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+                },
+                {
+                    "LEFT_ID": "price",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj_CD",
+                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+                },
+                {
+                    "LEFT_ID": "pobj_CD",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "dollar",
+                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
+                } 
+            ],
             [
                 *secu_root_dict,
                 {
@@ -1684,9 +1738,9 @@ class SpacyFilingTextSearch:
 
 
     def match_outstanding_shares(self, text):
-        pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]
-        pattern2 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": "CARDINAL"},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]
-        pattern3 = [{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}, {"OP": "?"}, {"ENT_TYPE": "CARDINAL"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["issued", "outstanding"]}}]
+        pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]
+        pattern2 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]
+        pattern3 = [{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}, {"OP": "?"}, {"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["issued", "outstanding"]}}]
         matcher = Matcher(self.nlp.vocab)
         matcher.add("outstanding", [pattern1, pattern2, pattern3])
         doc = self.nlp(text)
@@ -1700,7 +1754,7 @@ class SpacyFilingTextSearch:
             value = {"date": ""}
             for ent in match.ents:
                 print(ent, ent.label_)
-                if ent.label_ == "CARDINAL":
+                if ent.label_ in ["CARDINAL", "SECUQUANTITY"]:
                     value["amount"] = int(str(ent).replace(",", ""))
                 if ent.label_ == "DATE":
                     value["date"] = " ".join([value["date"], ent.text])
