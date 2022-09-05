@@ -655,6 +655,12 @@ class Company:
                 return resale
         return None
     
+    def add_filing_link(self, filing_link: FilingLink):
+        if filing_link in self.filing_links:
+            logger.debug(f"Tried to add duplicate ShelfRegistration into Company.shelfs")
+        else:
+            self.filing_links.add(filing_link)
+    
     def add_shelf(self, shelf: ShelfRegistration):
         if shelf in self.shelfs:
             logger.debug(f"Tried to add duplicate ShelfRegistration into Company.shelfs")

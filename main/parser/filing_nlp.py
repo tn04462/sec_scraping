@@ -360,7 +360,7 @@ def get_secuquantity(span):
 
 
 def get_alias(doc: Doc, secu: Span):
-    logger.debug(f"getting alias for: {secu}")
+    # logger.debug(f"getting alias for: {secu}")
     if doc._.is_alias(secu) is True:
         return None
     else:
@@ -886,7 +886,7 @@ def add_SECU_to_spans(doc: Doc, entity: Span):
     if doc._.is_alias(entity):
         return
     else:
-        logger.debug(f"adding to SECU spans: {entity}")
+        # logger.debug(f"adding to SECU spans: {entity}")
         add_entity_to_spans(doc, entity, "SECU")
 
 def add_entity_to_spans(doc: Doc, entity: Span, span_label: str):
@@ -923,12 +923,12 @@ def _add_SECUATTR_ent(matcher, doc: Doc, i: int, matches):
 def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     _, match_start, match_end = matches[i]
     match_tokens = [t for t in doc[match_start:match_end]]
-    logger.debug(f"handling SECUQUANTITY for match: {match_tokens}")
+    # logger.debug(f"handling SECUQUANTITY for match: {match_tokens}")
     match_id, start, _ = matches[i]
     end = None
     wanted_tokens = []
     for token in match_tokens:
-        logger.debug(f"token: {token}, ent_type: {token.ent_type_}")
+        # logger.debug(f"token: {token}, ent_type: {token.ent_type_}")
         if token.ent_type_ in ["MONEY", "CARDINAL", "SECUQUANTITY"]:
             # end = token.i-1
             wanted_tokens.append(token.i)
@@ -937,13 +937,13 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     if end is None:
         raise AttributeError(f"_add_SECUQUANTITY_ent_regular_case couldnt determine the end token of the entity, match_tokens: {match_tokens}")
     entity = Span(doc, start, end, label="SECUQUANTITY")
-    logger.debug(f"Adding ent_label: SECUQUANTITY. Entity: {entity} [{start}-{end}], original_match:{doc[match_start:match_end]} [{match_start}-{match_end}]")
+    # logger.debug(f"Adding ent_label: SECUQUANTITY. Entity: {entity} [{start}-{end}], original_match:{doc[match_start:match_end]} [{match_start}-{match_end}]")
     _set_secuquantity_unit_on_span(match_tokens, entity)
     try:
         doc.ents += (entity,)
     except ValueError as e:
         if "[E1010]" in str(e):
-            logger.debug("handling overlapping ents")
+            # logger.debug("handling overlapping ents")
             handle_overlapping_ents(doc, start, end, entity)
 
 def _set_secuquantity_unit_on_span(match_tokens: Span, span: Span):
@@ -971,10 +971,10 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
         # logger.debug(f"entity: {entity}")
         try:
             doc.ents += (entity,)
-            logger.debug(f"Added entity: {entity} with label: {ent_label}")
+            # logger.debug(f"Added entity: {entity} with label: {ent_label}")
         except ValueError as e:
             if "[E1010]" in str(e):
-                logger.debug(f"handling overlapping entities for entity: {entity}")
+                # logger.debug(f"handling overlapping entities for entity: {entity}")
                 handle_overlapping_ents(doc, start, end, entity, overwrite_labels=always_overwrite)
         if (ent_callback) and (entity in doc.ents):
             ent_callback(doc, entity)
@@ -986,7 +986,7 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwr
     # if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
     if conflicting_ents != []:
         [previous_ents.remove(k) for k in conflicting_ents]
-        logger.debug(f"removed conflicting ents: {[k for k in conflicting_ents]}")
+        # logger.debug(f"removed conflicting ents: {[k for k in conflicting_ents]}")
         previous_ents.add(entity)
         try:
             doc.ents = previous_ents

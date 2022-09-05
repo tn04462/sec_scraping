@@ -1,5 +1,7 @@
 from dataclasses import asdict
 from sqlalchemy import inspect
+from sqlalchemy.exc import IntegrityError
+from psycopg2.errors import UniqueViolation
 from typing import List, Dict, Callable, Type, TYPE_CHECKING
 from main.domain import commands, model
 from main.services.unit_of_work import AbstractUnitOfWork
@@ -10,6 +12,45 @@ logger = logging.getLogger(__name__)
 def add_company(cmd: commands.AddCompany, uow: AbstractUnitOfWork):
     with uow as u:
         u.company.add(cmd.company)
+        u.commit()
+
+def add_sic(cmd: commands.AddSic, uow: AbstractUnitOfWork):
+    with uow as u:
+        u.session.add(cmd.sic)
+        try:
+            u.session.commit()
+        except IntegrityError as e:
+            if isinstance(e.orig, UniqueViolation):
+                pass
+            else:
+                raise e
+
+def add_form_type(cmd: commands.AddFormType, uow: AbstractUnitOfWork):
+    with uow as u:
+        u.session.add(cmd.form_type)
+        try:
+            u.session.commit()
+        except IntegrityError as e:
+            if isinstance(e.orig, UniqueViolation):
+                pass
+            else:
+                raise e
+
+def add_filing_links(cmd: commands.AddFilingLinks, uow: AbstractUnitOfWork):
+    with uow as u:
+        form_types = set(u.session.query(model.FormType).all())
+        print(form_types, type(form_types))
+        company = u.company.get(symbol=cmd.symbol)
+        for filing_link in cmd.filing_links:
+            try:
+                if filing_link.form_type not in form_types:
+                    # add emitting of event here ? eg: event.NewFormTypeAdded
+                    u.session.add(model.FormType(filing_link.form_type, "unspecified"))
+                    u.session.commit()
+                company.add_filing_link(filing_link)
+            except Exception as e:
+                raise e
+        u.company.add(company)
         u.commit()
 
 def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
@@ -25,10 +66,8 @@ def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
 def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
-        logger.info(f"shelf before merge: {[x.value for x in inspect(cmd.shelf_registration).attrs]}")
         # add info of session state here for debug
         local_shelf_object = u.session.merge(cmd.shelf_registration)
-        logger.info(f"shelf after merge: {[x.value for x in inspect(local_shelf_object).attrs]}")
         company.add_shelf(local_shelf_object)
         u.company.add(company)
         u.commit()
@@ -36,10 +75,8 @@ def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnit
 def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUnitOfWork):
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
-        logger.info(f"resale before merge: {[x.value for x in inspect(cmd.resale_registration).attrs]}")
         local_resale_object = u.session.merge(cmd.resale_registration)
         company.add_resale(local_resale_object)
-        logger.info(f"resale after merge: {[x.value for x in inspect(local_resale_object).attrs]}")
         u.company.add(company)
         u.commit()
 
@@ -63,6 +100,10 @@ COMMAND_HANDLERS = {
     commands.AddSecurities: add_securities,
     commands.AddShelfRegistration: add_shelf_registration,
     commands.AddResaleRegistration: add_resale_registration,
-    commands.AddShelfSecurityRegistration: add_shelf_security_registration
+    commands.AddShelfSecurityRegistration: add_shelf_security_registration,
+
+    commands.AddSic: add_sic,
+    commands.AddFormType: add_form_type,
+    commands.AddFilingLinks: add_filing_links,
 }
 

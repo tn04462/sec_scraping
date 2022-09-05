@@ -389,7 +389,6 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                     "end_date": commencment_date + timedelta(days=1095)
                 }
             offering = model.ShelfOffering(**kwargs)
-            logger.info("Added ShelfOffering")
             bus.handle(commands.AddShelfOffering(company.cik, company.symbol, offering))
             shelf.add_offering(offering)
             self.handle_ATM_security_registrations(filing, company, bus, cover_page_doc)
@@ -414,7 +413,6 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             }
         resale = model.ResaleRegistration(**kwargs)
         bus.handle(commands.AddResaleRegistration(filing.cik, company.symbol, resale))
-        logger.info("completed bus resaleregistration")
         company.add_resale(resale)
         self.handle_resale_security_registrations(filing, company, bus)
     

@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS sics (
     industry VARCHAR(255) NOT NULL,
     division VARCHAR(255) NOT NULL,
 
-    UNIQUE(sector, industry)
+    UNIQUE(sector, industry),
+    UNIQUE(sic)
 );
 
 CREATE TABLE IF NOT EXISTS companies (

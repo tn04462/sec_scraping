@@ -17,6 +17,7 @@ from dilution_db import DilutionDB
 from main.configs import FactoryConfig, GlobalConfig
 from main.domain import model
 from boot import bootstrap_dilution_db
+from main.domain import commands
 
 
 
@@ -171,6 +172,26 @@ def populate_database(get_session):
         else:
             session.commit()
 
+def add_example_company(db: DilutionDB):
+    sic = model.Sic(9000, "random sector", "random industry", "random divison")
+    uow = db.uow
+    with uow as u:
+        u.session.add(sic)
+        u.session.commit()
+
+    company = model.Company(
+        name="random company",
+        cik="0000000001",
+        sic=9000,
+        symbol="RANC",
+        description_="random description"
+    )
+    with uow as u:
+        u.company.add(company)
+        u.commit()
+    
+        
+
 def test_connect(get_session):
     session = get_session
     tables = session.execute(text("Select * from information_schema.tables")).fetchall()
@@ -230,12 +251,12 @@ def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
     for ticker in test_tickers:
         with uow as u:
             company = u.company.get(ticker)
-            print(f"Company({ticker}): {company}")
-            print("resales:",company.resales)
-            print("shelfs:", company.shelfs)
-            print("securities:", company.securities)
+            resale_file_numbers = [x.file_number for x in company.resales]
+            for each in ["333-213713", "333-214085"]:
+                assert each in resale_file_numbers
+            shelf_file_numbers = [x.file_number for x in company.shelfs]
+            assert "333-216231" in shelf_file_numbers
     
-    assert 1 == 2
 
 
 def test_live_add_company(get_uow, get_session, postgresql_np):
@@ -323,14 +344,65 @@ def test_transient_model_object_requeried_in_subtransaction(get_uow, postgresql_
                 print(insp.mapper, " mapper")
                 print(insp.object, " object")
                 company = uow2.company.get("RANC")
-                company.add_shelf(shelf)
                 shelf = uow2.session.merge(shelf)
+                company.add_shelf(shelf)
                 uow2.company.add(company)
                 uow2.commit()
     except Exception as e:
         raise e
     else:
         assert 1 == 1
+
+
+class TestHandlers():
+    def test_add_filing_link_with_missing_form_type(self, get_bootstrapped_dilution_db):
+        db = get_bootstrapped_dilution_db
+        add_example_company(db)
+        filing_link = model.FilingLink("https://anyrandomurl.com", "S-5", datetime.date(2022, 1, 1), "no descrption", "333-123123")
+        filing_link2 = model.FilingLink("https://anyrandomurl2.com", "S-6", datetime.date(2022, 1, 1), "no descrption", "333-123123")
+        db.bus.handle(commands.AddFilingLinks("0000000001", "RANC", [filing_link, filing_link2]))
+        with db.uow as uow:
+            company = uow.company.get(symbol="RANC")
+            filing_htmls = [x.filing_html for x in company.filing_links]
+            for each in [filing_link, filing_link2]:
+                assert each.filing_html in filing_htmls
+
+    def test_add_sic_(self,  get_bootstrapped_dilution_db):
+        db = get_bootstrapped_dilution_db
+        sic = model.Sic(9999, "unclassifiable_sector", "unclassifiable_industry", "unclassifiable_division")
+        db.bus.handle(commands.AddSic(sic))
+        sic = model.Sic(9999, "unclassifiable_sector", "unclassifiable_industry", "unclassifiable_division")
+        db.bus.handle(commands.AddSic(sic))
+        with db.uow as uow:
+            result = uow.session.query(model.Sic).all()
+            assert sic in result
+
+    def test_add_shelf_registration(self, get_bootstrapped_dilution_db):
+        db = get_bootstrapped_dilution_db
+        add_example_company(db)
+        with db.uow as uow:
+            uow.session.add(model.FormType("S-3", "whatever"))
+            uow.session.commit()
+        shelf = model.ShelfRegistration(
+                accn='000143774918017591',
+                file_number='1',
+                form_type='S-3',
+                capacity=75000000.0,
+                filing_date=datetime.date(2018, 9, 28),
+                effect_date=None,
+                last_update=None,
+                expiry=None,
+                total_amount_raised=None
+            )
+        db.bus.handle(commands.AddShelfRegistration(
+            cik="0000000001",
+            symbol="RANC",
+            shelf_registration=shelf
+        ))
+        with db.uow as uow:
+            company = uow.company.get(symbol="RANC")
+            assert shelf in company.shelfs
+
 
     
 

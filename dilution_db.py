@@ -192,7 +192,7 @@ class DilutionDB:
                     "INSERT INTO form_types(form_type, category) VALUES(%s, %s)",
                     [name, category]
                 )
-                print(category)
+                # print(category)
 
     def create_form_type(self, form_type, category):
         with self.conn() as c:
@@ -711,10 +711,7 @@ class DilutionDBUpdater:
     
 
     def update_filing_values(self, connection: Connection, ticker: str):
-        # rework this to use the domain model
-        for filings_list in self.db.util.parse_filings(connection, ticker):
-            for idx, extracted_info in enumerate(filings_list):
-                logger.info(f"extracted_info {idx}: {extracted_info}")
+       self.db.util.parse_filings(connection, ticker)
                 
 
     def _filings_needs_update(self, ticker: str, max_age=24):
@@ -787,7 +784,7 @@ class DilutionDBUpdater:
             return True
         if platform.system() == "Windows":
             folder_mtime = get_folder_mtime(file_path)
-            logger.info(f"folder_ctime: {folder_mtime}")
+            logger.info(f"folder_mtime: {folder_mtime}")
             return is_outdated(folder_mtime, max_age=timedelta(hours=max_age), now=datetime.now())
         else:
             raise OSError(f"this function only works properly on Windows systems for now.") 
@@ -827,13 +824,13 @@ class DilutionDBUpdater:
                 logger.debug("updating submissions.zip...")
                 self.dl.get_bulk_submissions()
                 self.db._update_files_lud(conn, "submissions_zip_lud", datetime.utcnow())
-                logger.debug("successfully updated submissions.zip")
+                logger.info("successfully updated submissions.zip")
             if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH) / "companyfacts", max_age=48):
             # if self._file_needs_update_lud_database("companyfacts_zip_lud", max_age=24):
                 logger.debug("updating companyfacts.zip...")
                 self.dl.get_bulk_companyfacts()
                 self.db._update_files_lud(conn, "companyfacts_zip_lud", datetime.utcnow())
-                logger.debug("successfully updated companyfacts.zip")
+                logger.info("successfully updated companyfacts.zip")
             
     
     def update_net_cash_and_equivalents(self, connection: Connection, ticker: str):
@@ -1060,7 +1057,8 @@ class DilutionDBUtil:
                     for filing in filings:
                         with self.db.uow as uow:
                             company = uow.company.get(ticker)
-                            company = self._parse_filing(filing, company)
+                            uow.session.expunge(company)
+                        company = self._parse_filing(filing, company)
 
 
     def _create_filing(self,
