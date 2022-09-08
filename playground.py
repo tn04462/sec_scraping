@@ -913,16 +913,16 @@ if __name__ == "__main__":
     ]
     docs = []
     ex = []
-    for text, idxs in zip(texts, secu_idxs):
-        doc = search.nlp(text)
-        print(doc)
-    #     print(ex.append(extractor.spacy_text_search.match_secu_expiry(doc, doc[idxs[0]:idxs[1]])))
-    #     for token in doc:
-    #         print(token.lemma_, token.ent_type_)
-        ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[idxs[0]:idxs[1]]))
-    #     # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
-        docs.append(doc)
-    print(ex)
+    # for text, idxs in zip(texts, secu_idxs):
+    #     doc = search.nlp(text)
+    #     print(doc)
+    # #     print(ex.append(extractor.spacy_text_search.match_secu_expiry(doc, doc[idxs[0]:idxs[1]])))
+    # #     for token in doc:
+    # #         print(token.lemma_, token.ent_type_)
+    #     ex.append(extractor.spacy_text_search.match_secu_exercise_price(doc, doc[idxs[0]:idxs[1]]))
+    # #     # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
+    #     docs.append(doc)
+    # print(ex)
 
     texts = [
         # RESALE SECURITY REGISTRATION SENTENCES (ONLY COVER PAGE)
@@ -1013,7 +1013,7 @@ if __name__ == "__main__":
     # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
     # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
     # output_path.open("w", encoding="utf-8").write(svg)
-    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
+    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
 
     # displacy.serve(docs, style="ent", options={
     #     "ents": ["SECU", "SECUQUANTITY"],
@@ -1111,3 +1111,11 @@ if __name__ == "__main__":
 
 
     # f = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001514281/S-3/000151428121000068/mittforms-3may2021.htm")
+
+    def do_inital_pop():
+        from boot import bootstrap_dilution_db
+        from main.configs import FactoryConfig, GlobalConfig
+        cnf = FactoryConfig(GlobalConfig(ENV_STATE="dev").ENV_STATE)()
+        db = bootstrap_dilution_db(start_orm=True, config=cnf)
+        db.inital_setup()
+    do_inital_pop()
