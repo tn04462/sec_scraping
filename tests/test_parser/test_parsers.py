@@ -2,11 +2,14 @@ from pathlib import Path
 import os
 import pytest
 from main.parser.filings_base import Filing
-from main.parser.parsers import filing_factory, HTMFilingParser
+from main.parser.parsers import SimpleXMLFiling, filing_factory, HTMFilingParser, XMLFilingParser, ParserEFFECT
 import datetime
+
+from xml.etree import ElementTree
 
 s3_rel_path = r"test_resources\filings\0001325879\S-3\000119312518218817\d439397ds3.htm"
 s3_shelf = r"test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
+effect_xml = r"test_resources\filings\0001309082\EFFECT\999999999522002596\primary_doc.xml"
 '''
 needs test for:
     * each table classification
@@ -15,6 +18,32 @@ needs test for:
 
 def _get_absolute_path(rel_path):
     return str(Path(__file__).parent.parent / rel_path)
+
+def test_XMLFilingParser_get_doc():
+    file_path = _get_absolute_path(effect_xml)
+    parser = XMLFilingParser()
+    assert isinstance(parser.get_doc(file_path), ElementTree.ElementTree) is True
+
+def test_ParserEFFECT():
+    path = _get_absolute_path(effect_xml)
+    filing_info = {
+        "path": path,
+        "filing_date": None,
+        "accession_number": Path(path).parents[0].name,
+        "cik": Path(path).parents[2].name,
+        "file_number": "333-147568",
+        "form_type": "EFFECT",
+        "extension": ".xml"
+    }
+    filing = filing_factory.create_filing(**filing_info)
+    assert isinstance(filing, SimpleXMLFiling)
+    assert filing.sections[0].content_dict == {
+        'for_form': 'S-1',
+        'effective_date': '2022-09-06',
+        'file_number': '333-265715',
+        'cik': '0001309082'
+    }
+
 
 # @pytest.mark.parser_splitting
 def test_s3_splitting_by_toc_hrefs():

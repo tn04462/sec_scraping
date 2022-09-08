@@ -1,6 +1,7 @@
 import re
 import logging
 from pathlib import Path
+from tkinter import E
 from turtle import shape
 from types import NoneType
 from typing import Callable
@@ -11,6 +12,7 @@ import re
 from abc import ABC, abstractmethod
 import copy
 import uuid
+from xml.etree import ElementTree
 
 from main.parser.filings_base import FilingSection, Filing, FilingSection
 from main.parser.extractors import extractor_factory
@@ -2803,6 +2805,78 @@ class ParserSC13G(ParserSC13D):
         )
 
 
+class XMLFilingParser(AbstractFilingParser):
+    form_type = None
+    extension = ".xml"
+    def split_into_sections(self, doc):
+        raise NotImplementedError(f"This is meant to be a Base Class to be subclassed. Implement split_into_sections in the subclass.")
+    
+    def get_doc(self, path: str):
+        return ElementTree.parse(path)
+
+class XMLFilingSection(FilingSection):
+    def __init__(self, content_dict: dict, **kwargs):
+        super().__init__(**kwargs)
+        self.content_dict = content_dict
+
+class SimpleXMLFiling(Filing):
+    def __init__(
+        self,
+        accession_number: str,
+        path: str,
+        cik: str,
+        form_type: str,
+        filing_date: str = None,
+        file_number: str = None,
+        extension: str = None,
+        doc=None,
+        sections: list[XMLFilingSection] = None
+    ):
+        super().__init__(
+            path=path,
+            filing_date=filing_date,
+            accession_number=accession_number,
+            cik=cik,
+            file_number=file_number,
+            form_type=form_type,
+            extension=extension
+        )
+        self.parser: AbstractFilingParser = parser_factory.get_parser(
+            extension=self.extension,
+            form_type=self.form_type
+        )
+        logger.debug(f"XMLFiling is using parser: {self.parser} for ({self.form_type, self.extension})")
+        self.doc = self.parser.get_doc(self.path)
+        self.sections = (
+            self.parser.split_into_sections(self.doc) if sections is None else sections
+        )
+    
+
+class ParserEFFECT(XMLFilingParser):
+    form_type = "EFFECT"
+    extension = ".xml"
+    
+    def split_into_sections(self, doc) -> list[XMLFilingSection]:
+        try:
+            content_dict = {
+                "for_form": doc.find(".//form").text,
+                "effective_date": doc.find(".//finalEffectivenessDispDate").text,
+                "file_number": doc.find(".//fileNumber").text,
+                "cik": doc.find(".//cik").text,
+            }
+        except Exception as e:
+            raise e
+        else:
+            sections = [
+                XMLFilingSection(
+                    content_dict=content_dict,
+                    title="main",
+                    content=str(doc)
+                    )
+                ]
+            return sections
+
+
 def _re_is_main_table_start(table: list[list], items_dict: dict):
     # check if this is the start of the main table
     for row in table:
@@ -2932,6 +3006,8 @@ parser_factory_default = [
     (".htm", "SC 13D", ParserSC13D),
     (".htm", "SC 13G", ParserSC13G),
     (".htm", "S-3", ParserS3),
+    (".xml", "EFFECT", ParserEFFECT)
+
 ]
 parser_factory = ParserFactory(defaults=parser_factory_default)
 
@@ -2993,7 +3069,7 @@ class BaseHTMFiling(Filing):
         file_number: str = None,
         form_type: str = None,
         extension: str = None,
-        doc=None,
+        doc = None,
         sections: list[FilingSection] = None,
     ):
         super().__init__(
@@ -3006,7 +3082,8 @@ class BaseHTMFiling(Filing):
             extension=extension,
         )
         self.parser: AbstractFilingParser = parser_factory.get_parser(
-            extension=self.extension, form_type=self.form_type
+            extension=self.extension,
+            form_type=self.form_type
         )
         logger.debug(f"BaseHTMFiling is using parser: {self.parser} for ({self.form_type, self.extension})")
         self.doc = self.parser.get_doc(self.path) if doc is None else doc
@@ -3208,6 +3285,7 @@ filing_factory_default = [
     ("SC 13D", ".htm", SimpleHTMFiling),
     ("SC 13G", ".htm", SimpleHTMFiling),
     ("S-3", ".htm", create_htm_filing),
+    ("EFFECT", ".xml", SimpleXMLFiling)
 ]
 
 filing_factory = FilingFactory(defaults=filing_factory_default)
