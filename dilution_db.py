@@ -144,8 +144,9 @@ class DilutionDB:
             rows = [row for row in res]
             return rows
     
-    def inital_setup(self):
-        self.util.inital_table_setup()
+    def inital_setup(self, reset_database=False):
+        if reset_database is True:
+            self.util.inital_table_setup()
         self.updater.update_bulk_files()
         self.util.inital_company_setup(
             cnf.DOWNLOADER_ROOT_PATH,
@@ -220,8 +221,10 @@ class DilutionDB:
                 "INSERT INTO sics(sic, industry, sector, division) VALUES(%s, %s, %s, %s)",
                 [sic, sector, industry, division],
             )
+            c.commit()
 
     def create_company(self, c: Connection, cik, sic, symbol, name, description, sic_description=None):
+        logger.debug("create company executing..")
         if len(cik) < 10:
             raise ValueError("cik needs to be in 10 digit form")
         try:
@@ -242,6 +245,7 @@ class DilutionDB:
             )
             return id.fetchone()["id"]
         except Exception as e:
+            logger.debug(f"excepted e: {e}", exc_info=True)
             if "fk_sic" in str(e):
                 if sic_description is None:
                     raise ValueError(
@@ -363,6 +367,7 @@ class DilutionDB:
         days_of_cash,
         days_of_cash_date
     ):
+        logger.debug(f"create_cash_burn_summary called...")
         try:
             c.execute("INSERT INTO cash_burn_summary("
                 "company_id, burn_rate, burn_rate_date, net_cash, net_cash_date, days_of_cash, days_of_cash_date) "
@@ -398,6 +403,9 @@ class DilutionDB:
                         days_of_cash,
                         days_of_cash_date))
             raise e
+        else:
+            logger.debug("create_cash_burn_summary done..")
+            return
 
     def create_cash_burn_rate(
         self,
@@ -472,7 +480,7 @@ class DilutionDB:
         days_of_cash_date = datetime.now()
         cash_date = pd.to_datetime(net_cash["instant"]).date()
         burn_rate = cash_burn["burn_rate_total"]
-        print(burn_rate)
+        logger.debug(f"burn_rate: {burn_rate}")
         if burn_rate >= 0:
             days_of_cash = "infinity"
         else:
@@ -491,7 +499,8 @@ class DilutionDB:
             net_cash["instant"],
             round(float(days_of_cash),2),
             days_of_cash_date
-        )                
+        )         
+        return       
                 
 
     def _init_cash_burn_rate(self, c: Connection, company_id):
@@ -784,7 +793,7 @@ class DilutionDBUpdater:
             return True
         if platform.system() == "Windows":
             folder_mtime = get_folder_mtime(file_path)
-            logger.info(f"folder_mtime: {folder_mtime}")
+            logger.info(f"folder_mtime: {folder_mtime}, path: {file_path}")
             return is_outdated(folder_mtime, max_age=timedelta(hours=max_age), now=datetime.now())
         else:
             raise OSError(f"this function only works properly on Windows systems for now.") 
@@ -808,6 +817,7 @@ class DilutionDBUpdater:
             return True
         _lud = lud[0]["_lud"]
         if _lud is None:
+            logger.debug(f"no last update for '{col_name}' found.")
             return True
         logger.debug(f"last update of: {col_name} was on {_lud}")
         now = datetime.utcnow()
@@ -819,13 +829,13 @@ class DilutionDBUpdater:
     def update_bulk_files(self):
         '''update submissions and companyfacts bulk files'''
         with self.db.conn() as conn:
-            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH) / "submissions", max_age=48):
+            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH) / "submissions", max_age=288):
             # if self._file_needs_update_lud_database("submissions_zip_lud", max_age=24):
                 logger.debug("updating submissions.zip...")
                 self.dl.get_bulk_submissions()
                 self.db._update_files_lud(conn, "submissions_zip_lud", datetime.utcnow())
                 logger.info("successfully updated submissions.zip")
-            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH) / "companyfacts", max_age=48):
+            if self._file_needs_update_lud_filesystem(Path(cnf.DOWNLOADER_ROOT_PATH) / "companyfacts", max_age=288):
             # if self._file_needs_update_lud_database("companyfacts_zip_lud", max_age=24):
                 logger.debug("updating companyfacts.zip...")
                 self.dl.get_bulk_companyfacts()
@@ -993,11 +1003,21 @@ class DilutionDBUtil:
     def __init__(self, db: DilutionDB):
         self.db = db
         self.logging_file = db.config.DEFAULT_LOGGING_FILE
+        self._init_logging_file()
         self.logger = logging.getLogger("DilutionDBUtil")
         self.logger_handler = logging.FileHandler(self.logging_file)
         self.logger_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         self.logger_handler.setLevel(logging.INFO)
         self.logger.addHandler(self.logger_handler)
+    
+    def _init_logging_file(self):
+        if Path(self.logging_file).exists():
+            pass
+        else:
+            Path(self.logging_file).parent.mkdir(parents=True)
+            with open(self.logging_file, "w") as f:
+                pass
+
     
     def reset_database(self):
         '''delete all data and recreate the tables'''
@@ -1174,7 +1194,7 @@ class DilutionDBUtil:
             logger.debug(
                 f"created overview_files_path and parent folders: {polygon_overview_files_path}")
         for ticker in tqdm(tickers, mininterval=0.5):
-            self.get_filing_set(dl, ticker, forms, after=after, before=before, number_of_filings=9999)
+            # self.get_filing_set(dl, ticker, forms, after=after, before=before, number_of_filings=9999)
             id = self._inital_population(self.db, dl, polygon_client, polygon_overview_files_path, ticker)
     
     def _get_companyfacts_file(self, cik10: str):
@@ -1268,6 +1288,7 @@ class DilutionDBUtil:
                     connection.rollback()
                     return None
                 else:
+                    logger.info(f"successfully added company: {ov['cik']}")
                     connection.commit()
             with db.conn() as connection:   
                 try:
@@ -1298,9 +1319,11 @@ class DilutionDBUtil:
                     connection.rollback()
                     raise e
                 else:
+                    logger.debug("commiting Phase2")
                     connection.commit()
                 
-            with db.conn() as connection1:      
+            with db.conn() as connection1: 
+                logger.debug("starting Phase3")     
                 # populate filing_links table from submissions.zip
                 try:
                     submissions_file = self._get_submissions_file(ov["cik"])

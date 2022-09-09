@@ -5,6 +5,7 @@ from matplotlib import docstring
 from numpy import number
 from urllib3 import connection_from_url
 from dilution_db import DilutionDBUpdater
+from main.adapters.repository import SqlAlchemyCompanyRepository
 from main.parser.extractors import UnhandledClassificationError
 # from dilution_db import DilutionDB
 # from main.data_aggregation.polygon_basic import PolygonClient
@@ -24,6 +25,8 @@ from psycopg_pool import ConnectionPool
 import pandas as pd
 import logging
 import webbrowser
+
+from main.services.unit_of_work import SqlAlchemyCompanyUnitOfWork
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -1114,13 +1117,28 @@ if __name__ == "__main__":
     def do_inital_pop():
         from boot import bootstrap_dilution_db
         from main.configs import FactoryConfig, GlobalConfig
-        from sqlalchemy import text
+        from sqlalchemy import text, create_engine
+        from sqlalchemy.orm import sessionmaker
+
         cnf = FactoryConfig(GlobalConfig(ENV_STATE="prod").ENV_STATE)()
-        db = bootstrap_dilution_db(start_orm=True, config=cnf)
-        db.inital_setup(reset_database=True)
+        session_factory = sessionmaker(
+            bind=create_engine(
+            cnf.DILUTION_DB_CONNECTION_STRING,
+        # isolation_level="REPEATABLE READ"  
+        ),
+            expire_on_commit=False
+        )
+        uow = SqlAlchemyCompanyUnitOfWork(session_factory=session_factory)
+        db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=uow)
         with db.uow as uow:
             result = uow.session.execute(text("SELECT * FROM shelf_registrations WHERE company_id=1")).fetchall()
             print(result)
             result = uow.session.execute(text("SELECT * FROM resale_registrations WHERE company_id=1")).fetchall()
+            print(result)
+            result = uow.session.execute(text("SELECT * FROM companies")).fetchall()
+            print(result)
+        db.inital_setup(reset_database=False)
+        with db.conn() as c:
+            result = c.execute("SELECT * FROM companies").fetchall()
             print(result)
     do_inital_pop()

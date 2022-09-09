@@ -42,6 +42,8 @@ DEFAULT_SESSION_FACTORY = sessionmaker(
     expire_on_commit=False
 )
 
+print(cnf.DILUTION_DB_CONNECTION_STRING)
+
 class SqlAlchemyCompanyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, session_factory=DEFAULT_SESSION_FACTORY):
         self.session_factory = session_factory

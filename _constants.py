@@ -310,6 +310,7 @@ FORM_TYPES_INFO = {
     "S-1MEF": {"category": "unspecified"},
     "S-20": {"category": "unspecified"},
     "S-3": {"category": "Prospectus"},
+    "S-3/A": {"category": "Prospectus", "description": "Amendment to base S-3"},
     "S-3ASR": {"category": "Prospectus"},
     "S-3D": {"category": "unspecified"},
     "S-3DPOS": {"category": "unspecified"},
