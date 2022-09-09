@@ -2,7 +2,7 @@ import abc
 from typing import Set
 from . import orm
 from main.domain import model
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import lazyload
 
 
 class AbstractRepository(abc.ABC):
@@ -28,7 +28,7 @@ class FakeCompanyRepository(AbstractRepository):
     def _add(self, company: model.Company):
         self.session.add(company)
     
-    def _get(self, symbol: str):
+    def _get(self, symbol: str, lazy=False):
         for company in self.session:
             if company.symbol == symbol:
                 return company
@@ -42,5 +42,8 @@ class SqlAlchemyCompanyRepository(AbstractRepository):
     def _add(self, company: model.Company):
         self.session.add(company)
 
-    def _get(self, symbol):
-        return self.session.query(model.Company).filter_by(symbol=symbol).first()
+    def _get(self, symbol, lazy=False):
+        if lazy is False:
+            return self.session.query(model.Company).filter_by(symbol=symbol).first()
+        else:
+            return self.session.query(model.Company).options(lazyload("*")).filter_by(symbol=symbol).first()

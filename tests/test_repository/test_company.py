@@ -1,6 +1,7 @@
 import pytest
 from dilution_db import DilutionDB
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy import text
 from test_database import company_data, postgresql_my_proc, postgresql_np
 from main.domain import model
@@ -187,8 +188,6 @@ def test_add_company(get_session):
     print(received.__dict__, company.__dict__)
     assert company == received
 
-
-
 def test_add_sic(get_session):
     session = get_session
     sic = _add_sic(session)
@@ -196,11 +195,6 @@ def test_add_sic(get_session):
     print(sic, received)
     assert sic == received
 
-def test_repo_add_company(add_base_company):
-    received = add_base_company
-    new_company = create_company()
-    print(locals())
-    assert new_company == received
 
 def test_repo_change_company_name(get_uow, add_base_company):
     new_name = "herpy derp corp."
@@ -257,6 +251,26 @@ def test_repo_add_warrant(get_uow, add_base_company):
         security = company.get_security_by_name(name=secu_args["name"])
         print(security, posted)
         assert security == posted
+
+def test_repo_lazy_load_company(get_uow):
+    new_company = create_company()
+    uow = get_uow
+    with uow as u:
+        assert u.company.get(company_data["companies"]["symbol"]) is None
+        sic = model.Sic(9000, "test_sector", "test_industry", "test_division")
+        u.session.add(sic)
+        u.session.commit()
+        u.company.add(new_company)
+        u.commit()
+    with uow as u:
+        company = u.company.get(company_data["companies"]["symbol"], lazy=True)
+        u.session.expunge(company)
+    try:
+        shelfs = company.shelfs
+    except DetachedInstanceError as e:
+        assert "lazy load operation of attribute 'shelfs' cannot proceed" in str(e)
+    else:
+        assert 1 == 2
 
 def populate_database_for_conversion(session):
     for table, v in company_data_conversion.items():

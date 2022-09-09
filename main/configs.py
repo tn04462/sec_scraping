@@ -7,16 +7,16 @@ class AppConfig(BaseModel):
 
     TRACKED_FORMS: list[str] = [
         "S-3",
-        "424B1",
-        "424B2",
-        "424B3",
-        "424B4",
-        "424B5",
-        "S-1",
         "EFFECT",
-        "8-K",
-        "6-K",
+        # "8-K",
+        # "6-K",
         "RW"
+        # "424B1",
+        # "424B2",
+        # "424B3",
+        # "424B4",
+        # "424B5",
+        # "S-1",
         ]
     
     TRACKED_TICKERS: list[str] = [

@@ -447,7 +447,7 @@ def get_secu_key(secu: Span|str):
         logger.debug("IndexError when accessing tail information of secu_key -> no tail -> pass")
         pass
     result = "".join(body) 
-    logger.debug(f"get_secu_key() returning key: {result} from secu: {secu}")
+    # logger.debug(f"get_secu_key() returning key: {result} from secu: {secu}")
     return result
 
 def set_SECUMatcher_extensions():
@@ -982,7 +982,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
 def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwrite_labels: Optional[list[str]]=None):
     previous_ents = set(doc.ents)
     conflicting_ents = get_conflicting_ents(doc, start, end, overwrite_labels=overwrite_labels)
-    logger.debug(f"conflicting_ents: {conflicting_ents}")
+    # logger.debug(f"conflicting_ents: {conflicting_ents}")
     # if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
     if conflicting_ents != []:
         [previous_ents.remove(k) for k in conflicting_ents]
@@ -1010,7 +1010,7 @@ def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwr
 
                 logger.debug(f"conflicting with entity: {conflicting_entity}")
                 raise e
-        logger.debug(f"Added entity: {entity} with label: {entity.label_}")
+        # logger.debug(f"Added entity: {entity} with label: {entity.label_}")
 
 def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optional[list[str]]=None):
     conflicting_ents = []
@@ -1210,6 +1210,9 @@ class SpacyFilingTextSearch:
     
     def match_secu_expiry(self, doc: Doc, secu: Span):
         secu_root_pattern = self._create_secu_span_dependency_matcher_dict(secu)
+        if secu_root_pattern is None:
+            logger.warning(f"couldnt get secu_root_pattern for secu: {secu}")
+            return
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
         patterns = [
             [

@@ -1111,11 +1111,16 @@ if __name__ == "__main__":
 
 
     # f = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001514281/S-3/000151428121000068/mittforms-3may2021.htm")
-
     def do_inital_pop():
         from boot import bootstrap_dilution_db
         from main.configs import FactoryConfig, GlobalConfig
-        cnf = FactoryConfig(GlobalConfig(ENV_STATE="dev").ENV_STATE)()
+        from sqlalchemy import text
+        cnf = FactoryConfig(GlobalConfig(ENV_STATE="prod").ENV_STATE)()
         db = bootstrap_dilution_db(start_orm=True, config=cnf)
-        db.inital_setup()
+        db.inital_setup(reset_database=True)
+        with db.uow as uow:
+            result = uow.session.execute(text("SELECT * FROM shelf_registrations WHERE company_id=1")).fetchall()
+            print(result)
+            result = uow.session.execute(text("SELECT * FROM resale_registrations WHERE company_id=1")).fetchall()
+            print(result)
     do_inital_pop()

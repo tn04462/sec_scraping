@@ -40,7 +40,7 @@ def add_filing_links(cmd: commands.AddFilingLinks, uow: AbstractUnitOfWork):
     with uow as u:
         form_types = set(u.session.query(model.FormType).all())
         print(form_types, type(form_types))
-        company = u.company.get(symbol=cmd.symbol)
+        company = u.company.get(symbol=cmd.symbol, lazy=True)
         for filing_link in cmd.filing_links:
             try:
                 if filing_link.form_type not in form_types:
@@ -55,7 +55,7 @@ def add_filing_links(cmd: commands.AddFilingLinks, uow: AbstractUnitOfWork):
 
 def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(symbol=cmd.symbol)
+        company: model.Company = u.company.get(symbol=cmd.symbol, lazy=True)
         for security in cmd.securities:
             if security not in company.securities:
                 local_security_object = u.session.merge(security)
@@ -65,7 +65,7 @@ def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
 
 def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(symbol=cmd.symbol)
+        company: model.Company = u.company.get(symbol=cmd.symbol, lazy=True)
         # add info of session state here for debug
         local_shelf_object = u.session.merge(cmd.shelf_registration)
         company.add_shelf(local_shelf_object)
@@ -74,7 +74,7 @@ def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnit
 
 def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(symbol=cmd.symbol)
+        company: model.Company = u.company.get(symbol=cmd.symbol, lazy=True)
         local_resale_object = u.session.merge(cmd.resale_registration)
         company.add_resale(local_resale_object)
         u.company.add(company)
@@ -82,7 +82,7 @@ def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUn
 
 def add_shelf_security_registration(cmd: commands.AddShelfSecurityRegistration, uow: AbstractUnitOfWork):
     with uow as u:
-        company: model.Company = u.company.get(symbol=cmd.symbol)
+        company: model.Company = u.company.get(symbol=cmd.symbol, lazy=True)
         offering: model.ShelfOffering = company.get_shelf_offering(offering_accn=cmd.offering_accn)
         if offering:
             local_registration_object = u.session.merge(cmd.security_registration)

@@ -2858,14 +2858,20 @@ class ParserEFFECT(XMLFilingParser):
     
     def split_into_sections(self, doc) -> list[XMLFilingSection]:
         try:
+            effective_data = doc.find(".//effectiveData")
             content_dict = {
-                "for_form": doc.find(".//form").text,
+                "for_form": (
+                                effective_data.find(".//form").text 
+                                if effective_data.find(".//form")
+                                else effective_data.find(".//submissionType").text
+                            ),
                 "effective_date": doc.find(".//finalEffectivenessDispDate").text,
                 "file_number": doc.find(".//fileNumber").text,
                 "cik": doc.find(".//cik").text,
             }
-        except Exception as e:
-            raise e
+        except AttributeError as e:
+            logger.warning(f"failed to split this filing correctly, returning []. Exception caught: {e}", exc_info=True)
+            return []
         else:
             sections = [
                 XMLFilingSection(
