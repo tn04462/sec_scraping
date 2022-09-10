@@ -4,13 +4,23 @@ from main.services.messagebus import Message, MessageBus
 from main.services import handlers, unit_of_work
 from main.adapters import orm
 from main.configs import GlobalConfig, cnf
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 def bootstrap_dilution_db(
     start_orm=True,
-    uow: unit_of_work.AbstractUnitOfWork = unit_of_work.SqlAlchemyCompanyUnitOfWork(),
-    config: GlobalConfig = cnf
+    config: GlobalConfig = cnf,
+    uow: unit_of_work.AbstractUnitOfWork = None,
 ) -> DilutionDB:
+    if uow is None:
+        session_factory = sessionmaker(
+            bind=create_engine(config.DILUTION_DB_CONNECTION_STRING),
+            expire_on_commit=False
+        )
+        uow = unit_of_work.SqlAlchemyCompanyUnitOfWork(
+            session_factory=session_factory
+        )
     if start_orm is True:
         orm.start_mappers()
     dependencies = {"uow": uow}

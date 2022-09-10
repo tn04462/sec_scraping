@@ -1121,15 +1121,15 @@ if __name__ == "__main__":
         from sqlalchemy.orm import sessionmaker
 
         cnf = FactoryConfig(GlobalConfig(ENV_STATE="prod").ENV_STATE)()
-        session_factory = sessionmaker(
-            bind=create_engine(
-            cnf.DILUTION_DB_CONNECTION_STRING,
-        # isolation_level="REPEATABLE READ"  
-        ),
-            expire_on_commit=False
-        )
-        uow = SqlAlchemyCompanyUnitOfWork(session_factory=session_factory)
-        db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=uow)
+        # session_factory = sessionmaker(
+        #     bind=create_engine(
+        #     cnf.DILUTION_DB_CONNECTION_STRING,
+        # # isolation_level="REPEATABLE READ"  
+        # ),
+        #     expire_on_commit=False
+        # )
+        # uow = SqlAlchemyCompanyUnitOfWork(session_factory=session_factory)
+        db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=None)
         with db.uow as uow:
             result = uow.session.execute(text("SELECT * FROM shelf_registrations WHERE company_id=1")).fetchall()
             print(result)
