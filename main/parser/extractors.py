@@ -24,7 +24,16 @@ security_type_factory = SecurityTypeFactory()
 class UnhandledClassificationError(Exception):
     pass
 
-
+class ExtractorResults:
+    def __init__(self):
+        self.items = []
+    
+    def add_item(self, item):
+        self.items.append(item)
+    
+    def __repr__(self):
+        return [str(i) for i in self.items]
+    
 
 
 
@@ -350,6 +359,7 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
+        results = []
         complete_doc = self.spacy_text_search.nlp(filing.get_text_only())
         try:
             form_case = self.classify_s3(filing)

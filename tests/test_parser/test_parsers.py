@@ -2,7 +2,7 @@ from pathlib import Path
 import os
 import pytest
 from main.parser.filings_base import Filing
-from main.parser.parsers import SimpleXMLFiling, filing_factory, HTMFilingParser, XMLFilingParser, ParserEFFECT
+from main.parser.parsers import BaseFiling, filing_factory, HTMFilingParser, XMLFilingParser, ParserEFFECT
 import datetime
 
 from xml.etree import ElementTree
@@ -36,7 +36,7 @@ def test_ParserEFFECT():
         "extension": ".xml"
     }
     filing = filing_factory.create_filing(**filing_info)
-    assert isinstance(filing, SimpleXMLFiling)
+    assert isinstance(filing, BaseFiling)
     assert filing.sections[0].content_dict == {
         'for_form': 'S-1',
         'effective_date': '2022-09-06',
