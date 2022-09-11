@@ -4,9 +4,6 @@
 The aim of this repository is to be able to easily parse SEC-filings and create a model that can be used with a database. Created for dilutionscout.com.
 
 #### Parsers
-If you just want to parse filings check the parser folder.
-Either use a Parser directly on a filing by calling the split_into_sections(get_doc(path_to_filing)) functions of the relevant Parser or create them using the FilingFactory.
-
 using parser directly:
 ```python
 from main.parser import parsers
