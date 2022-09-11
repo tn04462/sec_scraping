@@ -173,6 +173,15 @@ class AbstractFilingParser(ABC):
     @abstractmethod
     def extension(cls):
         raise NotImplementedError
+    
+    def parse(self, path: str):
+        '''
+        Convenince Method.
+        
+        Returns:
+            list[FilingSection]
+        '''
+        return self.split_into_sections(self.get_doc(path))
 
 
     def split_into_sections(self, doc):
@@ -239,7 +248,7 @@ class FilingFactory:
         but mostlikely work with the default implementation of
         the extension provided
         """
-        self.register_builder(None, ".htm", SimpleHTMFiling)
+        self.register_builder(None, ".htm", BaseHTMFiling)
 
     def register_builder(
         self, form_type: str, extension: str, builder: Filing | Callable
@@ -2280,16 +2289,17 @@ class Parser8K(HTMFilingParser):
     process and parse 8-k filing.
 
     Usage:
-        1) open file
-        2) read() file with utf-8 and in "r"
-        3) call split_into_sections on the string from 2)
+        1) open file and read() file with utf-8 and in "r"
+        or
+        1) call parser.get_doc(path)
+        2) call split_into_sections on the result from 1)
     """
 
     def __init__(self):
         self.soup = None
         self.match_groups = self._create_match_group()
 
-    def split_into_sections(self, doc: str):
+    def split_into_sections(self, doc: str|BeautifulSoup) -> list[FilingSection]:
         """
         split the filing into FilingSections.
 
@@ -2819,7 +2829,7 @@ class XMLFilingSection(FilingSection):
         super().__init__(**kwargs)
         self.content_dict = content_dict
 
-class SimpleXMLFiling(Filing):
+class BaseFiling(Filing):
     def __init__(
         self,
         accession_number: str,
@@ -2830,7 +2840,7 @@ class SimpleXMLFiling(Filing):
         file_number: str = None,
         extension: str = None,
         doc=None,
-        sections: list[XMLFilingSection] = None
+        sections: list[FilingSection] = None
     ):
         super().__init__(
             path=path,
@@ -2845,11 +2855,11 @@ class SimpleXMLFiling(Filing):
             extension=self.extension,
             form_type=self.form_type
         )
-        logger.debug(f"XMLFiling is using parser: {self.parser} for ({self.form_type, self.extension})")
-        self.doc = self.parser.get_doc(self.path)
+        self.doc = self.parser.get_doc(self.path) if doc is None else doc
         self.sections = (
             self.parser.split_into_sections(self.doc) if sections is None else sections
         )
+
     
 
 class ParserEFFECT(XMLFilingParser):
@@ -3065,37 +3075,9 @@ class HTMFilingSection(FilingSection):
             return None
 
 
-class BaseHTMFiling(Filing):
-    def __init__(
-        self,
-        path: str = None,
-        filing_date: str = None,
-        accession_number: str = None,
-        cik: str = None,
-        file_number: str = None,
-        form_type: str = None,
-        extension: str = None,
-        doc = None,
-        sections: list[FilingSection] = None,
-    ):
-        super().__init__(
-            path=path,
-            filing_date=filing_date,
-            accession_number=accession_number,
-            cik=cik,
-            file_number=file_number,
-            form_type=form_type,
-            extension=extension,
-        )
-        self.parser: AbstractFilingParser = parser_factory.get_parser(
-            extension=self.extension,
-            form_type=self.form_type
-        )
-        logger.debug(f"BaseHTMFiling is using parser: {self.parser} for ({self.form_type, self.extension})")
-        self.doc = self.parser.get_doc(self.path) if doc is None else doc
-        self.sections = (
-            self.parser.split_into_sections(self.doc) if sections is None else sections
-        )
+class BaseHTMFiling(BaseFiling):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.soup: BeautifulSoup = self.parser.make_soup(self.doc)
 
     def get_preprocessed_text_content(self) -> str:
@@ -3154,30 +3136,6 @@ class BaseHTMFiling(Filing):
             separator=" ", strip=True
         )
         return self.parser.preprocess_section_content(text_content)
-
-
-class SimpleHTMFiling(BaseHTMFiling):
-    def __init__(
-        self,
-        path: str = None,
-        filing_date: str = None,
-        accession_number: str = None,
-        cik: str = None,
-        file_number: str = None,
-        form_type: str = None,
-        extension: str = None,
-    ):
-        super().__init__(
-            path=path,
-            filing_date=filing_date,
-            accession_number=accession_number,
-            cik=cik,
-            file_number=file_number,
-            form_type=form_type,
-            extension=extension,
-            doc=None,
-            sections=None,
-        )
 
 
 class HTMFilingBuilder:
@@ -3285,13 +3243,13 @@ def create_htm_filing(
 
 
 filing_factory_default = [
-    ("S-1", ".htm", SimpleHTMFiling),
-    ("DEF 14A", ".htm", SimpleHTMFiling),
-    ("8-K", ".htm", SimpleHTMFiling),
-    ("SC 13D", ".htm", SimpleHTMFiling),
-    ("SC 13G", ".htm", SimpleHTMFiling),
+    ("S-1", ".htm", BaseHTMFiling),
+    ("DEF 14A", ".htm", BaseHTMFiling),
+    ("8-K", ".htm", BaseHTMFiling),
+    ("SC 13D", ".htm", BaseHTMFiling),
+    ("SC 13G", ".htm", BaseHTMFiling),
     ("S-3", ".htm", create_htm_filing),
-    ("EFFECT", ".xml", SimpleXMLFiling)
+    ("EFFECT", ".xml", BaseFiling)
 ]
 
 filing_factory = FilingFactory(defaults=filing_factory_default)

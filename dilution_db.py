@@ -1127,6 +1127,7 @@ class DilutionDBUtil:
                     pass
                 else:
                     unparsed.append(filing)
+            unparsed = sorted(unparsed, key=lambda x: x["filing_date"])
             return unparsed
         return all_filings
 
