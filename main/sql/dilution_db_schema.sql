@@ -224,6 +224,24 @@ CREATE TABLE IF NOT EXISTS underwriters(
 );
 
 
+CREATE TABLE IF NOT EXISTS effect_registrations(
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL,
+    accn VARCHAR,
+    form_type VARCHAR NOT NULL,
+    file_number VARCHAR NOT NULL,
+    effective_date DATE,
+
+    CONSTRAINT unique_accn UNIQUE(accn),
+
+    CONSTRAINT fk_company_id
+        FOREIGN KEY (company_id)
+            REFERENCES companies(id),
+    CONSTRAINT fk_form_type
+        FOREIGN KEY (form_type)
+            REFERENCES form_types(form_type)
+);
+
 
 CREATE TABLE IF NOT EXISTS shelf_registrations(
     id SERIAL PRIMARY KEY,

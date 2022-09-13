@@ -450,6 +450,25 @@ class ResaleRegistration:
     def __hash__(self):
         return hash((self.accn, ))
 
+@dataclass
+class EffectRegistration:
+    accn: str
+    file_number: str
+    form_type: str
+    effective_date: date
+
+    def __eq__(self, other):
+        if isinstance(other, ResaleRegistration):
+            if (
+                (self.accn == other.accn)
+                
+            ):
+                return True
+        return False
+    
+    def __hash__(self):
+        return hash((self.accn, ))
+
 
 @dataclass
 class Sic:
@@ -603,6 +622,7 @@ class Company:
         self.securities = set()
         self.shelfs = set()
         self.resales = set()
+        self.effects = set()
         self.filing_parse_history = set()
         self.filing_links = set()
         self.security_conversion = list()
@@ -673,6 +693,26 @@ class Company:
             logger.debug(f"Tried to add duplicate ResaleRegistration into Company.resales")
         else:
             self.resales.add(resale)
+    
+    def add_effect(self, effect: EffectRegistration):
+        if effect in self.effects:
+            logger.debug(f"Tried to add duplicate EffectRegistration into Company.effects")
+        else:
+            self.effects.add(effect)
+            self.set_effect_date(effect, "shelfs")
+            self.set_effect_date(effect, "resales")
+   
+    def set_effect_date(self, effect: EffectRegistration, attr_name="shelfs"):
+        registrations = getattr(self, attr_name, None)
+        if registrations:
+            registration = next((x for x in registrations if (x.accn == effect.accn and x.form_type == effect.form_type)), None)
+            if registration:
+                registration.effect_date = effect.effective_date
+                logger.debug(f"set effect_date: {effect.effective_date} for registration: {registration}")
+        
+
+
+
     
     def add_security(self, secu: Security):
         if (secu.underlying is not None) and (isinstance(secu.underlying, str)):

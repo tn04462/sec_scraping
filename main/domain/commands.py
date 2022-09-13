@@ -53,6 +53,9 @@ class AddShelfRegistration(NeedCompanyCommand):
 class AddResaleRegistration(NeedCompanyCommand):
     resale_registration: model.ResaleRegistration
 
+class AddEffectRegistration(NeedCompanyCommand):
+    effect_registration: model.EffectRegistration
+    
 @dataclass
 class AddShelfOffering(NeedCompanyCommand):
     shelf_offering:  model.ShelfOffering
@@ -63,9 +66,6 @@ class AddShelfSecurityRegistration(NeedCompanyCommand):
     security_registration: model.ShelfSecurityRegistration
 
 
-# this commmand and others like it should be events instead eg: AddedShelfRegistration 
-# @dataclass
-# class AddShelfRegistration(CompanyCommand):
 
 
 

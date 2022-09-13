@@ -93,7 +93,14 @@ def add_shelf_security_registration(cmd: commands.AddShelfSecurityRegistration, 
             u.rollback()
             raise AttributeError(f"Couldnt add ShelfSecurityRegistration, because this company doesnt have a shelf offering associated with accn: {cmd.offering_accn}.")
 
-
+def add_effect_registration(cmd: commands.AddEffectRegistration, uow: AbstractUnitOfWork):
+    with uow as u:
+        company: model.Company = u.company.get(symbol=cmd.symbol)
+        local_effect_object = u.session.merge(cmd.effect_registration)
+        company.add_effect(local_effect_object)
+        u.company.add(company)
+        u.commit()
+        
 
 COMMAND_HANDLERS = {
     commands.AddCompany: add_company,

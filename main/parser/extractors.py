@@ -24,26 +24,15 @@ security_type_factory = SecurityTypeFactory()
 class UnhandledClassificationError(Exception):
     pass
 
-class ExtractorResults:
-    def __init__(self):
-        self.items = []
-    
-    def add_item(self, item):
-        self.items.append(item)
-    
-    def __repr__(self):
-        return [str(i) for i in self.items]
-    
-
-
 
 class AbstractFilingExtractor(ABC):
-    def extract_form_values(self, filing: Filing, bus: MessageBus):
+    def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
         """extracts values and issues Command to MessageBus"""
         pass
 
 
-class BaseHTMExtractor():
+
+class BaseHTMExtractor:
     # maybe add get_doc(text_search) to FilingSection with a doc instance variable, so i dont make a doc more than once during extraction? 
     def __init__(self):
         self.spacy_text_search = SpacyFilingTextSearch()
@@ -319,6 +308,7 @@ class BaseHTMExtractor():
         return "Call"
 
     def get_secu_conversion(self, doc: Doc, security_name: str, security_spans: List[Span]):
+        logger.debug("get_secu_conversion not implemented")
         pass
     
     def get_issuable_relation(self, doc: Doc, security_name: str):
@@ -359,7 +349,6 @@ class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
-        results = []
         complete_doc = self.spacy_text_search.nlp(filing.get_text_only())
         try:
             form_case = self.classify_s3(filing)
@@ -780,7 +769,6 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         if capacity["unit"] == "shares":
             return str(self.formater.money_string_to_float(capacity["amount"])) + " shares"
     
-    
 
 class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):
     def extract_form_values(self, filing: Filing):
@@ -795,10 +783,10 @@ class HTMSC13DExtractor(BaseHTMExtractor, AbstractFilingExtractor):
 
 # add model for ownership tracking
 # add commands for said model
-# add?
 
-
-
+class XMLEFFECTExtractor(AbstractFilingExtractor):
+    def extract_form_values(self, filing: Filing, bus: MessageBus):
+        return super().extract_form_values(filing, bus)
 
 class ExtractorFactory:
     def __init__(self, defaults: list[tuple]=[]):

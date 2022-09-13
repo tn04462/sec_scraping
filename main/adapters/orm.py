@@ -35,6 +35,7 @@ from main.domain.model import (
     ResaleSecurityRegistration,
     ResaleSecurityComplete,
     ResaleRegistration,
+    EffectRegistration,
     Sic,
     FilingParseHistoryEntry,
     FilingLink,
@@ -216,6 +217,17 @@ resale_registrations = Table(
     Column("expiry", Date),
     Column("filing_date", Date),
     Column("is_active", Boolean),
+)
+
+effect_registrations = Table(
+    "effect_registrations",
+    reg.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("company_id", ForeignKey("companies.id")),
+    Column("accn", String),
+    Column("form_type", ForeignKey("form_types.form_type")),
+    Column("file_number", String),
+    Column("effective_date", Date),
 )
 
 sics = Table(
@@ -526,6 +538,11 @@ def start_mappers():
         }
     )
 
+    effect_registrations_mapper = reg.map_imperatively(
+        EffectRegistration,
+        effect_registrations
+    )
+
     sics_mapper = reg.map_imperatively(
         Sic,
         sics
@@ -595,6 +612,11 @@ def start_mappers():
                 resale_registrations_mapper,
                 collection_class=set,
                 lazy="selectin"
+            ),
+            "effects": relationship(
+                effect_registrations_mapper,
+                collection_class=set,
+                lazy="joined"
             ),
             "filing_parse_history": relationship(
                 filing_parse_history_mapper,
