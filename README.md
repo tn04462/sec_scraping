@@ -13,6 +13,7 @@ The aim of this repository is to be able to easily parse SEC-filings and create 
 6. specify what companies and what sec forms to track in main/configs.py (class AppConfig)
 7. do (in a file above the main directory):
 
+if you want to parse the filings
 ```python
     from dilution_db import DilutionDB
     from main.configs import FactoryConfig, GlobalConfig
@@ -25,8 +26,37 @@ The aim of this repository is to be able to easily parse SEC-filings and create 
         config=config
     )
     db.inital_setup()
-    # this will download at least 20GB of bulk data, the base info for the company and all filings of the specified forms, and will try to parse the filings and write to the database 
+    # this will download at least 20GB of bulk data, the base info for the
+    # company and all filings of the specified forms,
+    # and will try to parse the filings and write to the database 
 ```
+
+if you only want the base and xbrl companyfacts data (cashburn, outstanding common shares)
+```python
+    from dilution_db import DilutionDB
+    from main.configs import FactoryConfig, GlobalConfig
+    from boot import bootstrap_dilution_db
+    
+    config = FactoryConfig(GlobalConfig(ENV_STATE="prod").ENV_STATE)()
+
+    db = bootstrap_dilution_db(
+        start_orm=True,
+        config=config
+    )
+
+    db.util.inital_company_setup(
+            config.DOWNLOADER_ROOT_PATH,
+            config.POLYGON_OVERVIEW_FILES_PATH,
+            config.POLYGON_API_KEY,
+            config.APP_CONFIG.TRACKED_FORMS,
+            config.APP_CONFIG.TRACKED_TICKERS,
+            after="2010-1-1",
+            before=None
+        )
+
+```
+
+
 #### accessing company data through the model
 lets assume we have some data relating to "AAPL" already in the database.
 Retrieving a company object containing the data can be done like so:
@@ -118,7 +148,9 @@ filing = parsers.filing_factory(
 )
 extractor = extractors.HTMS3Extractor()
 extractor.extract_form_values(filing, company, mbus)
-# this way of accessing what happened during extraction will likely change in the future and be made available as some kind of result object 
+# this way of accessing what happened during extraction 
+# will likely change in the future and be made available 
+# as some kind of result object 
 commands_issued_during_extraction = mbus.collect_command_history()
 ```
 
@@ -137,7 +169,10 @@ doc = search.nlp(some_str)
 # this will mark:
 #   'common stock' as SECU entity
 #   '500000" as SECUQUANTITY enitity
-#   Will determine 'Shares' as an alias and therefor a SECU entity aswell, with a relation to the 'common stock' SECU entity. This relation will be saved in doc._.single_secu_alias_tuples
+#   Will determine 'Shares' as an alias and 
+#   therefor a SECU entity aswell, with a relation 
+#   to the 'common stock' SECU entity. 
+#   This relation will be saved in doc._.single_secu_alias_tuples
 ```
 further examples WIP
 
