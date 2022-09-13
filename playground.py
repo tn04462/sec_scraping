@@ -1118,7 +1118,7 @@ if __name__ == "__main__":
         from boot import bootstrap_dilution_db
         from main.configs import FactoryConfig, GlobalConfig
 
-        cnf = FactoryConfig(GlobalConfig(ENV_STATE="prod").ENV_STATE)()
+        cnf = FactoryConfig(GlobalConfig(ENV_STATE="dev").ENV_STATE)()
         # session_factory = sessionmaker(
         #     bind=create_engine(
         #     cnf.DILUTION_DB_CONNECTION_STRING,
@@ -1139,4 +1139,5 @@ if __name__ == "__main__":
         with db.conn() as c:
             result = c.execute("SELECT * FROM companies").fetchall()
             print(result)
-    do_inital_pop()
+    # do_inital_pop()
+    
