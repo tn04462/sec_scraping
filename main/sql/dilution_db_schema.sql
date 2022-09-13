@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS company_last_update(
     filing_links_lud TIMESTAMP,
     outstanding_shares_lud TIMESTAMP,
     net_cash_and_equivalents_lud TIMESTAMP,
-    cash_burn_rate_lud TIMESTAMP,
+    cash_burn_rate_lud TIM  ESTAMP,
     
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
@@ -200,10 +200,13 @@ CREATE TABLE IF NOT EXISTS filing_links(
     id SERIAL PRIMARY KEY,
     company_id INTEGER,
     filing_html VARCHAR(500),
+    accn VARCHAR,
     form_type VARCHAR(200),
     filing_date DATE,
     description_ VARCHAR(2000),
     file_number VARCHAR(1000),
+
+    CONSTRAINT unique_filing_html UNIQUE(filing_html),
 
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)

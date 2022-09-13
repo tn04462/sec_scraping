@@ -3,6 +3,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Date,
+    DateTime,
     Integer,
     Column,
     String,
@@ -240,7 +241,8 @@ filing_links = Table(
     reg.metadata,
     Column("id", Integer, primary_key=True),
     Column("company_id", ForeignKey("companies.id")),
-    Column("filing_html", String),
+    Column("filing_html", String, unique=True),
+    Column("accn", String),
     Column("form_type", ForeignKey("form_types.form_type")),
     Column("filing_date", Date),
     Column("description_", String),
@@ -284,6 +286,15 @@ net_cash_and_equivalents = Table(
     Column("company_id", ForeignKey("companies.id")),
     Column("instant", Date),
     Column("amount", BigInteger)
+)
+
+company_last_update = Table(
+    Column("company_id", ForeignKey("companies.id"), primary_key=True),
+    Column("filings_download_lud", DateTime, nullabel=True),
+    Column("filing_links_lud", DateTime, nullabel=True),
+    Column("outstanding_shares_lud", DateTime, nullabel=True),
+    Column("net_cash_and_equivalents_lud", DateTime, nullabel=True),
+    Column("cash_burn_rate_lud", DateTime, nullabel=True),
 )
 
 companies = Table(

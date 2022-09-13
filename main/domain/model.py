@@ -492,6 +492,7 @@ class FilingParseHistoryEntry:
 @dataclass
 class FilingLink:
     filing_html: AnyUrl
+    accn: str
     form_type: str
     filing_date: date
     description_: str

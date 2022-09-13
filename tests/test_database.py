@@ -28,6 +28,7 @@ delete_tables = str(Path(__file__).parent.parent / "main" / "sql" / "db_delete_a
 fake_filing_link = {
     "company_id": 1,
     'filing_html': 'https://www.sec.gov/Archives/edgar/data/0001309082/000158069520000391/cei-s4a_101220.htm',
+    "accn": "123456789123456789",
     'form_type': 'S-4/A',
     'filing_date': '2020-10-14',
     'description': 'AMENDMENT TO FORM S-4',

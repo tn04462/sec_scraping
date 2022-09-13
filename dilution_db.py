@@ -144,7 +144,7 @@ class DilutionDB:
             rows = [row for row in res]
             return rows
     
-    def inital_setup(self, reset_database=False):
+    def inital_setup(self, reset_database=False, after="2010-01-01", before=None):
         if reset_database is True:
             self.util.inital_table_setup()
         self.updater.update_bulk_files()
@@ -154,8 +154,8 @@ class DilutionDB:
             cnf.POLYGON_API_KEY,
             cnf.APP_CONFIG.TRACKED_FORMS,
             cnf.APP_CONFIG.TRACKED_TICKERS,
-            after="2010-01-01",
-            before=None
+            after=after,
+            before=before
         )
         for ticker in cnf.APP_CONFIG.TRACKED_TICKERS:
             self.updater.update_ticker(ticker)
@@ -293,15 +293,16 @@ class DilutionDB:
             raise e
 
     def create_filing_link(
-        self, company_id, filing_html, form_type, filing_date, description, file_number
+        self, company_id, filing_html, accn, form_type, filing_date, description, file_number
     ):
         with self.conn() as co:
             try:
                 co.execute(
-                    "INSERT INTO filing_links(company_id, filing_html, form_type, filing_date, description_, file_number) VALUES(%s, %s, %s, %s, %s, %s)",
+                    "INSERT INTO filing_links(company_id, filing_html, accn, form_type, filing_date, description_, file_number) VALUES(%s, %s, %s, %s, %s, %s, %s)",
                     [
                         company_id,
                         filing_html,
+                        accn,
                         form_type,
                         filing_date,
                         description,
@@ -311,9 +312,9 @@ class DilutionDB:
             except ForeignKeyViolation as e:
                 if "fk_form_type" in str(e):
                     co.rollback()
-                    logger.debug(f"fk_form_type violaton is trying to be resolved for {company_id, filing_html, form_type, filing_date, description, file_number}")
+                    logger.debug(f"fk_form_type violaton is trying to be resolved for {company_id, filing_html, accn, form_type, filing_date, description, file_number}")
                     self.create_form_type(form_type, "unspecified")
-                    self.create_filing_link(company_id, filing_html, form_type, filing_date, description, file_number)      
+                    self.create_filing_link(company_id, filing_html, accn, form_type, filing_date, description, file_number)      
                 else:
                     raise e
             else:
@@ -1336,6 +1337,7 @@ class DilutionDBUtil:
                             db.create_filing_link(
                                 id,
                                 s["filing_html"],
+                                s["accessionNumber"],
                                 s["form"],
                                 s["filingDate"],
                                 s["primaryDocDescription"],
