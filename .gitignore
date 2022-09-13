@@ -5,24 +5,16 @@ pysec_downloader/dummy_folder
 .vscode/launch.json
 main/parser/spacy_model (unused)/
 main/parser/xbrl_parser (unused)/
-
 main/resources/test_set
 main/configuration/secret.env
 __pycache__/
-main/__pycache__/
-main/parser/__pycache__/
-main/data_aggregation/__pycache__/
-main/__pycache__/configs.cpython-310.pyc
-main/data_aggregation/__pycache__/bulk_files.cpython-310.pyc
-main/data_aggregation/__pycache__/fact_extractor.cpython-310.pyc
-main/data_aggregation/__pycache__/polygon_basic.cpython-310.pyc
-main/parser/__pycache__/text_parser.cpython-310.pyc
-__pycache__/_constants.cpython-310.pyc
-__pycache__/dilution_db.cpython-310.pyc
-*.pyc
+/__pycache__
+/*.pyc
 *.pyc
 main/parser/spacy_model/training/model-best/vocab/vectors
 main/parser/spacy_model/training/model-last/vocab/vectors
 main/parser/spacy_model/data/dev.spacy
 main/parser/spacy_model/data/dev.spacy
 main/parser/spacy_model/data/test.spacy
+pdf_playground.py
+fact_extractor_playground.py

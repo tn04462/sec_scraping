@@ -1117,8 +1117,6 @@ if __name__ == "__main__":
     def do_inital_pop():
         from boot import bootstrap_dilution_db
         from main.configs import FactoryConfig, GlobalConfig
-        from sqlalchemy import text, create_engine
-        from sqlalchemy.orm import sessionmaker
 
         cnf = FactoryConfig(GlobalConfig(ENV_STATE="prod").ENV_STATE)()
         # session_factory = sessionmaker(
