@@ -232,6 +232,8 @@ def test_extract_form_values_s3(get_s3_extractor, get_fake_messagebus, get_filin
         assert 1 == 2
     else:
         assert isinstance(result, model.Company) is True
+
+def test_extract_form_values_effect
         
 
 

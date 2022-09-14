@@ -14,6 +14,7 @@ from spacy.tokens import Doc, Span, Token
 from main.parser.filings_base import Filing, FilingSection
 from main.domain import model, commands
 from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityType, SecurityTypeFactory, Warrant, Option
+from main.parser.parsers import XMLFilingSection
 from main.services.messagebus import Message, MessageBus
 from main.services.unit_of_work import AbstractUnitOfWork
 from .filing_nlp import SpacyFilingTextSearch, MatchFormater, get_secu_key, UnclearInformationExtraction
@@ -785,8 +786,28 @@ class HTMSC13DExtractor(BaseHTMExtractor, AbstractFilingExtractor):
 # add commands for said model
 
 class XMLEFFECTExtractor(AbstractFilingExtractor):
-    def extract_form_values(self, filing: Filing, bus: MessageBus):
-        return super().extract_form_values(filing, bus)
+    def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
+        if filing.sections == []:
+            return
+        main_section = filing.sections[0]
+        if not isinstance(main_section, XMLFilingSection):
+            raise TypeError(f"expecting XMLFilingSection got: {type(main_section)}")
+        content = main_section.content_dict
+        effect_registration = model.EffectRegistration(
+            accn=content["accn"],
+            file_number=content["file_number"],
+            form_type=content["form_type"],
+            effective_date=content["effective_date"]
+        )
+        bus.handle(commands.AddEffectRegistration(
+                cik=company.cik,
+                symbol=company.symbol,
+                effect_registration=effect_registration
+            )
+        )
+        company.add_effect(effect_registration)
+        return company
+
 
 class ExtractorFactory:
     def __init__(self, defaults: list[tuple]=[]):
@@ -812,7 +833,8 @@ class ExtractorFactory:
 extractor_factory_default = [
     ("S-1", ".htm", HTMS1Extractor),
     ("DEF 14A", ".htm", HTMDEF14AExtractor),
-    ("S-3", ".htm", HTMS3Extractor)
+    ("S-3", ".htm", HTMS3Extractor),
+    ("EFFECT", ".xml", XMLEFFECTExtractor)
     # (None, ".htm", BaseHTMExtractor)
     ]
 
