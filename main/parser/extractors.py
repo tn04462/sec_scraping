@@ -14,9 +14,7 @@ from spacy.tokens import Doc, Span, Token
 from main.parser.filings_base import Filing, FilingSection
 from main.domain import model, commands
 from main.domain.model import CommonShare, DebtSecurity, PreferredShare, Security, SecurityType, SecurityTypeFactory, Warrant, Option
-from main.parser.parsers import XMLFilingSection
 from main.services.messagebus import Message, MessageBus
-from main.services.unit_of_work import AbstractUnitOfWork
 from .filing_nlp import SpacyFilingTextSearch, MatchFormater, get_secu_key, UnclearInformationExtraction
 
 logger = logging.getLogger(__name__)
@@ -790,13 +788,13 @@ class XMLEFFECTExtractor(AbstractFilingExtractor):
         if filing.sections == []:
             return
         main_section = filing.sections[0]
-        if not isinstance(main_section, XMLFilingSection):
-            raise TypeError(f"expecting XMLFilingSection got: {type(main_section)}")
+        # if not isinstance(main_section, XMLFilingSection):
+        #     raise TypeError(f"expecting XMLFilingSection got: {type(main_section)}")
         content = main_section.content_dict
         effect_registration = model.EffectRegistration(
-            accn=content["accn"],
+            accn=filing.accession_number,
             file_number=content["file_number"],
-            form_type=content["form_type"],
+            form_type=content["for_form"],
             effective_date=content["effective_date"]
         )
         bus.handle(commands.AddEffectRegistration(

@@ -227,7 +227,7 @@ effect_registrations = Table(
     Column("accn", String),
     Column("form_type", ForeignKey("form_types.form_type")),
     Column("file_number", String),
-    Column("effective_date", Date),
+    Column("effective_date", Date)
 )
 
 sics = Table(
@@ -300,14 +300,14 @@ net_cash_and_equivalents = Table(
     Column("amount", BigInteger)
 )
 
-company_last_update = Table(
-    Column("company_id", ForeignKey("companies.id"), primary_key=True),
-    Column("filings_download_lud", DateTime, nullabel=True),
-    Column("filing_links_lud", DateTime, nullabel=True),
-    Column("outstanding_shares_lud", DateTime, nullabel=True),
-    Column("net_cash_and_equivalents_lud", DateTime, nullabel=True),
-    Column("cash_burn_rate_lud", DateTime, nullabel=True),
-)
+# company_last_update = Table(
+#     Column("company_id", ForeignKey("companies.id"), primary_key=True),
+#     Column("filings_download_lud", DateTime, nullabel=True),
+#     Column("filing_links_lud", DateTime, nullabel=True),
+#     Column("outstanding_shares_lud", DateTime, nullabel=True),
+#     Column("net_cash_and_equivalents_lud", DateTime, nullabel=True),
+#     Column("cash_burn_rate_lud", DateTime, nullabel=True),
+# )
 
 companies = Table(
     "companies",

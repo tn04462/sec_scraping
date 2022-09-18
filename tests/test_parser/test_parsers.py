@@ -117,6 +117,10 @@ def test_s3_filing_creation():
         assert rsec in filing_titles
         assert len(filing.get_section(rsec).content) > 10
 
+
+# def test_get_for_form_xml():
+#     parser = ParserEFFECT()
+    
     # need to run tests on the splitting by toc table first to detect why we cant find close_to_toc
 
     

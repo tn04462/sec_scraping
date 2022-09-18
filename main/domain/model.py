@@ -458,16 +458,19 @@ class EffectRegistration:
     effective_date: date
 
     def __eq__(self, other):
-        if isinstance(other, ResaleRegistration):
+        if isinstance(other, EffectRegistration):
             if (
-                (self.accn == other.accn)
+                (self.accn == other.accn) and
+                (self.form_type == other.form_type) and
+                (self.effective_date == other.effective_date) and
+                (self.file_number == other.file_number)
                 
             ):
                 return True
         return False
     
     def __hash__(self):
-        return hash((self.accn, ))
+        return hash((self.accn, self.form_type, self.file_number, self.effective_date))
 
 
 @dataclass

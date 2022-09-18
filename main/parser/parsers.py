@@ -2818,10 +2818,10 @@ class ParserSC13G(ParserSC13D):
 class XMLFilingParser(AbstractFilingParser):
     form_type = None
     extension = ".xml"
-    def split_into_sections(self, doc):
+    def split_into_sections(self, doc: ElementTree.ElementTree):
         raise NotImplementedError(f"This is meant to be a Base Class to be subclassed. Implement split_into_sections in the subclass.")
     
-    def get_doc(self, path: str):
+    def get_doc(self, path: str) -> ElementTree.ElementTree:
         return ElementTree.parse(path)
 
 class XMLFilingSection(FilingSection):
@@ -2866,15 +2866,16 @@ class ParserEFFECT(XMLFilingParser):
     form_type = "EFFECT"
     extension = ".xml"
     
-    def split_into_sections(self, doc) -> list[XMLFilingSection]:
+    def split_into_sections(self, doc: ElementTree.ElementTree) -> list[XMLFilingSection]:
         try:
-            effective_data = doc.find(".//effectiveData")
+            effective_data: ElementTree.Element = doc.find(".//effectiveData")
+            # print([i for i in effective_data])
+            # print(effective_data.get('form'))
+            # print(effective_data.find(".//form"))
+            for_form = self._get_for_form(effective_data)
+            print(f"for_form value: {for_form}")
             content_dict = {
-                "for_form": (
-                                effective_data.find(".//form").text 
-                                if effective_data.find(".//form")
-                                else effective_data.find(".//submissionType").text
-                            ),
+                "for_form": for_form,
                 "effective_date": doc.find(".//finalEffectivenessDispDate").text,
                 "file_number": doc.find(".//fileNumber").text,
                 "cik": doc.find(".//cik").text,
@@ -2892,6 +2893,15 @@ class ParserEFFECT(XMLFilingParser):
                 ]
             return sections
 
+    def _get_for_form(self, element: ElementTree.Element) -> str|None:
+        # find correct way to access the children
+        print(f"checking for form element in {[(i.text, i) for i in element]}")
+        # print(f"elemnt form: {element.find('form').text}")
+        if isinstance(element.find("form"), ElementTree.Element):
+            return element.find("form").text
+        if isinstance(element.find('submissionType'), ElementTree.Element):
+            return element.find("submissionType").text
+        return None
 
 def _re_is_main_table_start(table: list[list], items_dict: dict):
     # check if this is the start of the main table

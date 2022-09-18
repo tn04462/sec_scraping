@@ -14,6 +14,8 @@ s3_resale = r"test_resources\filings\0000908311\S-3\000110465919045626\a19-16974
 s3_ATM = r"test_resources\filings\0000831547\S-3\000083154720000018\cleans-3.htm"
 s3_resale_with_warrants = r"test_resources\filings\0001453593\S-3\000149315221008120\forms-3.htm"
 
+effect_filing_path = r"test_resources\filings\0001309082\EFFECT\999999999522002596\primary_doc.xml"
+
 def _get_absolute_path(rel_path):
     return str(Path(__file__).parent.parent / rel_path)
 
@@ -22,6 +24,13 @@ def get_fake_messagebus():
     mb = messagebus.MessageBus(unit_of_work.FakeCompanyUnitOfWork, dict())
     yield mb
     del mb
+
+
+@pytest.fixture
+def get_effect_extractor():
+    extractor = extractors.XMLEFFECTExtractor()
+    yield extractor
+    del extractor
 
 @pytest.fixture
 def get_base_extractor():
@@ -45,6 +54,22 @@ def get_fake_company():
             "description_": "Solely a test company meant for usage with pytest"
         }
     )
+
+@pytest.fixture
+def get_effect_filing():
+    path = _get_absolute_path(effect_filing_path)
+    info = {
+            "path": path,
+            "filing_date": datetime.date(2018, 9, 28),
+            "accession_number": Path(path).parents[0].name,
+            "cik": "0000000001",
+            "file_number": "1",
+            "form_type": "EFFECT",
+            "extension": ".xml"
+            }
+    filing = filing_factory.create_filing(**info)
+    return filing
+
 
 @pytest.fixture
 def get_filing_s3_shelf():
@@ -233,7 +258,18 @@ def test_extract_form_values_s3(get_s3_extractor, get_fake_messagebus, get_filin
     else:
         assert isinstance(result, model.Company) is True
 
-def test_extract_form_values_effect
+def test_extract_form_values_effect(get_fake_messagebus, get_effect_extractor, get_effect_filing):
+    extractor = get_effect_extractor
+    filing = get_effect_filing
+    bus = get_fake_messagebus
+    company = get_fake_company()
+    result = extractor.extract_form_values(filing, company, bus)
+    print(result.effects)
+    assert (
+        model.EffectRegistration(accn='999999999522002596', file_number='333-265715', form_type="S-1", effective_date='2022-09-06')
+        in
+        result.effects)
+
         
 
 

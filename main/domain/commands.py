@@ -53,6 +53,7 @@ class AddShelfRegistration(NeedCompanyCommand):
 class AddResaleRegistration(NeedCompanyCommand):
     resale_registration: model.ResaleRegistration
 
+@dataclass
 class AddEffectRegistration(NeedCompanyCommand):
     effect_registration: model.EffectRegistration
     
