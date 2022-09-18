@@ -754,7 +754,11 @@ class DilutionDBUpdater:
     
     def update_local_filings(self, connection: Connection, ticker: str):
         '''download new filings if available'''
+        logger.debug(f"updating local filings for: {ticker}")
         needs_update, filings_lud = self._filings_needs_update(ticker)
+        logger.debug(f"local filings---")
+        logger.debug(f"     needs_update: {needs_update}")
+        logger.debug(f"     filings_lud: {filings_lud}")
         if needs_update is None:
             raise AttributeError("ticker not found")
         if needs_update is True:
