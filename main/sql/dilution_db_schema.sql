@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS company_last_update(
     filing_links_lud TIMESTAMP,
     outstanding_shares_lud TIMESTAMP,
     net_cash_and_equivalents_lud TIMESTAMP,
-    cash_burn_rate_lud TIM  ESTAMP,
+    cash_burn_rate_lud TIMESTAMP,
     
     CONSTRAINT fk_company_id
         FOREIGN KEY (company_id)
