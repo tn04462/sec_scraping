@@ -4,12 +4,12 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-pysec-downloader = "*"
 pytest-postgresql = "*"
 psycopg2 = "*"
 pytest = "*"
 matplotlib = "*"
 coreferee = "*"
+pysec-downloader = "*"
 
 [dev-packages]
 

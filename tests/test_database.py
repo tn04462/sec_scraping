@@ -243,7 +243,7 @@ def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
     # do parse of existing filings
     for ticker in test_tickers:
         with db.conn() as conn:
-            db.updater.update_filing_values(conn, ticker)
+            db.updater.update_ticker(ticker)
     # do download and parse of newer filings
     # for ticker in test_tickers:
     #     db.updater.update_ticker(ticker)
@@ -359,8 +359,8 @@ class TestHandlers():
     def test_add_filing_link_with_missing_form_type(self, get_bootstrapped_dilution_db):
         db = get_bootstrapped_dilution_db
         add_example_company(db)
-        filing_link = model.FilingLink("https://anyrandomurl.com", "S-5", datetime.date(2022, 1, 1), "no descrption", "333-123123")
-        filing_link2 = model.FilingLink("https://anyrandomurl2.com", "S-6", datetime.date(2022, 1, 1), "no descrption", "333-123123")
+        filing_link = model.FilingLink("https://anyrandomurl.com", "123456789123456789", "S-5", datetime.date(2022, 1, 1), "no descrption", "333-123123")
+        filing_link2 = model.FilingLink("https://anyrandomurl2.com", "123456789123456780","S-6", datetime.date(2022, 1, 1), "no descrption", "333-123123")
         db.bus.handle(commands.AddFilingLinks("0000000001", "RANC", [filing_link, filing_link2]))
         with db.uow as uow:
             company = uow.company.get(symbol="RANC")

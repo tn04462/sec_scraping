@@ -756,6 +756,8 @@ class DilutionDBUpdater:
         '''download new filings if available'''
         logger.debug(f"updating local filings for: {ticker}")
         needs_update, filings_lud = self._filings_needs_update(ticker)
+        if filings_lud is None:
+            filings_lud = datetime(2000, 1, 1).date()
         logger.debug(f"local filings---")
         logger.debug(f"     needs_update: {needs_update}")
         logger.debug(f"     filings_lud: {filings_lud}")
@@ -773,6 +775,7 @@ class DilutionDBUpdater:
                     set(self.db.config.APP_CONFIG.TRACKED_FORMS))
                 try:
                     newer_filings = possible_newer_filings[cik]
+                    # logger.debug(f"possible_newer_filings: {possible_newer_filings}")
                     
                 except KeyError:
                     return None
@@ -789,9 +792,6 @@ class DilutionDBUpdater:
                         self.db._update_company_lud(connection, id, "filings_download_lud", datetime.utcnow())
                     else:
                         return None
-            # get filings newer than x from submissions
-            # download said filings with downloader by accn
-            pass
     
     def _file_needs_update_lud_filesystem(self, file_path: Path, max_age: int):
         if not file_path.exists():

@@ -4,7 +4,6 @@ import datetime
 
 def test_security_is_equal():
     data = {
-        "secu_type": "CommonShare",
         "secu_attributes": model.CommonShare(),
         "name": "common stock"
     }
@@ -14,12 +13,10 @@ def test_security_is_equal():
 
 def test_security_is_unequal():
     secu1 = model.Security(**{
-        "secu_type": "CommonShare",
         "secu_attributes": model.CommonShare(),
         "name": "common stock"
     })
     secu2 = model.Security(**{
-        "secu_type": "CommonShare",
         "secu_attributes": model.CommonShare(),
         "name": "common thing"
     })

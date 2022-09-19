@@ -59,7 +59,8 @@ def add_securities(cmd: commands.AddSecurities, uow: AbstractUnitOfWork):
         for security in cmd.securities:
             if security not in company.securities:
                 local_security_object = u.session.merge(security)
-                company.add_security(local_security_object)
+                with u.session.no_autoflush:
+                    company.add_security(local_security_object)
         u.company.add(company)
         u.commit()
 
@@ -68,7 +69,9 @@ def add_shelf_registration(cmd: commands.AddShelfRegistration, uow: AbstractUnit
         company: model.Company = u.company.get(symbol=cmd.symbol, lazy=True)
         # add info of session state here for debug
         local_shelf_object = u.session.merge(cmd.shelf_registration)
-        company.add_shelf(local_shelf_object)
+        local_shelf_object.company_id = company.id
+        with u.session.no_autoflush:
+            company.add_shelf(local_shelf_object)
         u.company.add(company)
         u.commit()
 
@@ -76,7 +79,10 @@ def add_resale_registration(cmd: commands.AddResaleRegistration, uow: AbstractUn
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol, lazy=True)
         local_resale_object = u.session.merge(cmd.resale_registration)
-        company.add_resale(local_resale_object)
+        local_resale_object.company_id = company.id
+        with u.session.no_autoflush:
+            company.add_resale(local_resale_object)
+        # company.add_resale(cmd.resale_registration)
         u.company.add(company)
         u.commit()
 
@@ -86,7 +92,8 @@ def add_shelf_security_registration(cmd: commands.AddShelfSecurityRegistration, 
         offering: model.ShelfOffering = company.get_shelf_offering(offering_accn=cmd.offering_accn)
         if offering:
             local_registration_object = u.session.merge(cmd.security_registration)
-            offering.add_registration(registered=local_registration_object)
+            with u.session.no_autoflush:
+                offering.add_registration(registered=local_registration_object)
             u.company.add(company)
             u.commit()
         else:
@@ -97,7 +104,8 @@ def add_effect_registration(cmd: commands.AddEffectRegistration, uow: AbstractUn
     with uow as u:
         company: model.Company = u.company.get(symbol=cmd.symbol)
         local_effect_object = u.session.merge(cmd.effect_registration)
-        company.add_effect(local_effect_object)
+        with u.session.no_autoflush:
+            company.add_effect(local_effect_object)
         u.company.add(company)
         u.commit()
         
