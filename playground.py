@@ -1114,15 +1114,31 @@ if __name__ == "__main__":
 
 
     # f = _create_filing("S-3", r"F:/example_filing_set_S3/filings/0001514281/S-3/000151428121000068/mittforms-3may2021.htm")
-    def do_inital_pop():
-        from boot import bootstrap_dilution_db
-        from main.configs import FactoryConfig, GlobalConfig
-
-        cnf = FactoryConfig(GlobalConfig(ENV_STATE="prod").ENV_STATE)()
+    from boot import bootstrap_dilution_db
+    from main.configs import FactoryConfig, GlobalConfig
+    cnf = FactoryConfig(GlobalConfig(ENV_STATE="dev").ENV_STATE)()
+    def do_inital_pop(cnf):   
         db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=None)
         db.inital_setup(reset_database=True)
         with db.conn() as c:
             result = c.execute("SELECT * FROM companies").fetchall()
             print(result)
-    do_inital_pop()
+    
+    def reparse(cnf, form_type):
+        db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=None)
+        # db.updater.dl.index_handler.check_index()
+        db.util.reparse_local_filings("CEI", "EFFECT")
+    
+    def unique_filings(cnf):
+        db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=None)
+        all_filings = db.updater.dl.index_handler.get_local_filings_by_cik("0001309082")
+        fset = set([tuple(i.values()) for i in all_filings])
+        for i in fset:
+            if i[0] == "EFFECT":
+                print(i)
+    
+    reparse(cnf, "EFFECT")
+    # unique_filings(cnf)
+    
+    # do_inital_pop(cnf)
     

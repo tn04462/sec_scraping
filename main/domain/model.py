@@ -708,7 +708,7 @@ class Company:
     def set_effect_date(self, effect: EffectRegistration, attr_name="shelfs"):
         registrations = getattr(self, attr_name, None)
         if registrations:
-            registration = next((x for x in registrations if (x.accn == effect.accn and x.form_type == effect.form_type)), None)
+            registration = next((x for x in registrations if (x.file_number == effect.file_number and x.form_type == effect.form_type)), None)
             if registration:
                 registration.effect_date = effect.effective_date
                 logger.debug(f"set effect_date: {effect.effective_date} for registration: {registration}")

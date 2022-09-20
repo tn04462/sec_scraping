@@ -68,6 +68,11 @@ class GlobalConfig(BaseSettings):
 
         env_file: str = "./main/configuration/secret.env"
 
+class TestConfig(GlobalConfig):
+    """Testing configurations."""
+    class Config:
+        env_prefix: str = "TEST_"
+
 
 class DevConfig(GlobalConfig):
     """Development configurations."""
@@ -95,6 +100,9 @@ class FactoryConfig:
 
         elif self.env_state == "prod":
             return ProdConfig()
+        
+        elif self.env_state == "test":
+            return TestConfig()
 
 
 cnf = FactoryConfig(GlobalConfig().ENV_STATE)()

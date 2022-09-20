@@ -21,7 +21,7 @@ from main.domain import commands
 
 
 
-cnf = FactoryConfig(GlobalConfig(ENV_STATE="dev").ENV_STATE)()
+cnf = FactoryConfig(GlobalConfig(ENV_STATE="test").ENV_STATE)()
 dilution_db_schema = str(Path(__file__).parent.parent / "main" / "sql" / "dilution_db_schema.sql")
 delete_tables = str(Path(__file__).parent.parent / "main" / "sql" / "db_delete_all_tables.sql")
 
@@ -403,6 +403,46 @@ class TestHandlers():
         with db.uow as uow:
             company = uow.company.get(symbol="RANC")
             assert shelf in company.shelfs
+    
+    def test_add_effect_registration(self, get_bootstrapped_dilution_db):
+        db = get_bootstrapped_dilution_db
+        add_example_company(db)
+        with db.uow as uow:
+            uow.session.add(model.FormType("S-3", "whatever"))
+            uow.session.commit()
+        shelf = model.ShelfRegistration(
+                accn='000143774918017591',
+                file_number='1',
+                form_type='S-3',
+                capacity=75000000.0,
+                filing_date=datetime.date(2018, 9, 28),
+                effect_date=None,
+                last_update=None,
+                expiry=None,
+                total_amount_raised=None
+            )
+        db.bus.handle(commands.AddShelfRegistration(
+            cik="0000000001",
+            symbol="RANC",
+            shelf_registration=shelf
+        ))
+        effect = model.EffectRegistration(
+            accn="123456789123456789",
+            file_number="1",
+            form_type="S-3",
+            effective_date=datetime.date(2022, 1, 1)
+        )
+        db.bus.handle(commands.AddEffectRegistration(
+            cik="0000000001",
+            symbol="RANC",
+            effect_registration=effect
+        ))
+        with db.uow as uow:
+            company = uow.company.get(symbol="RANC")
+            assert shelf in company.shelfs
+            assert effect in company.effects
+            modified_shelf = company.get_shelf(file_number="1")
+            assert modified_shelf.effect_date == datetime.date(2022, 1, 1)
 
 
     

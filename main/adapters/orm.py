@@ -616,7 +616,7 @@ def start_mappers():
             "effects": relationship(
                 effect_registrations_mapper,
                 collection_class=set,
-                lazy="joined"
+                lazy="selectin"
             ),
             "filing_parse_history": relationship(
                 filing_parse_history_mapper,

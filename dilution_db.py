@@ -653,9 +653,9 @@ class DilutionDB:
             "VALUES (%(c_id)s, %(accn)s, %(d_parsed)s) "
             "ON CONFLICT ON CONSTRAINT unique_co_accn "
             "DO UPDATE SET "
-            "date_parsed = %(d_parsed)s"
-            "WHERE company_id = %(c_id)s"
-            "AND accession_number = %(accn)s "
+            "date_parsed = %(d_parsed)s "
+            "WHERE filing_parse_history.company_id = %(c_id)s "
+            "AND filing_parse_history.accession_number = %(accn)s "
             "RETURNING *"),
             {"c_id": id,
             "accn": accession_number,
@@ -1117,8 +1117,32 @@ class DilutionDBUtil:
         except ValueError as e:
             logger.info(f"excepted ValueError in _parse_filing: {e}", exc_info=True)
             return []
-        return extractor.extract_form_values(filing, company, self.db.bus)
-   
+        try:
+            extractor_return = extractor.extract_form_values(filing, company, self.db.bus)
+        except Exception as e:
+            logger.error(f"encountered error during extraction: {e}", exc_info=True)
+        else:
+            with self.db.conn() as c:
+                self.db._update_filing_parse_history(c, company.id, filing.accession_number, datetime.now().date())
+            return extractor_return
+
+    def reparse_local_filings(self, symbol: str, form: str):
+        with self.db.uow as uow:
+            company = uow.company.get(symbol=symbol, lazy=False)
+            cik = company.cik
+            uow.session.expunge(company)
+        all_filings = self.db.updater.dl.index_handler.get_local_filings_by_cik(cik)
+        for filing_entry in all_filings:
+            form_type, file_number, file_path, filing_date, accession_number = filing_entry.values()
+            if form == form_type:
+                try:
+                    filings = self._create_filing(form_type, accession_number, file_path, filing_date, cik, file_number)
+                except ValueError as e:
+                    logger.error(f"_create_filing ran into a ValueError: {e}", exc_info=True)
+                else:
+                    logger.debug(f"_create_filing created: {len(filings)} filings out of one file.")
+                    for filing in filings:
+                        company = self._parse_filing(filing, company)
     
     def get_unparsed_filings(self, id: int, cik: str):
         # get all the filings and their accession number that are present locally

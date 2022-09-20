@@ -120,5 +120,7 @@ COMMAND_HANDLERS = {
     commands.AddSic: add_sic,
     commands.AddFormType: add_form_type,
     commands.AddFilingLinks: add_filing_links,
+    commands.AddEffectRegistration: add_effect_registration,
+
 }
 

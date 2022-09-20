@@ -388,7 +388,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 }
             offering = model.ShelfOffering(**kwargs)
             bus.handle(commands.AddShelfOffering(company.cik, company.symbol, offering))
-            shelf.add_offering(offering)
+            # shelf.add_offering(offering)
             self.handle_ATM_security_registrations(filing, company, bus, cover_page_doc)
 
     def handle_ATM_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus, cover_page_doc: Doc):
@@ -411,7 +411,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             }
         resale = model.ResaleRegistration(**kwargs)
         bus.handle(commands.AddResaleRegistration(filing.cik, company.symbol, resale))
-        company.add_resale(resale)
+        # company.add_resale(resale)
         self.handle_resale_security_registrations(filing, company, bus)
     
     def handle_resale_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus):
@@ -435,7 +435,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             }
         shelf = model.ShelfRegistration(**kwargs)
         bus.handle(commands.AddShelfRegistration(filing.cik, company.symbol, shelf))
-        company.add_shelf(shelf)
+        # company.add_shelf(shelf)
                 # if no registrations can be found add whole dollar amount as common
                 # add ShelfOffering
                 # get underwriters, registrations and completed then modify
@@ -803,7 +803,7 @@ class XMLEFFECTExtractor(AbstractFilingExtractor):
                 effect_registration=effect_registration
             )
         )
-        company.add_effect(effect_registration)
+        # company.add_effect(effect_registration)
         return company
 
 
