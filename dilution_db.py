@@ -1187,6 +1187,7 @@ class DilutionDBUtil:
             for field in wanted_fields:
                 entry[field] = filings[field][r]
             entry["filing_html"] = self.build_submission_link(base_url, cik, entry["accessionNumber"].replace("-", ""), entry["primaryDocument"])
+            entry["accessionNumber"] = _ensure_no_dash_accn(entry["accessionNumber"])
             cleaned.append(entry)
         return cleaned
     
@@ -1436,6 +1437,12 @@ def is_outdated(comparison_time: datetime, max_age: timedelta, now: datetime=dat
         return True
     else:
         return False 
+
+def _ensure_no_dash_accn(accn: str):
+    if len(accn) == 18:
+        return accn
+    else:
+        return accn.replace("-", "")
 
     # def create_tracked_companies(self):
     #     base_path = config["polygon"]["overview_files_path"]

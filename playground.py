@@ -1124,10 +1124,13 @@ if __name__ == "__main__":
             result = c.execute("SELECT * FROM companies").fetchall()
             print(result)
     
-    def reparse(cnf, form_type):
-        db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=None)
+    def boot_db(cnf):
+        return bootstrap_dilution_db(start_orm=True, config=cnf, uow=None)
+    
+    def reparse(db, form_type):
         # db.updater.dl.index_handler.check_index()
-        db.util.reparse_local_filings("CEI", "EFFECT")
+        # db.updater.dl.index_handler.check_index()
+        db.util.reparse_local_filings("CEI", form_type)
     
     def unique_filings(cnf):
         db = bootstrap_dilution_db(start_orm=True, config=cnf, uow=None)
@@ -1137,7 +1140,29 @@ if __name__ == "__main__":
             if i[0] == "EFFECT":
                 print(i)
     
-    reparse(cnf, "EFFECT")
+    def readd_filing_links(db):
+        id = 1
+        submissions_file = db.util._get_submissions_file("0001309082")
+        submissions = db.util.format_submissions_json_for_db(
+            "0001309082",
+            submissions_file)
+        for s in submissions:
+            try:
+                db.create_filing_link(
+                    id,
+                    s["filing_html"],
+                    s["accessionNumber"],
+                    s["form"],
+                    s["filingDate"],
+                    s["primaryDocDescription"],
+                    s["fileNumber"])
+            except Exception as e:
+                print((e, s))
+    
+    # reparse(cnf, "S-3")
+    db = boot_db(cnf)
+    readd_filing_links(db)
+    # reparse(db, "EFFECT")
     # unique_filings(cnf)
     
     # do_inital_pop(cnf)
