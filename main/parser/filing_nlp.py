@@ -1103,30 +1103,6 @@ class SpacyFilingTextSearch:
                     "RIGHT_ID": "nmod",
                     "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}, 
                 },
-                # {
-                #     "LEFT_ID": "verb1",
-                #     "REL_OP": ">>",
-                #     "RIGHT_ID": "for_",
-                #     "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "for"}, 
-                # },
-                # {
-                #     "LEFT_ID": "for_",
-                #     "REL_OP": ">",
-                #     "RIGHT_ID": "numCD",
-                #     "RIGHT_ATTRS": {"TAG": "CD"},
-                # },
-                # {
-                #     "LEFT_ID": "numCD",
-                #     "REL_OP": ">",
-                #     "RIGHT_ID": "prepCD",
-                #     "RIGHT_ATTRS": {"DEP": "prep"},
-                # },
-                # {
-                #     "LEFT_ID": "prepCD",
-                #     "REL_OP": ">",
-                #     "RIGHT_ID": "secu2",
-                #     "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": secu_root_token.lower_},
-                # },
 
             ]
         ]
@@ -1204,9 +1180,6 @@ class SpacyFilingTextSearch:
                         }
                     )
         return root_pattern
-
-                
-        
     
     def match_secu_expiry(self, doc: Doc, secu: Span):
         secu_root_pattern = self._create_secu_span_dependency_matcher_dict(secu)
@@ -1646,40 +1619,6 @@ class SpacyFilingTextSearch:
             return [_get_CD_object_from_match(match) for match in matches]
 
 
-
-
-    
-    # def match_secu_exercise_price(self, doc: Doc, secu: Span):
-    #     matcher = Matcher(self.nlp.vocab)
-    #     # print([{"LOWER": x.lower_} for x in secu])
-    #     patterns = [
-    #         [
-    #             *[{"LOWER": x.lower_} for x in secu],
-    #             {"LEMMA": "have"},
-    #             {"OP": "*", "IS_SENT_START": False, "ENT_TYPE": {"NOT_IN": ["SECU"]}},
-    #             {"ENT_TYPE": "SECUATTR", "OP": "*"},
-    #             {"LOWER": "of", "OP": "?"},
-    #             {"ENT_TYPE": "MONEY", "OP": "*"}
-    #         ],
-    #         [
-    #             *[{"LOWER": x.lower_} for x in secu],
-    #             {"LOWER": "to"},
-    #             {"LOWER": "purchase"},
-    #             {"ENT_TYPE": {"IN": ["MONEY", "CARDINAL", "SECUQUANTITY"]}, "OP": "*"},
-    #             {"LOWER": "shares"},
-    #             {"LOWER": "of", "OP": "?"},
-    #             {"ENT_TYPE": "SECU", "OP": "*"},
-    #             {"OP": "*", "IS_SENT_START": False, "ENT_TYPE": {"NOT_IN": ["SECU", "SECUQUANTITY"]}},
-    #             {"ENT_TYPE": "SECUATTR", "OP": "*"},
-    #             {"LOWER": "of", "OP": "?"},
-    #             {"ENT_TYPE": "MONEY", "OP": "*"}
-
-    #         ]
-    #     ]
-    #     matcher.add("exercise_price", patterns)
-    #     return _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
-    
-    
     def match_prospectus_relates_to(self, text):
         pattern = [
             # This prospectus relates to
@@ -1712,6 +1651,45 @@ class SpacyFilingTextSearch:
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches if matches is not None else []
     
+    def get_secuquantities(self, doc: Doc, secu: Span):
+        ''''match secuquantity and the closest secu in the dependency tree'''
+        dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
+        secu_root_pattern = self._create_secu_span_dependency_matcher_dict(secu)
+        patterns = [
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMMA": {"NOT_IN": ["purchase, acquire"]}}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "secuquantity",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+                }
+            ],
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "secuquantity",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+                }
+            ],
+        ]
+        dep_matcher.add("secu_and_secuquantity", patterns)
+        matches = dep_matcher(doc)
+        if matches:
+            matches = _convert_dep_matches_to_spans(doc, matches)
+            logger.debug(f"raw secu_and_secuquantity matches: {matches}")
+        else:
+            logger.debug(f"no secu_and_secuquantity matches found")
+
+
     def get_secus_and_secuquantity(self,  doc: Doc):
         # DEBUG CODE
         all = []

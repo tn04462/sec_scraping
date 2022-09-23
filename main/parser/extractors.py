@@ -413,13 +413,17 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         bus.handle(commands.AddResaleRegistration(filing.cik, company.symbol, resale))
         # company.add_resale(resale)
         self.handle_resale_security_registrations(filing, company, bus)
-    
+        # if no registrations can be found add whole dollar amount as common
+        # add ShelfOffering
+        # get underwriters, registrations and completed then modify
+        # previously added ShelfOffering
+
     def handle_resale_security_registrations(self, filing: Filing, company: model.Company, bus: MessageBus):
         security_registrations = self.get_resale_security_registrations(filing, company)
     
     def get_resale_security_registrations(self, filing: Filing, company: model.Company):
+        # get secus + secuquantity from cover_page and find a smart way to share secus with other docs
         pass
-
 
     def handle_shelf(self, filing: Filing, company: model.Company, bus: MessageBus, is_preliminary: bool=False):
         capacity = self.format_total_shelf_capacity(self.extract_shelf_capacity(filing))
@@ -436,10 +440,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
         shelf = model.ShelfRegistration(**kwargs)
         bus.handle(commands.AddShelfRegistration(filing.cik, company.symbol, shelf))
         # company.add_shelf(shelf)
-                # if no registrations can be found add whole dollar amount as common
-                # add ShelfOffering
-                # get underwriters, registrations and completed then modify
-                # previously added ShelfOffering
+                
     
     def handle_shelf_security_registration(self, filing: Filing, company: model.Company, bus: MessageBus, security_registration: model.ShelfSecurityRegistration):
         offering = company.get_shelf_offering(filing.accession_number)

@@ -893,6 +893,7 @@ if __name__ == "__main__":
         # "The Placement Agent Warrant have an exercise price of $2.8125 per share, subject to customary anti-dilution, but not price protection, adjustments.",
         # "We will be prohibited from effecting an exercise of the Investor Warrant to the extent that, as a result of such exercise, the Investor would beneficially own more than 9.99% of the number of shares of our common stock outstanding immediately after giving effect to the Warrant Shares."
         "Warrants to purchase 33,334 shares of common stock at any time on or prior to September 26, 2022 at an initial exercise price of $3.00 per share.",
+        
         ## EXPIRY SENTENCES
         # "The Warrants are immediately exercisable and expire on the five-year anniversary of the date of issuance.",
         # "The Warrants expire on the five-year anniversary of the date of issuance.",
@@ -904,6 +905,11 @@ if __name__ == "__main__":
         # "The option fully vested on the date of grant and expires on August 6, 2025.",
         # "The Investor Warrant is immediately exercisable and will expire on the five-year anniversary of the date of issuance",
         # "Each Company Warrant become exercisable on May 4, 2021 and will expire five years after the completion of the Business Combination, or earlier upon redemption.",
+        
+        ## SECUQUANTITY SENTENCES
+        "This prospectus relates to the resale, from time to time, of up to an aggregate of 16,000,002 shares of common stock, par value $0.000001 per share, of Xtant Medical Holdings, Inc. by the selling stockholders named in this prospectus, including their respective donees, pledgees, transferees, assignees or other successors-in-interest. The selling stockholders acquired these shares from us pursuant to a (i) Securities Purchase Agreement, dated February 22, 2021 pursuant to which we issued 8,888,890 shares of common stock, par value $0.000001 per share, at a purchase price of $2.25 per share, and a warrant to purchase up to 6,666,668 shares of common stock in a private placement, and (ii) Placement Agent Agreement, dated February 22, 2021, with A.G.P./Alliance Global Partners pursuant to which we issued warrants to purchase up to an aggregate of 444,444 shares of common stock.",
+
+ 
         ]
     secu_idxs = [
         # (1, 2),
@@ -926,7 +932,26 @@ if __name__ == "__main__":
     # #     # ex.append(extractor.spacy_text_search.match_secu_with_dollar_CD(doc, doc[0:1]))
     #     docs.append(doc)
     # print(ex)
-
+    def get_unique_secu_text_from_alias(secu_map):
+        unique_secus = []
+        unique_secus_text = set()
+        for key, value in secu_map.items():
+            for each in ["alias", "no_alias"]:
+                for secu_span in value[each]:
+                    secu_text = secu_span.text
+                    if secu_text not in unique_secus_text:
+                        unique_secus_text.add(secu_text)
+                        unique_secus.append(secu_span)
+        return unique_secus
+                        
+    for text in texts:
+        doc = search.nlp(text)
+        secu_map = doc._.single_secu_alias_tuples
+        unique_secus = get_unique_secu_text_from_alias(secu_map)
+        for secu in unique_secus:
+            quants = search.get_secuquantities(doc, secu)
+            print(quants)
+        docs.append(doc)
     texts = [
         # RESALE SECURITY REGISTRATION SENTENCES (ONLY COVER PAGE)
         # "The selling stockholders may offer and sell from time to time up to 9,193,766 shares of our common stock. Certain of such shares of common stock are issuable upon exercise of a warrant to purchase common stock issued to one of the selling stockholders.",
@@ -1016,14 +1041,15 @@ if __name__ == "__main__":
     # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
     # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
     # output_path.open("w", encoding="utf-8").write(svg)
-    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True})
+    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
 
-    # displacy.serve(docs, style="ent", options={
-    #     "ents": ["SECU", "SECUQUANTITY"],
-    #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
-    #     },
-    #     port=5000
-    # )
+
+    displacy.serve(docs, style="ent", options={
+        "ents": ["SECU", "SECUQUANTITY"],
+        "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
+        },
+        port=5000
+    )
     
     #     print(doc._.single_secu_alias)
 
@@ -1164,6 +1190,6 @@ if __name__ == "__main__":
     # readd_filing_links(db)
     # reparse(db, "EFFECT")
     # unique_filings(cnf)
-    
-    do_inital_pop(cnf)
+    # 
+    # do_inital_pop(cnf)
     
