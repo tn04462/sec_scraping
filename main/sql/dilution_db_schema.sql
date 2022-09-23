@@ -246,7 +246,7 @@ CREATE TABLE IF NOT EXISTS effect_registrations(
 CREATE TABLE IF NOT EXISTS shelf_registrations(
     id SERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
-    accn VARCHAR(30) NOT NULL,
+    accn VARCHAR(30) NOT NULL UNIQUE,
     file_number VARCHAR NOT NULL,
     form_type VARCHAR NOT NULL,
     capacity BIGINT,

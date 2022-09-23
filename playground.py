@@ -1160,10 +1160,10 @@ if __name__ == "__main__":
                 print((e, s))
     
     # reparse(cnf, "S-3")
-    db = boot_db(cnf)
-    readd_filing_links(db)
+    # db = boot_db(cnf)
+    # readd_filing_links(db)
     # reparse(db, "EFFECT")
     # unique_filings(cnf)
     
-    # do_inital_pop(cnf)
+    do_inital_pop(cnf)
     
