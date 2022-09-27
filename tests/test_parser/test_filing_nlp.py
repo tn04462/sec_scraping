@@ -77,28 +77,6 @@ def test__create_secu_span_dependency_matcher_dict(get_search):
         }
         ]
     
-
-@pytest.mark.parametrize(["text", "expected"], [
-    (
-        "Warrant Shares",
-        "Shares"
-    ),
-    (
-        "Placement Agent Warrant",
-        "Warrant"
-    ),
-    (
-        "Warrant",
-        "Warrant"
-    )
-])
-def test__get_compound_SECU_root(text, expected, get_search):
-    search = get_search
-    doc = search.nlp(text)
-    secu = doc[0:]
-    root_token = search._get_compound_SECU_root(secu)
-    assert isinstance(root_token, Token) is True
-    assert root_token.text == expected
     
 
 @pytest.mark.parametrize(["text", "expected", "secu_idx"], [

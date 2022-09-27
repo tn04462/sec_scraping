@@ -69,35 +69,6 @@ class WordToNumberConverter():
             return self.timedelta_map[token.lower_]
         return None
     
-    # def convert_spacy_tokens_to_timedelta(self, tokens: list[Token]):
-    #     converted = []
-    #     timedelta_keys = self.timedelta_map.keys()
-    #     numbers_keys = self.numbers_map.keys()
-    #     for idx, token in enumerate(tokens):
-    #         if idx != 0:
-    #             if token.lower_ in timedelta_keys:
-    #                 multipliers = []
-    #                 not_timedelta_tokens = []
-    #                 for x in range(idx-1, -1, -1):
-    #                     if tokens[x].lower_ in numbers_keys:
-    #                         multipliers.append(tokens[x].lower_)
-    #                     else:
-    #                         break
-    #                     if tokens[x].lower_ in timedelta_keys:
-    #                         break
-    #                     else:
-    #                         not_timedelta_tokens.append(tokens[x])
-    #                 count_multiplier = len(multipliers)
-    #                 if count_multiplier > 1:
-    #                     raise NotImplementedError(f"Handling of more than one number before the timdelta key isnt handled yet")
-    #                 if count_multiplier == 0:
-    #                     continue
-    #                     # raise NotImplementedError(f"Unhandled case of number or timedelta before timedelta, tokens before timedelta: {not_timedelta_tokens}")
-    #                 multiplier = self.numbers_map.get(multipliers[0])
-    #                 td = self.timedelta_map.get(token.lower_)
-    #                 if multiplier and td:
-    #                     converted.append(multiplier*td)
-    #     return converted if converted != [] else None
 
 class MatchFormater:
     def __init__(self):
@@ -358,6 +329,14 @@ def get_secuquantity(span):
     else:
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
+def retokenize_SECU(doc: Doc):
+    with doc.retokenize() as retokenizer:
+        for ent in doc.ents:
+            if ent.label_ == "SECU":
+                attrs = {"tag": ent.root.tag, "dep": ent.root.dep, "ent_type": ent.label}
+                retokenizer.merge(ent, attrs=attrs)
+    return doc
+
 
 def get_alias(doc: Doc, secu: Span):
     # logger.debug(f"getting alias for: {secu}")
@@ -504,15 +483,23 @@ class SECUMatcher:
         # logger.warning(f"__call__ executed")
         self._init_span_labels(doc)
         self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
-        self.add_possible_alias_spans(doc)
-        self.add_tokens_to_alias_map(doc)
+        self.set_possible_alias_spans(doc)
+        self.set_tokens_to_alias_map(doc)
         self.matcher_SECU(doc)
         self.matcher_SECUREF(doc)
-        _set_single_secu_alias_map(doc)
-        _set_single_secu_alias_map_as_tuples(doc)
+        doc = self.handle_retokenize_SECU(doc)
         self.handle_SECU_special_cases(doc)
+        doc = self.handle_retokenize_SECU(doc)
         self.matcher_SECUATTR(doc)
         self.matcher_SECUQUANTITY(doc)
+        return doc
+    
+    def handle_retokenize_SECU(self, doc: Doc):
+        doc = retokenize_SECU(doc)
+        self.set_possible_alias_spans(doc)
+        self.set_tokens_to_alias_map(doc)
+        _set_single_secu_alias_map(doc)
+        _set_single_secu_alias_map_as_tuples(doc)
         return doc
     
     def _init_span_labels(self, doc: Doc):
@@ -593,11 +580,11 @@ class SECUMatcher:
                             logger.debug(f"couldnt find start/end token for alias: {possible_alias}; start/end token: {start_token}/{end_token}")
         return spans
 
-    def set_possible_alias_spans(self, doc: Doc, spans: list[Span]):
+    def _set_possible_alias_spans(self, doc: Doc, spans: list[Span]):
         doc.spans["alias"] = spans
         
-    def add_possible_alias_spans(self, doc: Doc):
-        self.set_possible_alias_spans(
+    def set_possible_alias_spans(self, doc: Doc):
+        self._set_possible_alias_spans(
             doc,
             self.get_possible_alias_spans(doc, self.chars_to_token_map)
         )
@@ -606,7 +593,7 @@ class SECUMatcher:
             doc._.alias_set.add(span.text)
         logger.debug(f"set alias_set extension: {doc._.alias_set}")
     
-    def add_tokens_to_alias_map(self, doc: Doc):
+    def set_tokens_to_alias_map(self, doc: Doc):
         doc._.tokens_to_alias_map = self.get_tokens_to_alias_map(doc)
         
     
@@ -1075,10 +1062,23 @@ class SpacyFilingTextSearch:
             # cls._instance.nlp.add_pipe("coreferee")
         return cls._instance
     
+    def handle_match_formatting(self, match: tuple[str, list[Token]], formatting_dict: Dict[str, Callable], doc: Doc, *args, **kwargs) -> tuple[str, dict]:
+        try:
+            match_id = doc.vocab.strings[match[0]]
+            logger.debug(f"string_id of match: {match_id}")
+        except KeyError:
+            raise AttributeError(f"No string_id found for this match_id in the doc: {match_id}")
+        tokens = match[1]
+        try:
+            formatting_func = formatting_dict[match_id]
+        except KeyError:
+            raise AttributeError(f"No formatting function associated with this match_id: {match_id}")
+        else:
+            return (match_id, formatting_func(tokens, doc, *args, **kwargs))
 
     def match_secu_with_dollar_CD(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-        secu_root_token = self._get_compound_SECU_root(secu)
+        secu_root_token = secu.root
         patterns = [
             [
                 {
@@ -1110,7 +1110,7 @@ class SpacyFilingTextSearch:
         matches = dep_matcher(doc)
         if matches:
             matches = _convert_dep_matches_to_spans(doc, matches)
-            return matches
+            return [match[1] for match in matches]
         return []
     
     def get_queryable_similar_spans_from_lower(self, doc: Doc, span: Span):
@@ -1159,7 +1159,7 @@ class SpacyFilingTextSearch:
         create a list of dicts for dependency match patterns.
         the root token will have RIGHT_ID of 'secu_anchor'
         '''
-        secu_root_token = self._get_compound_SECU_root(secu)
+        secu_root_token = secu.root
         if secu_root_token is None:
             return None
         root_pattern = [
@@ -1296,7 +1296,7 @@ class SpacyFilingTextSearch:
             logger.info(f"matches: {matches}")
             formatted_matches = []
             for match in matches:
-                formatted_matches.append(self._format_expiry_match(match))
+                formatted_matches.append(self._format_expiry_match(match[1]))
             return formatted_matches
     
     def _format_expiry_match(self, match):
@@ -1616,7 +1616,7 @@ class SpacyFilingTextSearch:
                 for token in match:
                     if token.tag_ == "CD":
                         return formater.money_string_to_float(token.text)
-            return [_get_CD_object_from_match(match) for match in matches]
+            return [_get_CD_object_from_match(match[1]) for match in matches]
 
 
     def match_prospectus_relates_to(self, text):
@@ -1652,17 +1652,133 @@ class SpacyFilingTextSearch:
         return matches if matches is not None else []
     
     def get_secuquantities(self, doc: Doc, secu: Span):
-        ''''match secuquantity and the closest secu in the dependency tree'''
+        ''''match secuquantity and source_secu, secu, close verbs'''
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
         secu_root_pattern = self._create_secu_span_dependency_matcher_dict(secu)
-        patterns = [
+        # have dict of conversion functions to match_id
+        # have a handle_match_formatting function
+        # so we can convert each match to a sensible dictionary
+        # dict should include direct verbs, direct adjectives, source_secu, related_secus,
+        secuquantity_shares_no_verb = [
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "prep",
+                    "RIGHT_ATTRS": {"DEP": "prep"}
+                },
+                {
+                    "LEFT_ID": "prep",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "noun",
+                    "RIGHT_ATTRS": {"POS": "NOUN", "LOWER": {"IN": ["shares"]}}
+                },
+                {
+                    "LEFT_ID": "noun",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "secuquantity",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+                }
+
+            ]
+        ]
+        secuquantity_no_verb = [
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "secuquantity",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+                }
+
+            ]
+        ]
+        secuquantity_verb_second_order_noun_no_source_secu = [
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep",
+                    "RIGHT_ATTRS": {"DEP": "prep"}, 
+                },
+                {
+                    "LEFT_ID": "prep",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "noun_relation",
+                    "RIGHT_ATTRS": {"POS": "NOUN"}, 
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "any",
+                    "RIGHT_ATTRS": {"POS": "NOUN"}
+                },
+                {
+                    "LEFT_ID": "any",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "secuquantity",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+                }
+            ]
+        ]
+        secuquantity_verb_second_order_noun_source_secu = [
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep",
+                    "RIGHT_ATTRS": {"DEP": "prep"}, 
+                },
+                {
+                    "LEFT_ID": "prep",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "noun_relation",
+                    "RIGHT_ATTRS": {"POS": "NOUN"}, 
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "any",
+                    "RIGHT_ATTRS": {"POS": "NOUN"}
+                },
+                {
+                    "LEFT_ID": "any",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "secuquantity",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "source_secu",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
+                }
+            ]
+        ]
+        secuquantity_verb_patterns = [
             [
                 *secu_root_pattern,
                 {
                     "LEFT_ID": "secu_anchor",
                     "REL_OP": "<",
                     "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMMA": {"NOT_IN": ["purchase, acquire"]}}, 
+                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"NOT_IN": ["purchase", "acquire"]}}, 
                 },
                 {
                     "LEFT_ID": "verb1",
@@ -1670,36 +1786,169 @@ class SpacyFilingTextSearch:
                     "RIGHT_ID": "secuquantity",
                     "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
                 }
-            ],
+            ]
+        ]
+        secuquantity_verb_source_secu_patterns = [
             [
                 *secu_root_pattern,
                 {
                     "LEFT_ID": "secu_anchor",
-                    "REL_OP": ">>",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": "VERB"}
+                },
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "any",
+                    "RIGHT_ATTRS": {}
+                },
+                {
+                    "LEFT_ID": "any",
+                    "REL_OP": ">",
                     "RIGHT_ID": "secuquantity",
                     "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-                }
-            ],
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "source_secu",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
+                },
+
+            ]
         ]
-        dep_matcher.add("secu_and_secuquantity", patterns)
+        def format_match_secuquantity_shares_no_verb(match, doc: Doc, root_pattern_len: int):
+            secu = match[:root_pattern_len]
+            rest = match[root_pattern_len:]
+            unit = rest[1]
+            quantity = rest[2]
+            return {
+                "main_secu": secu,
+                "unit": unit,
+                "quantity": quantity
+            }
+
+        def format_match_secuquantity_no_verb(match, doc: Doc, root_pattern_len: int):
+            secu = match[:root_pattern_len]
+            rest = match[root_pattern_len:]
+            quantity = rest[0]
+            return {
+                "main_secu": secu,
+                "unit": None,
+                "quantity": quantity
+            }
+
+        def format_match_secuquantity_verb_second_order_noun_no_source_secu(match, doc: Doc, root_pattern_len: int):
+            secu = match[:root_pattern_len]
+            rest = match[root_pattern_len:]
+            preceding_root_verb = rest[0]
+            noun_to_verb = rest[2]
+            quantity = rest[4]
+            return {
+                "main_secu": secu,
+                "root_verb": preceding_root_verb,
+                "root_noun": noun_to_verb,
+                "quantity": quantity,
+                "source_secu": None,
+            }
+
+        def format_match_secuquantity_verb_second_order_noun_source_secu(match, doc: Doc, root_pattern_len: int):
+            secu = match[:root_pattern_len]
+            rest = match[root_pattern_len:]
+            preceding_root_verb = rest[0]
+            noun_to_verb = rest[2]
+            quantity = rest[4]
+            source_secu_token = rest[5]
+            source_secu_span = extend_token_ent_to_span(source_secu_token, doc)
+            return {
+                "main_secu": secu,
+                "root_verb": preceding_root_verb,
+                "root_noun": noun_to_verb,
+                "quantity": quantity,
+                "source_secu": source_secu_span,
+            }
+
+        def format_match_secuquantity_verb_source_secu(match, doc: Doc, root_pattern_len: int):
+            secu = match[:root_pattern_len]
+            rest = match[root_pattern_len:]
+            preceding_root_verb = rest[0]
+            quantity = rest[2]
+            source_secu_token = rest[3]
+            source_secu_span = extend_token_ent_to_span(source_secu_token, doc)
+            return {
+                "main_secu": secu,
+                "root_verb": preceding_root_verb,
+                "root_noun": None,
+                "quantity": quantity,
+                "source_secu": source_secu_span,
+            }
+            # get full secu span from source_secu_token
+            # return dict
+
+        def format_match_secuquantity_verb(match, doc: Doc, root_pattern_len: int):
+            secu = match[:root_pattern_len]
+            rest = match[root_pattern_len:]
+            preceding_root_verb = rest[0]
+            quantity = rest[1]
+            return {
+                "main_secu": secu,
+                "root_verb": preceding_root_verb,
+                "root_noun": None,
+                "quantity": quantity,
+                "source_secu": None,
+            }
+        
+        formatting_dict = {
+            "secuquantity_shares_no_verb": format_match_secuquantity_shares_no_verb,
+            "secuquantity_no_verb": format_match_secuquantity_no_verb,
+            "secuquantity_verb": format_match_secuquantity_verb,
+            "secuquantity_verb_source_secu": format_match_secuquantity_verb_source_secu,
+            "secuquantity_verb_second_order_noun": format_match_secuquantity_verb_second_order_noun_no_source_secu,
+            "secuquantity_verb_second_order_noun_source_secu": format_match_secuquantity_verb_second_order_noun_source_secu,
+        }
+            
+
+        dep_matcher.add("secuquantity_shares_no_verb", secuquantity_shares_no_verb)
+        dep_matcher.add("secuquantity_no_verb", secuquantity_no_verb)
+        dep_matcher.add("secuquantity_verb", secuquantity_verb_patterns)
+        dep_matcher.add("secuquantity_verb_source_secu", secuquantity_verb_source_secu_patterns)
+        dep_matcher.add("secuquantity_verb_second_order_noun", secuquantity_verb_second_order_noun_no_source_secu)
+        dep_matcher.add("secuquantity_verb_second_order_noun_source_secu", secuquantity_verb_second_order_noun_source_secu)
+
         matches = dep_matcher(doc)
+
+        def _filter_dep_matches(matches):
+            '''take the longest of the dep matches with same start token, discard rest'''
+            if len(matches) <= 1:
+                return matches
+            len_map = {}
+            result_map = {}
+            for match in matches:
+                if match[1][0] not in len_map.keys():
+                    len_map[match[1][0]] = len(match[1])
+                    result_map[match[1][0]] = match
+                else:
+                    current_len = len(match[1])
+                    if current_len <= len_map[match[1][0]]:
+                        pass
+                    else:
+                        len_map[match[1][0]] = len(match[1])
+                        result_map[match[1][0]] = match
+            return [v for _, v in result_map.items()]
+
+
         if matches:
+            matches = _filter_dep_matches(matches)
             matches = _convert_dep_matches_to_spans(doc, matches)
-            logger.debug(f"raw secu_and_secuquantity matches: {matches}")
+            # logger.debug(f"raw but converted matches: {matches}")
+            root_pattern_len = len(secu_root_pattern)
+            formatted_matches = [self.handle_match_formatting(match, formatting_dict, doc, root_pattern_len) for match in matches]
+            logger.debug(f"formatted matches: {formatted_matches}")
+            return formatted_matches
         else:
             logger.debug(f"no secu_and_secuquantity matches found")
-
-
-    def get_secus_and_secuquantity(self,  doc: Doc):
-        # DEBUG CODE
-        all = []
-        for sent in doc.sents:
-            found = []
-            for ent in sent.ents:
-                if ent.label_ in ["SECUQUANTITY", "SECU"]:
-                    found.append(ent)
-            all.append(found)
-        return all
+            return None
     
     def get_head_verbs(self, token: Token):
         # DEBUG CODE
@@ -1749,15 +1998,6 @@ class SpacyFilingTextSearch:
         return values
     
     # def match_issuabel_secu_primary(self, doc: Doc, primary_secu: Span)
-
-    def _get_compound_SECU_root(self, secu: Span) -> Token:
-        if isinstance(secu, Token):
-            return secu
-        for token in secu:
-            if token.dep_ != "compound":
-                return token
-        logger.debug(f"couldnt find root token for: {secu}, {[s.dep_ for s in secu]}")
-        return None
     
     def match_issuable_secu_primary(self, doc: Doc):
         secu_transformative_actions = ["exercise", "conversion", "redemption"]
@@ -1917,6 +2157,30 @@ class SpacyFilingTextSearch:
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches
 
+def extend_token_ent_to_span(token: Token, doc: Doc) -> list[Token]:
+    span_tokens = [token]
+    logger.debug(f"extending ent span to surrounding for origin token: {token, token.i}")
+    for i in range(token.i-1, 0, -1):
+        if doc[i].ent_type_ == token.ent_type_:
+            span_tokens.insert(0, doc[i])
+            logger.debug(f"found preceding token matching ent: {doc[i]}")
+        else:
+            break
+    for i in range(token.i+1, 10000000, 1):
+        if doc[i].ent_type_ == token.ent_type_:
+            span_tokens.append(doc[i])
+            logger.debug(f"found following token matching ent: {doc[i]}")
+        else:
+            break
+    logger.debug(f"making tokens to span: {span_tokens}")
+    if len(span_tokens) <= 1:
+        span = Span(doc, token.i, token.i+1, label=token.ent_type_)
+        logger.debug(f"returning span: {span, span.text}")
+        return span
+    span = Span(doc, span_tokens[0].i, span_tokens[-1].i+1, label=token.ent_type_)
+    logger.debug(f"span: {span, span.text}")
+    return span
+
     
 def filter_matches(matches):
     '''works as spacy.util.filter_spans but for matches'''
@@ -1935,30 +2199,6 @@ def filter_matches(matches):
     result = sorted(result, key=lambda match: match[1])
     return result  
 
-    
-# def _take_longest_matches(matches):
-#         entries = []
-#         prev_m = None
-#         current_longest = None
-#         sorted_matches = sorted(matches, key=lambda x: x[1])
-#         if sorted_matches == []:
-#             return []
-#         for m in sorted_matches:
-#             if prev_m is None:
-#                 prev_m = m
-#                 current_longest = m
-#                 continue
-#             if prev_m[1] == m[1]:
-#                 if prev_m[2] < m[2]:
-#                     current_longest = m
-#             else:
-#                 entries.append(current_longest)
-#                 current_longest = m
-#                 prev_m = m
-#                 continue
-#         if current_longest not in entries:
-#             entries.append(current_longest)
-#         return entries
 
 def _convert_matches_to_spans(doc, matches):
     m = []
@@ -1966,10 +2206,10 @@ def _convert_matches_to_spans(doc, matches):
         m.append(doc[match[1]:match[2]])
     return m
 
-def _convert_dep_matches_to_spans(doc, matches):
+def _convert_dep_matches_to_spans(doc, matches) -> list[tuple[str, list[Token]]]:
     m = []
     for match in matches:
-        m.append([doc[f] for f in match[1]])
+        m.append((match[0], [doc[f] for f in match[1]]))
     return m
 
 def validate_filing_values(values, attributes):

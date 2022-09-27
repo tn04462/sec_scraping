@@ -948,9 +948,10 @@ if __name__ == "__main__":
         doc = search.nlp(text)
         secu_map = doc._.single_secu_alias_tuples
         unique_secus = get_unique_secu_text_from_alias(secu_map)
+        print(f"unique secus text: {unique_secus}")
         for secu in unique_secus:
+            print(f"looking for quants for secu: {secu}")
             quants = search.get_secuquantities(doc, secu)
-            print(quants)
         docs.append(doc)
     texts = [
         # RESALE SECURITY REGISTRATION SENTENCES (ONLY COVER PAGE)
@@ -1044,12 +1045,12 @@ if __name__ == "__main__":
     # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
 
 
-    displacy.serve(docs, style="ent", options={
-        "ents": ["SECU", "SECUQUANTITY"],
-        "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
-        },
-        port=5000
-    )
+    # displacy.serve(docs, style="ent", options={
+    #     "ents": ["SECU", "SECUQUANTITY"],
+    #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
+    #     },
+    #     port=5000
+    # )
     
     #     print(doc._.single_secu_alias)
 
