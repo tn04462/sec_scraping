@@ -1,3 +1,4 @@
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Dict, Optional, Set
@@ -236,80 +237,6 @@ def numeric_list():
 
 
 
-
-
-
-
-class SpacyDependencyAttributeGetter:
-    def _convert_key_to_stringkey(self, key: str) -> str:
-        return key.lower() + "_"
-
-    def _has_attributes(self, token: Token, attrs: dict) -> bool:
-        if not isinstance(dict, attrs):
-            raise TypeError(f"expecting a dict, got: {type(attrs)}")
-        for attr, value in attrs.items():
-            if not token.getattr(attr) == value:
-                return False
-        return True
-    
-    def check_head(self, token: Token, attrs: dict) -> Token:
-        if not token.head:
-            return None
-        if self._has_attributes(token.head, attrs):
-            return token.head
-        else:
-            return None
-    
-    def check_children(self, token: Token, attrs: dict) -> list[Token]:
-        children = []
-        if not token.children:
-            return children
-        
-        for i in filter(lambda x: x is not None,
-                    [child
-                    if self._has_attributes(child, attrs)
-                    else None
-                    for child in token.children]
-        ):
-            children.append(i)
-        return children
-    
-    def check_ancestors(self, token: Token, attrs: dict) -> list[Token]:
-        ancestors = []
-        if not token.ancestors:
-            return ancestors
-        for ancestor in token.ancestors:
-            if self._has_attributes(ancestor, attrs):
-                ancestors.append(ancestor)
-        return ancestors
-    
-    def check_descendants(self, token: Token, attrs: dict) -> list[Token]:
-        descendants = []
-        if not token.subtree:
-            return descendants
-        for descendant in token.subtree:
-            if token == descendant:
-                continue
-            if self._has_attributes(descendant, attrs):
-                descendants.append(descendant)
-        return descendants
-            
-          
-    def _get_root_verb(self, attrs) -> list[Token]:
-        valid_tokens = [i for i in self.check_ancestors(self.origin, attrs)]
-        if valid_tokens != []:
-            return valid_tokens
-        else:
-            return None
-    
-    def _wrap_results_in_dict(self, results: list[Token], key: str):
-        if results is None or results == []:
-            return None
-        for r in results:
-            yield {key: r}
-
-
-
 class DependencyNode:
     def __init__(self, data, children=None):
         self.children: list[DependencyNode] = children if children is not None else list()
@@ -342,27 +269,6 @@ class DependencyNode:
 
 
 
-class SpacySECUDependencyAttributeMatcher():
-    dep_getter = SpacyDependencyAttributeGetter()
-    DEPENDENCY_OPS = {
-        "<<": dep_getter.check_ancestors,
-        "<": dep_getter.check_head,
-        ">": dep_getter.check_children,
-        ">>": dep_getter.check_descendants
-    }
-    def __init__(self): pass
-        # self,
-        # secu: Token,
-        # doc: Doc):
-        # self.secu: Token = secu
-        # self.doc = doc
-        # self.unit: Optional[Token] = None
-        # self.quantity: Optional[Token] = None
-        # self.source_secu: Optional[SpacySECUInstance] = None
-        # self.root_verb: Optional[Token] = None
-        # self.root_verb_noun: Optional[Token] = None
-        # self.state: Optional[list[Token]] = list() #either make this a dict with the different states available or make attributes for each state ? 
-
     '''
     flow of attributes:
     secu -> quantity -> unit
@@ -370,43 +276,7 @@ class SpacySECUDependencyAttributeMatcher():
     secu -> root_verb -> root_verb_noun
     secu -> state
     '''
-    def get_matches(self, dependant, attrs):
-        rel_op = attrs["REL_OP"]
-        return self.DEPENDENCY_OPS[rel_op](dependant, **attrs["RIGHT_ATTRS"])
-    
-    def chain_match(self, origin, attrs) -> list[DependencyNode]:
-        match_tree = DependencyNode(None, origin)
-        for idx, attr in enumerate(attrs):
-            if idx == 0:
-                matches = self.get_matches(origin, attr)
-                for match in matches:
-                    match_tree.children.append(DependencyNode(data=match))
-
-            
-        
-        # first create list[dict[parent, list[child]]] then convert to DependencyNodes
-
-            
-
-
-
-
-    
-    # def get_root_verbs(self):
-    #     root_verbs = self._get_root_verb(
-    #         self.secu,
-    #         {"POS": "VERB"}
-    #         )
-    #     return self._wrap_results_in_dict(root_verbs, "root_verb")
-            
-    # def get_root_verb_noun(self, root_verb):
-    #     possible_preps = [i for i in self.check_children(root_verb, {"DEP": "prep"})]
-    #     if possible_preps != []:
-    #         for prep in possible_preps:
-    #             nouns = self.check_children(prep, {"POS": "NOUN"})
-    #             if nouns and nouns != []:
-    #                 return nouns
-        
+ 
 
 
 class CommonFinancialRetokenizer:
@@ -1238,7 +1108,8 @@ class SpacyFilingTextSearch:
     
     def handle_match_formatting(self, match: tuple[str, list[Token]], formatting_dict: Dict[str, Callable], doc: Doc, *args, **kwargs) -> tuple[str, dict]:
         try:
-            match_id = doc.vocab.strings[match[0]]
+            # match_id = doc.vocab.strings[match[0]]
+            match_id = match[0]
             logger.debug(f"string_id of match: {match_id}")
         except KeyError:
             raise AttributeError(f"No string_id found for this match_id in the doc: {match_id}")
@@ -2092,6 +1963,151 @@ class SpacyFilingTextSearch:
 
         matches = dep_matcher(doc)
 
+        '''
+        target: have a list of attributes originating from same span (secu)
+
+        changes:
+        - change _filter_dep_matches to only take the longest in 
+          a group of pattern_keys.
+          eg take longest of (secuquantity_shares_no_verb, secuquantity_no_verb)
+        - sort the results by secu index of doc
+            -> matches with same origin
+        - filter matches by longest in group
+        - check if minimum requirements are met
+        - format the matches per origin
+        - merge the formatted dicts of the same origin match
+        
+
+        '''
+        
+        def process_matches(doc, matches, root_pattern_len):
+            result = []
+            matches = convert_match_id_to_str_id(matches)
+            sorted_by_origin = sort_matches_by_origin_token(matches)
+            logger.debug(f"sorted_by_origin: {sorted_by_origin}")
+            for origin, matches in sorted_by_origin.items():
+                origin_by_groups = sort_by_groups(
+                    [
+                        [
+                            "secuquantity_shares_no_verb",
+                            "secuquantity_no_verb"
+                        ],
+                        [
+                            "secuquantity_verb",
+                            "secuquantity_verb_source_secu",
+                            "secuquantity_verb_second_order_noun_source_secu"
+                        ],
+                        [
+                            "secuquantity_verb_second_order_noun"
+                        ]
+                    ],
+                    matches
+                )
+                logger.debug(f"origin_by_groups: {origin_by_groups}")
+                longest_matches_by_group = _keep_longest_match_in_groups(origin_by_groups)
+                matches_in_regular_match_format = _convert_longest_matches_by_groups_to_match_format(longest_matches_by_group)
+                logger.debug(f"longest_matches_by_group: {matches_in_regular_match_format}")
+                # discard matches which dont have needed groups
+                #!!!
+                formatted_matches = []
+                converted_matches = _convert_dep_matches_to_spans(doc, matches_in_regular_match_format)
+                logger.debug(f"converted_matches: {converted_matches}")
+                for match in converted_matches:
+                    formatted_matches.append(
+                        self.handle_match_formatting(
+                            match,
+                            formatting_dict,
+                            doc,
+                            root_pattern_len
+                        )
+                    )
+                logger.debug(f"formatted_matches: {formatted_matches}")
+                result.append(merge_dicts([m[1] for m in formatted_matches]))
+                logger.debug(f"result: {result}")
+            return result
+                # now merge formatted matches
+                # return list of merged dicts
+                # delete unused code after testing this
+        
+        def _convert_longest_matches_by_groups_to_match_format(longest_matches):
+            result = []
+            for group_name, matches in longest_matches.items():
+                m = matches[0]
+                print(f"m: {m}")
+                if not isinstance(m, list):
+                    formatted = tuple([group_name, matches])
+                    print(f"formatted1: {formatted}")
+                else:
+                    formatted = tuple([group_name, m])
+                    print(f"formatted2: {formatted}")
+                result.append(formatted)
+            return result
+                
+
+            
+        def convert_match_id_to_str_id(matches):
+            for i, match in enumerate(matches):
+                string_id = self.nlp.vocab.strings[match[0]]
+                matches[i] = (string_id, match[1])
+            return matches
+
+                
+        def merge_dicts(dicts: list[dict]):
+            merged = {}
+            logger.debug(f"merge_dicts received dicts: {dicts}")
+            for d in dicts:
+                for k, v in d.items():
+                    merged[k] = v
+                # merged.update(d)
+            return merged
+                    
+        def sort_matches_by_origin_token(matches) -> dict[list[list]]:
+            origins_map = defaultdict(list)
+            for match in matches:
+                # take secu idx as origin
+                origin = match[1][0]
+                print(f"origin: {origin}") 
+                print(f" of match: {match}")
+                print(f"  origins_map: {origins_map}")
+                origins_map[origin].append(match)
+            return origins_map
+        
+        def sort_by_groups(groups: list[list[str]], key_value_lists: list[list]) -> dict[list[list]]:
+            '''
+            sort a list of key, value lists into groups.
+            '''
+            individual_groups = OrderedDict()
+            for item_key, match in key_value_lists:
+                individual_groups.setdefault(item_key, []).append(match)
+            grouped_items = defaultdict(list)
+            print(f"individual_groups: {individual_groups}")
+            print(f"from key, value lists: {key_value_lists}")
+            for group in groups:
+                for item_key in group:
+                    if item_key in individual_groups.keys():
+                        for item in individual_groups[item_key]:
+                            grouped_items[item_key].append(item)
+            print(grouped_items)
+            return grouped_items
+        
+        def _keep_longest_match_in_groups(groups: dict[str, list]) -> dict[list]:
+            longest = {}
+            for group_keys, matches in groups.items():
+                print(f"matches: {matches}")
+                longest_match = _take_longest_list(matches)
+                longest[group_keys] = longest_match
+            return longest
+        
+        def _take_longest_list(input: list[list]):
+            logger.debug(f"_take_longest_list input: {input}")
+            longest = -1
+            longest_len = -1
+            for item in input:
+                if len(item) > longest_len:
+                    longest = item
+                    longest_len = len(item)
+            return longest
+
         def _filter_dep_matches(matches):
             '''take the longest of the dep matches with same start token, discard rest'''
             if len(matches) <= 1:
@@ -2111,15 +2127,17 @@ class SpacyFilingTextSearch:
                         result_map[match[1][0]] = match
             return [v for _, v in result_map.items()]
 
-
+        
         if matches:
-            matches = _filter_dep_matches(matches)
-            matches = _convert_dep_matches_to_spans(doc, matches)
-            # logger.debug(f"raw but converted matches: {matches}")
             root_pattern_len = len(secu_root_pattern)
-            formatted_matches = [self.handle_match_formatting(match, formatting_dict, doc, root_pattern_len) for match in matches]
-            logger.debug(f"formatted matches: {formatted_matches}")
-            return formatted_matches
+            processed_matches = process_matches(doc, matches, root_pattern_len)
+            return processed_matches
+            # matches = _filter_dep_matches(matches)
+            # matches = _convert_dep_matches_to_spans(doc, matches)
+            # # logger.debug(f"raw but converted matches: {matches}")
+            # formatted_matches = [self.handle_match_formatting(match, formatting_dict, doc, root_pattern_len) for match in matches]
+            # logger.debug(f"formatted matches: {formatted_matches}")
+            # return formatted_matches
         else:
             logger.debug(f"no secu_and_secuquantity matches found")
             return None
@@ -2373,7 +2391,6 @@ def filter_matches(matches):
     result = sorted(result, key=lambda match: match[1])
     return result  
 
-
 def _convert_matches_to_spans(doc, matches):
     m = []
     for match in matches:
@@ -2383,6 +2400,7 @@ def _convert_matches_to_spans(doc, matches):
 def _convert_dep_matches_to_spans(doc, matches) -> list[tuple[str, list[Token]]]:
     m = []
     for match in matches:
+        print(f"match: {match}")
         m.append((match[0], [doc[f] for f in match[1]]))
     return m
 
