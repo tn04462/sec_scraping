@@ -1042,7 +1042,7 @@ if __name__ == "__main__":
     # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
     # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
     # output_path.open("w", encoding="utf-8").write(svg)
-    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
+    displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
 
 
     # displacy.serve(docs, style="ent", options={

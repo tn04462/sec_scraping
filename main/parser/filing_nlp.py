@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Dict, Optional, Set
 from attr import Attribute
@@ -68,7 +69,6 @@ class WordToNumberConverter():
         if self.timedelta_map.get(token.lower_):
             return self.timedelta_map[token.lower_]
         return None
-    
 
 class MatchFormater:
     def __init__(self):
@@ -208,7 +208,6 @@ class MatchFormater:
 
 formater = MatchFormater()
 
-
 def int_to_roman(input):
     """ Convert an integer to a Roman numeral. """
 
@@ -234,6 +233,181 @@ def alphabetic_list():
 
 def numeric_list():
     return ["(" + str(number) + ")" for number in range(150)]
+
+
+
+
+
+
+
+class SpacyDependencyAttributeGetter:
+    def _convert_key_to_stringkey(self, key: str) -> str:
+        return key.lower() + "_"
+
+    def _has_attributes(self, token: Token, attrs: dict) -> bool:
+        if not isinstance(dict, attrs):
+            raise TypeError(f"expecting a dict, got: {type(attrs)}")
+        for attr, value in attrs.items():
+            if not token.getattr(attr) == value:
+                return False
+        return True
+    
+    def check_head(self, token: Token, attrs: dict) -> Token:
+        if not token.head:
+            return None
+        if self._has_attributes(token.head, attrs):
+            return token.head
+        else:
+            return None
+    
+    def check_children(self, token: Token, attrs: dict) -> list[Token]:
+        children = []
+        if not token.children:
+            return children
+        
+        for i in filter(lambda x: x is not None,
+                    [child
+                    if self._has_attributes(child, attrs)
+                    else None
+                    for child in token.children]
+        ):
+            children.append(i)
+        return children
+    
+    def check_ancestors(self, token: Token, attrs: dict) -> list[Token]:
+        ancestors = []
+        if not token.ancestors:
+            return ancestors
+        for ancestor in token.ancestors:
+            if self._has_attributes(ancestor, attrs):
+                ancestors.append(ancestor)
+        return ancestors
+    
+    def check_descendants(self, token: Token, attrs: dict) -> list[Token]:
+        descendants = []
+        if not token.subtree:
+            return descendants
+        for descendant in token.subtree:
+            if token == descendant:
+                continue
+            if self._has_attributes(descendant, attrs):
+                descendants.append(descendant)
+        return descendants
+            
+          
+    def _get_root_verb(self, attrs) -> list[Token]:
+        valid_tokens = [i for i in self.check_ancestors(self.origin, attrs)]
+        if valid_tokens != []:
+            return valid_tokens
+        else:
+            return None
+    
+    def _wrap_results_in_dict(self, results: list[Token], key: str):
+        if results is None or results == []:
+            return None
+        for r in results:
+            yield {key: r}
+
+
+
+class DependencyNode:
+    def __init__(self, data, children=None):
+        self.children: list[DependencyNode] = children if children is not None else list()
+        self.data = data
+    
+    def __repr__(self):
+        return str(self.data)
+    
+    def get_leaf_paths(self, node=None, current_path: list=list()):
+        '''
+        Get the paths from node->leaf of tree this node is a part of.
+        Recursive function.
+
+        Args:
+            node: a DependencyNode, defaults to the Node this is called from.
+            current_path: The already traveresed path should be left at the default value.
+
+        '''
+        if node is None:
+            node = self
+        if current_path == []:
+            current_path = [node]
+        if node.children == []:
+            yield current_path
+        else:
+            for child in node.children:
+                new_path = current_path.copy()
+                new_path.append(child)
+                yield from [arr for arr in self.get_leaf_paths(child, new_path)]         
+
+
+
+class SpacySECUDependencyAttributeMatcher():
+    dep_getter = SpacyDependencyAttributeGetter()
+    DEPENDENCY_OPS = {
+        "<<": dep_getter.check_ancestors,
+        "<": dep_getter.check_head,
+        ">": dep_getter.check_children,
+        ">>": dep_getter.check_descendants
+    }
+    def __init__(self): pass
+        # self,
+        # secu: Token,
+        # doc: Doc):
+        # self.secu: Token = secu
+        # self.doc = doc
+        # self.unit: Optional[Token] = None
+        # self.quantity: Optional[Token] = None
+        # self.source_secu: Optional[SpacySECUInstance] = None
+        # self.root_verb: Optional[Token] = None
+        # self.root_verb_noun: Optional[Token] = None
+        # self.state: Optional[list[Token]] = list() #either make this a dict with the different states available or make attributes for each state ? 
+
+    '''
+    flow of attributes:
+    secu -> quantity -> unit
+    secu -> root_verb -> source_secu
+    secu -> root_verb -> root_verb_noun
+    secu -> state
+    '''
+    def get_matches(self, dependant, attrs):
+        rel_op = attrs["REL_OP"]
+        return self.DEPENDENCY_OPS[rel_op](dependant, **attrs["RIGHT_ATTRS"])
+    
+    def chain_match(self, origin, attrs) -> list[DependencyNode]:
+        match_tree = DependencyNode(None, origin)
+        for idx, attr in enumerate(attrs):
+            if idx == 0:
+                matches = self.get_matches(origin, attr)
+                for match in matches:
+                    match_tree.children.append(DependencyNode(data=match))
+
+            
+        
+        # first create list[dict[parent, list[child]]] then convert to DependencyNodes
+
+            
+
+
+
+
+    
+    # def get_root_verbs(self):
+    #     root_verbs = self._get_root_verb(
+    #         self.secu,
+    #         {"POS": "VERB"}
+    #         )
+    #     return self._wrap_results_in_dict(root_verbs, "root_verb")
+            
+    # def get_root_verb_noun(self, root_verb):
+    #     possible_preps = [i for i in self.check_children(root_verb, {"DEP": "prep"})]
+    #     if possible_preps != []:
+    #         for prep in possible_preps:
+    #             nouns = self.check_children(prep, {"POS": "NOUN"})
+    #             if nouns and nouns != []:
+    #                 return nouns
+        
+
 
 class CommonFinancialRetokenizer:
     def __init__(self,  vocab):
@@ -1658,7 +1832,7 @@ class SpacyFilingTextSearch:
         # have dict of conversion functions to match_id
         # have a handle_match_formatting function
         # so we can convert each match to a sensible dictionary
-        # dict should include direct verbs, direct adjectives, source_secu, related_secus,
+        # dict should include direct verbs, direct adjectives, source_secu
         secuquantity_shares_no_verb = [
             [
                 *secu_root_pattern,

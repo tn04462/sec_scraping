@@ -1,8 +1,8 @@
 import pytest
 import spacy
-from spacy.tokens import Span, Token, Doc
-from spacy.matcher import Matcher
-from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher
+# from spacy.tokens import Span, Token, Doc
+# from spacy.matcher import Matcher
+from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher, DependencyNode
 from pandas import to_datetime
 import datetime
 
@@ -193,3 +193,36 @@ def test_get_conflicting_ents(get_search, get_secumatcher):
     conflicting = get_conflicting_ents(doc, 1, 2)
     assert conflicting == []
 
+def test_dependency_node_get_nodes_base_case():
+    root = DependencyNode(data=0)
+    child1 = DependencyNode(data=1)
+    root.children.append(child1)
+    result = [i for i in root.get_leaf_paths(root)]
+    assert [[i.data for i in li] for li in result] == [[0, 1]]
+
+
+def test_dependency_node_get_nodes_more_nodes():
+    root = DependencyNode(data=0)
+    child1 = DependencyNode(data=1)
+    child2 = DependencyNode(data=2)
+    child11 = DependencyNode(data=11)
+    child12 = DependencyNode(data=12)
+    root.children.append(child1)
+    root.children.append(child2)
+    root.children[0].children.append(child11)
+    root.children[0].children.append(child12)
+    result = [i for i in root.get_leaf_paths(root)]
+    assert [[i.data for i in li] for li in result] == [[0, 1, 11], [0, 1, 12], [0, 2]]
+
+def test_dependency_node_get_more_nodes_without_specifing_node(): 
+    root = DependencyNode(data=0)
+    child1 = DependencyNode(data=1)
+    child2 = DependencyNode(data=2)
+    child11 = DependencyNode(data=11)
+    child12 = DependencyNode(data=12)
+    root.children.append(child1)
+    root.children.append(child2)
+    root.children[0].children.append(child11)
+    root.children[0].children.append(child12)
+    result = [i for i in root.get_leaf_paths()]
+    assert [[i.data for i in li] for li in result] == [[0, 1, 11], [0, 1, 12], [0, 2]]
