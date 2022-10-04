@@ -943,16 +943,17 @@ if __name__ == "__main__":
                         unique_secus_text.add(secu_text)
                         unique_secus.append(secu_span)
         return unique_secus
-                        
-    for text in texts:
-        doc = search.nlp(text)
-        secu_map = doc._.single_secu_alias_tuples
-        unique_secus = get_unique_secu_text_from_alias(secu_map)
-        print(f"unique secus text: {unique_secus}")
-        for secu in unique_secus:
-            print(f"looking for quants for secu: {secu}")
-            quants = search.get_secuquantities(doc, secu)
-        docs.append(doc)
+
+    def test_get_secuquantities(search):    
+        for text in texts:
+            doc = search.nlp(text)
+            secu_map = doc._.single_secu_alias_tuples
+            unique_secus = get_unique_secu_text_from_alias(secu_map)
+            print(f"unique secus text: {unique_secus}")
+            for secu in unique_secus:
+                print(f"looking for quants for secu: {secu}")
+                quants = search.get_secuquantities(doc, secu)
+            docs.append(doc)
     texts = [
         # RESALE SECURITY REGISTRATION SENTENCES (ONLY COVER PAGE)
         # "The selling stockholders may offer and sell from time to time up to 9,193,766 shares of our common stock. Certain of such shares of common stock are issuable upon exercise of a warrant to purchase common stock issued to one of the selling stockholders.",
@@ -1042,15 +1043,25 @@ if __name__ == "__main__":
     # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
     # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
     # output_path.open("w", encoding="utf-8").write(svg)
-    # displacy.serve(docs, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
+    def displacy_dep_with_search(text):
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        for token in doc:
+            print(token)
+            print(      spacy.explain(token.dep_),  token.dep_)
+            print(      spacy.explain(token.pos_), token.pos_)
+            print(      spacy.explain(token.tag_), token.tag_)
+        displacy.serve(doc, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
 
-
-    # displacy.serve(docs, style="ent", options={
-        # "ents": ["SECU", "SECUQUANTITY"],
-    #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1"}
-    #     },
-    #     port=5000
-    # )
+    def displacy_ent_with_search(text):
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        displacy.serve(docs, style="ent", options={
+            "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
+            "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
+            },
+            port=5000
+        )
     
     #     print(doc._.single_secu_alias)
 
@@ -1193,4 +1204,5 @@ if __name__ == "__main__":
     # unique_filings(cnf)
     # 
     # do_inital_pop(cnf)
+    displacy_dep_with_search("The Prospectus relates to the issuance of up to 43,124,950 shares of our common stock issuable upon the exercise of 43,124,950 Class B Warrants to purchase common stock, which we refer to as the Class B Warrants, which were issued in connection with our underwritten public offering which closed on March 23, 2022.")
     

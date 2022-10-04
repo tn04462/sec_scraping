@@ -495,6 +495,37 @@ def set_SECUMatcher_extensions():
     for each in doc_extensions:
         _set_extension(Doc, each["name"], each["kwargs"])
 
+class AgreementMatcher:
+    '''
+    What do i want to tag?
+        1) contractual agreements between two parties CONTRACT
+        2) placements (private placement), public offerings -> specifiers for a CONTRACT or standing alone in text
+        how else could the context of origin be present in a filing?
+    '''
+    # change the name to something more fitting, also adjust the Language.factory for name
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self.matcher = Matcher(vocab)
+        self.add_CONTRACT_ent_to_matcher()
+    
+    
+    
+    def add_CONTRACT_ent_to_matcher(self):
+        patterns = [
+            [{"LOWER": "agreement"}],
+        ]
+        self.matcher.add("contract", patterns, on_match=_add_CONTRACT_ent)
+    
+    def add_PLACEMENT_ent_to_matcher(self):
+        pass
+    
+    def __call__(self, doc: Doc):
+        self.matcher(doc)
+        return doc
+    
+    # def agreement_callback()
+    
+
 class SECUMatcher:
     def __init__(self, vocab):
         self.vocab = vocab
@@ -949,6 +980,34 @@ def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
 def _add_SECUATTR_ent(matcher, doc: Doc, i: int, matches):
     _add_ent(doc, i, matches, "SECUATTR")
 
+def _add_CONTRACT_ent(matcher, doc: Doc, i: int, matches):
+    _add_ent(doc, i, matches, "CONTRACT", adjust_ent_before_add_callback=adjust_CONTRACT_ent_before_add)
+
+def adjust_CONTRACT_ent_before_add(entity: Span):
+    logger.debug(f"adjust_contract_ent_before_add entity before adjust: {entity}")
+    doc = entity.doc
+    root = entity.root
+    start = entity.start
+    if start != 0:
+        for i in range(entity.start-1, 0, -1):
+            if doc[i].dep_ == "compound" and root.is_ancestor(doc[i]):
+                start = i
+            else:
+                break
+    end = entity.end
+    for i in range(entity.end, len(doc), 1):
+        if doc[i].dep_ == "compound" and root.is_ancestor(doc[i]):
+            end = i
+        else:
+            break
+    entity = Span(doc, start, end, label="CONTRACT")
+    logger.debug(f"adjust_contract_ent_before_add entity after adjust: {entity}")
+    return entity
+    
+
+
+
+
             
 
 def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
@@ -985,16 +1044,24 @@ def _set_secuquantity_unit_on_span(match_tokens: Span, span: Span):
     else:
         span._.secuquantity_unit = "COUNT"
 
-def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], ent_callback: Callable=None, ent_exclude_condition: Callable=None, always_overwrite: Optional[list[str]]=None):
+def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], adjust_ent_before_add_callback: Optional[Callable]=None, ent_callback: Optional[Callable]=None, ent_exclude_condition: Optional[Callable]=None, always_overwrite: Optional[list[str]]=None):
     '''add a custom entity through an on_match callback.
     
     Args:
-        ent_callback: function which will be called if entity was added with the entity and doc as args.
-        ent_exclude_condition: function which returns bool and takes entity and doc as args.'''
+        adjust_ent_before_add_callback:
+            a callback that can be used to adjust the entity before
+            it is added to the doc.ents. Takes the entity (Span) as single argument
+            and should return a Span (the adjusted entity to be added)
+        ent_callback: function which will be called, if entity was added, with the entity and doc as args.
+        ent_exclude_condition: callable which returns bool and takes entity and doc as args.'''
     match_id, start, end = matches[i]
     if (not _is_match_followed_by(doc, start, end, exclude_after)) and (
         not _is_match_preceeded_by(doc, start, end, exclude_before)):
         entity = Span(doc, start, end, label=ent_label)
+        if adjust_ent_before_add_callback is not None:
+            entity = adjust_ent_before_add_callback(entity)
+            if not isinstance(entity, Span):
+                raise TypeError(f"entity should be a Span, got: {entity}")
         if ent_exclude_condition is not None:
             if ent_exclude_condition(doc, entity) is True:
                 logger.debug(f"ent_exclude_condition: {ent_exclude_condition} was True; not adding: {entity}")
@@ -1086,6 +1153,10 @@ def create_regex_retokenizer(nlp, name):
 def create_common_financial_retokenizer(nlp, name):
     return CommonFinancialRetokenizer(nlp.vocab)
 
+@Language.factory("agreement_matcher")
+def create_agreement_matcher(nlp, name):
+    return AgreementMatcher(nlp.vocab)
+
 
 class SpacyFilingTextSearch:
     _instance = None
@@ -1103,7 +1174,8 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("security_law_retokenizer", after="secu_act_matcher")
             cls._instance.nlp.add_pipe("common_financial_retokenizer", after="security_law_retokenizer")
             cls._instance.nlp.add_pipe("secu_matcher")
-            # cls._instance.nlp.add_pipe("coreferee")
+            cls._instance.nlp.add_pipe("agreement_matcher")
+            # cls._instance.nlp.add_p   ipe("coreferee")
         return cls._instance
     
     def handle_match_formatting(self, match: tuple[str, list[Token]], formatting_dict: Dict[str, Callable], doc: Doc, *args, **kwargs) -> tuple[str, dict]:
@@ -1984,7 +2056,7 @@ class SpacyFilingTextSearch:
             result = []
             matches = convert_match_id_to_str_id(matches)
             sorted_by_origin = sort_matches_by_origin_token(matches)
-            logger.debug(f"sorted_by_origin: {sorted_by_origin}")
+            # logger.debug(f"sorted_by_origin: {sorted_by_origin}")
             for origin, matches in sorted_by_origin.items():
                 origin_by_groups = sort_by_groups(
                     [
@@ -2003,27 +2075,52 @@ class SpacyFilingTextSearch:
                     ],
                     matches
                 )
-                logger.debug(f"origin_by_groups: {origin_by_groups}")
+                # logger.debug(f"origin_by_groups: {origin_by_groups}")
                 longest_matches_by_group = _keep_longest_match_in_groups(origin_by_groups)
-                matches_in_regular_match_format = _convert_longest_matches_by_groups_to_match_format(longest_matches_by_group)
-                logger.debug(f"longest_matches_by_group: {matches_in_regular_match_format}")
                 # discard matches which dont have needed groups
-                #!!!
-                formatted_matches = []
-                converted_matches = _convert_dep_matches_to_spans(doc, matches_in_regular_match_format)
-                logger.debug(f"converted_matches: {converted_matches}")
-                for match in converted_matches:
-                    formatted_matches.append(
-                        self.handle_match_formatting(
-                            match,
-                            formatting_dict,
-                            doc,
-                            root_pattern_len
+                def do_matches_have_required_groups(matches, required_at_least_one: list[list[str]], required: Optional[list[str]]=None):
+                    valid = True
+                    for group in required_at_least_one:
+                        if any([g in matches.keys() for g in group]):
+                            pass
+                        else:
+                            valid = False
+                    if required is not None:
+                        for group in required:
+                            if all([g in matches.keys() for g in group]):
+                                pass
+                            else:
+                                valid = False
+                    return valid
+                valid_matches = do_matches_have_required_groups(
+                    longest_matches_by_group,
+                    [
+                        ["secuquantity_shares_no_verb", "secuquantity_no_verb"],
+                        ["secuquantity_verb", "secuquantity_verb_source_secu", "secuquantity_verb_second_order_noun_source_secu", "secuquantity_verb_second_order_noun"]
+                    ]
+                )
+                valid_matches = True
+                if valid_matches:
+                    matches_in_regular_match_format = _convert_longest_matches_by_groups_to_match_format(longest_matches_by_group)
+                    # logger.debug(f"matches_in_regular_match_format: {matches_in_regular_match_format}")
+                    formatted_matches = []
+                    converted_matches = _convert_dep_matches_to_spans(doc, matches_in_regular_match_format)
+                    # logger.debug(f"converted_matches: {converted_matches}")
+                    for match in converted_matches:
+                        formatted_matches.append(
+                            self.handle_match_formatting(
+                                match,
+                                formatting_dict,
+                                doc,
+                                root_pattern_len
+                            )
                         )
-                    )
-                logger.debug(f"formatted_matches: {formatted_matches}")
-                result.append(merge_dicts([m[1] for m in formatted_matches]))
-                logger.debug(f"result: {result}")
+                    # logger.debug(f"formatted_matches: {formatted_matches}")
+                    result.append(merge_dicts([m[1] for m in formatted_matches]))
+                    # logger.debug(f"result: {result}")
+                else:
+                    logger.debug(f"discarded matches: {longest_matches_by_group}")
+                    logger.debug(f"Reason: matches didnt have required groups.")
             return result
                 # now merge formatted matches
                 # return list of merged dicts
@@ -2033,13 +2130,10 @@ class SpacyFilingTextSearch:
             result = []
             for group_name, matches in longest_matches.items():
                 m = matches[0]
-                print(f"m: {m}")
                 if not isinstance(m, list):
                     formatted = tuple([group_name, matches])
-                    print(f"formatted1: {formatted}")
                 else:
                     formatted = tuple([group_name, m])
-                    print(f"formatted2: {formatted}")
                 result.append(formatted)
             return result
                 
@@ -2054,7 +2148,7 @@ class SpacyFilingTextSearch:
                 
         def merge_dicts(dicts: list[dict]):
             merged = {}
-            logger.debug(f"merge_dicts received dicts: {dicts}")
+            # logger.debug(f"merge_dicts received dicts: {dicts}")
             for d in dicts:
                 for k, v in d.items():
                     merged[k] = v
@@ -2066,9 +2160,6 @@ class SpacyFilingTextSearch:
             for match in matches:
                 # take secu idx as origin
                 origin = match[1][0]
-                print(f"origin: {origin}") 
-                print(f" of match: {match}")
-                print(f"  origins_map: {origins_map}")
                 origins_map[origin].append(match)
             return origins_map
         
@@ -2080,26 +2171,21 @@ class SpacyFilingTextSearch:
             for item_key, match in key_value_lists:
                 individual_groups.setdefault(item_key, []).append(match)
             grouped_items = defaultdict(list)
-            print(f"individual_groups: {individual_groups}")
-            print(f"from key, value lists: {key_value_lists}")
             for group in groups:
                 for item_key in group:
                     if item_key in individual_groups.keys():
                         for item in individual_groups[item_key]:
                             grouped_items[item_key].append(item)
-            print(grouped_items)
             return grouped_items
         
         def _keep_longest_match_in_groups(groups: dict[str, list]) -> dict[list]:
             longest = {}
             for group_keys, matches in groups.items():
-                print(f"matches: {matches}")
                 longest_match = _take_longest_list(matches)
                 longest[group_keys] = longest_match
             return longest
         
         def _take_longest_list(input: list[list]):
-            logger.debug(f"_take_longest_list input: {input}")
             longest = -1
             longest_len = -1
             for item in input:
@@ -2131,6 +2217,7 @@ class SpacyFilingTextSearch:
         if matches:
             root_pattern_len = len(secu_root_pattern)
             processed_matches = process_matches(doc, matches, root_pattern_len)
+            logger.debug(f"processed_matches: {processed_matches}")
             return processed_matches
             # matches = _filter_dep_matches(matches)
             # matches = _convert_dep_matches_to_spans(doc, matches)
