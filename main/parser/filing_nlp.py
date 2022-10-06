@@ -967,6 +967,7 @@ def _add_SECUREF_ent(matcher, doc: Doc, i: int, matches):
 
     
 def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
+    logger.debug(f"adding SECU ent: {matches[i]}")
     _add_ent(doc, i, matches, "SECU", exclude_after=[
             "agreement",
             "agent",
@@ -1072,7 +1073,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
             # logger.debug(f"Added entity: {entity} with label: {ent_label}")
         except ValueError as e:
             if "[E1010]" in str(e):
-                # logger.debug(f"handling overlapping entities for entity: {entity}")
+                logger.debug(f"handling overlapping entities for entity: {entity}")
                 handle_overlapping_ents(doc, start, end, entity, overwrite_labels=always_overwrite)
         if (ent_callback) and (entity in doc.ents):
             ent_callback(doc, entity)

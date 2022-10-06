@@ -3,7 +3,7 @@ from dilution_db import DilutionDB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy import text
-from test_database import company_data, postgresql_my_proc, postgresql_np
+from tests.test_database import company_data, postgresql_my_proc, postgresql_np
 from main.domain import model
 from main.adapters import orm, repository
 from main.services import unit_of_work

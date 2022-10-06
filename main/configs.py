@@ -72,6 +72,7 @@ class TestConfig(GlobalConfig):
     """Testing configurations."""
     class Config:
         env_prefix: str = "TEST_"
+    ENV_STATE = "test"
 
 
 class DevConfig(GlobalConfig):
@@ -79,6 +80,7 @@ class DevConfig(GlobalConfig):
 
     class Config:
         env_prefix: str = "DEV_"
+    ENV_STATE = "dev"
 
 
 class ProdConfig(GlobalConfig):
@@ -86,10 +88,10 @@ class ProdConfig(GlobalConfig):
 
     class Config:
         env_prefix: str = "PROD_"
-
+    ENV_STATE = "prod"
 
 class FactoryConfig:
-    """Returns a config instance dependending on the ENV_STATE variable."""
+    """Returns a config instance depending on the ENV_STATE variable."""
 
     def __init__(self, env_state: Optional[str]):
         self.env_state = env_state
@@ -105,5 +107,5 @@ class FactoryConfig:
             return TestConfig()
 
 
-cnf = FactoryConfig(GlobalConfig().ENV_STATE)()
+cnf = FactoryConfig("dev")()
 

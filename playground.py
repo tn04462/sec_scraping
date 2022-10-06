@@ -1056,7 +1056,7 @@ if __name__ == "__main__":
     def displacy_ent_with_search(text):
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
-        displacy.serve(docs, style="ent", options={
+        displacy.serve(doc, style="ent", options={
             "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
             "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
             },
@@ -1204,5 +1204,5 @@ if __name__ == "__main__":
     # unique_filings(cnf)
     # 
     # do_inital_pop(cnf)
-    displacy_dep_with_search("The Prospectus relates to the issuance of up to 43,124,950 shares of our common stock issuable upon the exercise of 43,124,950 Class B Warrants to purchase common stock, which we refer to as the Class B Warrants, which were issued in connection with our underwritten public offering which closed on March 23, 2022.")
+    displacy_ent_with_search("The Common stock, Series A Preferred stock and the Series C Warrants of this.")
     

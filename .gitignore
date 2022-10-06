@@ -18,3 +18,4 @@ main/parser/spacy_model/data/dev.spacy
 main/parser/spacy_model/data/test.spacy
 pdf_playground.py
 fact_extractor_playground.py
+*.pyc

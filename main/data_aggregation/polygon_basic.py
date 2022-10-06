@@ -1,6 +1,5 @@
 from requests.exceptions import HTTPError
 from polygon import RESTClient
-from ..configs import cnf
 from os import path
 from time import sleep, time
 import logging

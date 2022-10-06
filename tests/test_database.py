@@ -4,7 +4,7 @@ import pytest
 from pytest_postgresql import factories
 from pathlib import Path
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, clear_mappers
 from sqlalchemy.exc import IntegrityError
 from psycopg.rows import dict_row
 from psycopg.errors import ProgrammingError
@@ -18,7 +18,6 @@ from main.configs import FactoryConfig, GlobalConfig
 from main.domain import model
 from boot import bootstrap_dilution_db
 from main.domain import commands
-
 
 
 cnf = FactoryConfig(GlobalConfig(ENV_STATE="test").ENV_STATE)()
@@ -149,11 +148,12 @@ postgresql_np = factories.postgresql("postgresql_my_proc", dbname=cnf.DILUTION_D
 @pytest.fixture
 def get_bootstrapped_dilution_db(postgresql_np):
     dilution_db = bootstrap_dilution_db(
-        start_orm=False,
+        start_orm=True,
         config=cnf
     )
     yield dilution_db
     del dilution_db
+    clear_mappers()
 
 
 
@@ -219,9 +219,10 @@ def test_addition_of_filing_link_with_unknown_form_type(get_bootstrapped_dilutio
     assert ('S-4/A', 'unspecified') in session.execute(text("SELECT * FROM form_types")).fetchall()
     
 
-def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
-    if cnf.ENV_STATE != "dev":
-        raise ValueError("config other than 'dev' loaded, aborting test.")
+def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow, get_test_config):
+    cnf = get_test_config
+    if cnf.ENV_STATE != "test":
+        raise ValueError(f"config other than 'test' loaded, aborting test. loaded env: {cnf}")
     test_tickers = ["CEI"]
     test_forms = ["S-3"]
     db: DilutionDB = get_bootstrapped_dilution_db
@@ -260,9 +261,10 @@ def test_dilution_db_inital_population(get_bootstrapped_dilution_db, get_uow):
     
 
 
-def test_live_add_company(get_uow, get_session, postgresql_np):
+def test_live_add_company(get_bootstrapped_dilution_db, get_session):
     sic = model.Sic(9000, "random sector", "random industry", "random divison")
-    uow = get_uow
+    db = get_bootstrapped_dilution_db
+    uow = db.uow
     session = get_session
     with uow as u:
         u.session.add(sic)
@@ -294,8 +296,9 @@ def test_live_add_company(get_uow, get_session, postgresql_np):
         print(local_res, company)
         assert local_res == company
 
-def test_transient_model_object_requeried_in_subtransaction(get_uow, postgresql_np):
-    uow = get_uow
+def test_transient_model_object_requeried_in_subtransaction(get_bootstrapped_dilution_db):
+    db = get_bootstrapped_dilution_db
+    uow = db.uow
     sic = model.Sic(9000, "random sector", "random industry", "random divison")
     ft = model.FormType("S-3", "whatever")
     with uow as u:
