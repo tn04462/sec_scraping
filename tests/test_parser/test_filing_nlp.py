@@ -54,26 +54,15 @@ def test_matcher_SECU(get_secumatcher, get_en_core_web_lg_nlp):
 
 def test__create_secu_span_dependency_matcher_dict(get_search):
     search = get_search
-    text = "The Series A Warrants have an exercise price of $11.50 per share"
+    text = "The Series A Warrants have an exercise price of $11.50 per share."
     doc = search.nlp(text)
-    secu = doc[1:4]
+    secu = doc[1:2]
     dep_dict = search._create_secu_span_dependency_matcher_dict(secu)
+    print(dep_dict)
     assert dep_dict == [
         {
             'RIGHT_ID': 'secu_anchor',
-            'RIGHT_ATTRS': {'ENT_TYPE': 'SECU', 'LOWER': 'warrants'}
-        },
-        {
-            'LEFT_ID': 'secu_anchor',
-            'REL_OP': '>',
-            'RIGHT_ID': 'series__1',
-            'RIGHT_ATTRS': {'LOWER': 'series'}
-        },
-        {
-            'LEFT_ID': 'secu_anchor',
-            'REL_OP': '>',
-            'RIGHT_ID': 'a__2',
-            'RIGHT_ATTRS': {'LOWER': 'a'}
+            'RIGHT_ATTRS': {'ENT_TYPE': 'SECU', 'LOWER': 'series a warrants'}
         }
         ]
     
@@ -143,7 +132,7 @@ def test_secu_alias_map(get_search):
     doc = search.nlp(text)
     # print(doc._.single_secu_alias_tuples)
     # print(doc._.single_secu_alias)
-    expected_bases = ["common stock", "common stock", "warrant", "Warrant"]
+    expected_bases = ["common stock", "common stock", "warrant"]
     expected_alias = ["Investor Warrant"]
     alias_map = doc._.single_secu_alias
     received_bases = sum([alias_map[k]["base"] for k, v in alias_map.items()], [])
@@ -156,29 +145,34 @@ def test_secu_alias_map(get_search):
     for expected, received in zip(expected_alias, received_alias):
         assert expected == received.text
 
-def test_match_outstanding_shares(get_search):
-    search: SpacyFilingTextSearch = get_search
-    phrases = (
-        "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
-        "The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022",
-        "based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. ",
-        "are based on 30,823,573 shares outstanding on April 11, 2022. ",
-        "based on 70,067,147 shares of our Common Stockoutstanding as of October 18, 2021. ",
-        "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. "
-        )
-    expected = [
-        {"date": to_datetime("May 4, 2021"),"amount": 46522759},
-        {"date": to_datetime("May 16, 2022"),"amount": 399794291},
-        {"date": to_datetime("January 17, 2020"),"amount": 34190415},
-        {"date": to_datetime("April 11, 2022"),"amount": 30823573},
-        {"date": to_datetime("October 18, 2021"),"amount": 70067147},
-        {"date": to_datetime("October 26, 2020"),"amount": 41959545},
+@pytest.mark.parametrize(["phrase", "expected"],
+    [
+        (
+            "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
+            {"date": to_datetime("May 4, 2021"),"amount": 46522759}),
+        (
+            "The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022",
+            {"date": to_datetime("May 16, 2022"),"amount": 399794291}),
+        (
+            "based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. ",
+            {"date": to_datetime("January 17, 2020"),"amount": 34190415}),
+        (
+            "are based on 30,823,573 shares outstanding on April 11, 2022. ",
+            {"date": to_datetime("April 11, 2022"),"amount": 30823573}),
+        (
+            "based on 70,067,147 shares of our Common Stockoutstanding as of October 18, 2021.",
+            {"date": to_datetime("October 18, 2021"),"amount": 70067147}),
+        (
+            "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. ",
+            {"date": to_datetime("October 26, 2020"),"amount": 41959545}) 
     ]
-    for sent, ex in zip(phrases, expected):
-        res = search.match_outstanding_shares(sent)
-        print(f"sent: {sent}")
-        print(f"res: {res}")
-        assert res[0] == ex
+)
+def test_match_outstanding_shares(get_search, phrase, expected):
+    search: SpacyFilingTextSearch = get_search
+    res = search.match_outstanding_shares(phrase)
+    print(f"sent: {phrase}")
+    print(f"res: {res}")
+    assert res[0] == expected
 
 def test_get_conflicting_ents(get_search, get_secumatcher):
     search = get_search

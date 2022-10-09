@@ -377,9 +377,134 @@ def retokenize_SECU(doc: Doc):
     with doc.retokenize() as retokenizer:
         for ent in doc.ents:
             if ent.label_ == "SECU":
-                attrs = {"tag": ent.root.tag, "dep": ent.root.dep, "ent_type": ent.label}
+                attrs = {
+                            "tag": ent.root.tag,
+                            "dep": ent.root.dep,
+                            "ent_type": ent.label,
+                            "_": {
+                                "source_span_unmerged": ent, 
+                                "was_merged": True
+                            }
+                }
                 retokenizer.merge(ent, attrs=attrs)
     return doc
+
+def get_span_to_span_similarity_map(secu: list[Token]|Span, alias: list[Token]|Span, threshold: float = 0.65):
+    similarity_map = {}
+    for secu_token in secu:
+        for alias_token in alias:
+            similarity = secu_token.similarity(alias_token)
+            similarity_map[(secu_token, alias_token)] = similarity
+    return similarity_map
+            # if  similarity > 0.65:
+            #     similarity_map_entry["very_similar"].append((secu_token, alias_token, secu_token.similarity(alias_token)))
+            #     very_similar_count += 1
+
+                # compare token to token2 and check if we have a token that is very similar >.65
+                # count the very similar tokens
+                # take the alias with the highest count ?
+                # bootstrap a statistical model to predict the alias?
+
+def BFS_non_recursive(origin, target) -> list:
+    '''
+    Breadth First Search algorithm
+
+    Returns:
+        list: list of nodes in the path from origin to target
+        None: if no path is found
+    '''
+    path = []
+    queue = [[origin]]
+    node = origin
+    visited = set()
+    while queue:
+        path = queue.pop(0)
+        node = path[-1]
+        if node == target:
+            return path
+        visited.add(node)
+        adjacents = (list(node.children) if node.children else []) + (list(node.ancestors) if node.ancestors else [])
+        for adjacent in adjacents:
+            if adjacent in visited:
+                continue
+            new_path = list(path)
+            new_path.append(adjacent)
+            queue.append(new_path)
+
+def get_dep_distance_between(origin, target) -> int:
+    '''
+    get the distance between two tokens in a spaCy dependency tree.
+
+    Returns:
+        int: distance between origin and target
+        None: if origin and target arent part of the same tree
+    '''
+    is_in_same_tree = False
+    if origin.is_ancestor(target):
+        is_in_same_tree = True
+        start = origin
+        end = target
+    if target.is_ancestor(origin):
+        is_in_same_tree = True
+        start = target
+        end = origin
+    if is_in_same_tree:
+        path = BFS_non_recursive(start, end)
+        return len(path)
+    else:
+        return None
+
+def get_dep_distance_between_spans(origin, target) -> int:
+    '''
+    get the distance between two spans (counting from their root) in a spaCy dependency tree.
+
+    Returns:
+        int: distance between origin and target
+        None: if origin and target arent part of the same tree
+    '''
+    distance = get_dep_distance_between(origin.root, target.root)
+    return distance
+
+def get_span_distance(secu, alias) -> int:
+    if secu[0].i > alias[0].i:
+        first = alias
+        second = secu
+    else:
+        first = secu
+        second = alias
+    mean_distance = ((second[0].i - first[-1].i) + (second[-1].i - first[0].i))/2
+    return mean_distance
+
+def calculate_similarity_score(alias, similarity_map, dep_distance, span_distance, very_similar_threshold: float, dep_distance_weight: float, span_distance_weight: float) -> float:
+    very_similar = sum([v > very_similar_threshold for v in similarity_map.values()])
+    very_similar_score = very_similar / len(alias) if very_similar != 0 else 0
+    dep_distance_score = dep_distance_weight * (1/dep_distance)
+    span_distance_score = span_distance_weight * (10/span_distance)
+    total_score = dep_distance_score + span_distance_score + very_similar_score
+    return total_score
+
+def get_span_similarity_score(
+        span1: list[Token]|Span,
+        span2: list[Token]|Span,
+        dep_distance_weight: float = 0.7,
+        span_distance_weight: float = 0.3,
+        very_similar_threshold: float=0.65
+    ):
+    premerge_tokens =  get_secu_premerge_tokens(span1)
+    similarity_map = get_span_to_span_similarity_map(premerge_tokens, span2)
+    dep_distance = get_dep_distance_between_spans(span1, span2)
+    span_distance = get_span_distance(span1, span2)
+    if dep_distance and span_distance and similarity_map:
+        score = calculate_similarity_score(
+            span2,
+            similarity_map,
+            dep_distance,
+            span_distance,
+            very_similar_threshold=very_similar_threshold,
+            dep_distance_weight=dep_distance_weight,
+            span_distance_weight=span_distance_weight
+            )
+        return score
 
 
 def get_alias(doc: Doc, secu: Span):
@@ -389,6 +514,8 @@ def get_alias(doc: Doc, secu: Span):
     else:
         secu_first_token = secu[0]
         secu_last_token = secu[-1]
+        similarity_score_store = []
+        checked_combination = set()
         for sent in doc.sents:
             if secu_first_token in sent:
                 secu_counter = 0
@@ -400,12 +527,18 @@ def get_alias(doc: Doc, secu: Span):
                         if alias is None and secu_counter > 2: 
                             return None
                     if alias:
-                        if alias.similarity(secu) > 0.7:
-                            return alias
-                        else:
-                            logger.debug(f"similarity score was to low for alias to be considered correct (<= 0.7)")
-                            logger.debug(f"similarity score: {alias.similarity(secu)} for base:{secu} and alias:{alias}")
-                            return None
+                        if (secu, alias) in checked_combination:
+                            continue
+                        score = get_span_similarity_score(secu, alias)
+                        checked_combination.add((secu, alias))
+                        if score:
+                            similarity_score_store.append((secu, alias, sent[0].i, score))
+        logger.debug(f"similarity_score_map: {similarity_score_store}")
+        if similarity_score_store != []:
+            highest_similarity = sorted(similarity_score_store, key=lambda x: x[3])[-1]
+            return highest_similarity[1]
+        else:
+            return None             
 
 def _get_SECU_in_doc(doc: Doc):
     secu_spans = []
@@ -420,6 +553,8 @@ def _set_single_secu_alias_map(doc: Doc):
         single_secu_alias = dict()
         secu_ents = doc._.secus
         for secu in secu_ents:
+            if doc._.is_alias(secu):
+                continue
             secu_key = get_secu_key(secu)
             if secu_key not in single_secu_alias.keys():
                 single_secu_alias[secu_key] = {"base": [secu], "alias": []}
@@ -438,8 +573,8 @@ def _set_single_secu_alias_map_as_tuples(doc: Doc):
         single_secu_alias_tuples = dict()
         secu_ents = doc._.secus
         for secu in secu_ents:
-            # if doc._.is_alias(secu):
-            #     continue
+            if doc._.is_alias(secu):
+                continue
             secu_key = get_secu_key(secu)
             if secu_key not in single_secu_alias_tuples.keys():
                 single_secu_alias_tuples[secu_key] = {"alias": [], "no_alias": []}
@@ -458,7 +593,10 @@ def is_alias(doc: Doc, secu: Span):
         return True
     return False
 
-def get_secu_key(secu: Span|str):
+def get_secu_key(secu: Span):
+    premerge_tokens = get_secu_premerge_tokens(secu)
+    if premerge_tokens:
+        secu = premerge_tokens
     core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
     body = [token.text_with_ws.lower() for token in core_tokens[:-1]]
     try:
@@ -473,7 +611,26 @@ def get_secu_key(secu: Span|str):
     # logger.debug(f"get_secu_key() returning key: {result} from secu: {secu}")
     return result
 
+def get_secu_premerge_tokens(secu: Span):
+    premerge_tokens = []
+    for token in secu:
+        if token.has_extension("was_merged"):
+            if token._.was_merged is True:
+                print(f"token._.source_span_unmerged: {token._.source_span_unmerged}")
+                if token._.source_span_unmerged not in premerge_tokens:
+                    premerge_tokens.append([i for i in token._.source_span_unmerged])
+    # flatten
+    premerge_tokens = sum(premerge_tokens, [])
+    if premerge_tokens != []:
+        return premerge_tokens
+    else:
+        return None
+
 def set_SECUMatcher_extensions():
+    token_extensions = [
+        {"name": "source_span_unmerged", "kwargs": {"default": None}},
+        {"name": "was_merged", "kwargs": {"default": False}},
+    ]
     span_extensions = [
         {"name": "secuquantity", "kwargs": {"getter": get_secuquantity}},
         {"name": "secuquantity_unit", "kwargs": {"default": None}}
@@ -494,6 +651,8 @@ def set_SECUMatcher_extensions():
         _set_extension(Span, each["name"], each["kwargs"])
     for each in doc_extensions:
         _set_extension(Doc, each["name"], each["kwargs"])
+    for each in token_extensions:
+        _set_extension(Token, each["name"], each["kwargs"])
 
 class AgreementMatcher:
     '''
@@ -561,6 +720,7 @@ class SECUMatcher:
         self.set_possible_alias_spans(doc)
         self.set_tokens_to_alias_map(doc)
         self.matcher_SECU(doc)
+        update_doc_secus_spans(doc)
         self.matcher_SECUREF(doc)
         doc = self.handle_retokenize_SECU(doc)
         self.handle_SECU_special_cases(doc)
@@ -571,6 +731,8 @@ class SECUMatcher:
     
     def handle_retokenize_SECU(self, doc: Doc):
         doc = retokenize_SECU(doc)
+        update_doc_secus_spans(doc)
+        self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
         self.set_possible_alias_spans(doc)
         self.set_tokens_to_alias_map(doc)
         _set_single_secu_alias_map(doc)
@@ -598,7 +760,7 @@ class SECUMatcher:
             # logger.info(f"current alias_tuples: {alias_tuples}")
             if alias_tuples and alias_tuples != []:
                 for entry in alias_tuples:
-                    base_span = entry[0]
+                    # base_span = entry[0]
                     alias_span = entry[1]
                     special_patterns.append(
                         [{"LOWER": x.lower_} for x in alias_span]
@@ -944,6 +1106,14 @@ def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
         return False
     return True
 
+def update_doc_secus_spans(doc: Doc):
+    doc._.secus = []
+    for ent in doc.ents:
+        if ent.label_ == "SECU":
+            if doc._.is_alias(ent):
+                continue
+            doc._.secus.append(ent)
+
 def add_SECU_to_spans(doc: Doc, entity: Span):
     if doc._.is_alias(entity):
         return
@@ -974,8 +1144,8 @@ def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
             "indebenture",
             # "rights",
             "shares"],
-            ent_callback=add_SECU_to_spans,
-            always_overwrite=["ORG"]
+            ent_callback=None,
+            always_overwrite=["ORG", "WORK_OF_ART", "LAW"]
             )
 
 def _add_SECUATTR_ent(matcher, doc: Doc, i: int, matches):
@@ -1081,7 +1251,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
 def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwrite_labels: Optional[list[str]]=None):
     previous_ents = set(doc.ents)
     conflicting_ents = get_conflicting_ents(doc, start, end, overwrite_labels=overwrite_labels)
-    # logger.debug(f"conflicting_ents: {conflicting_ents}")
+    logger.debug(f"conflicting_ents: {conflicting_ents}")
     # if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
     if conflicting_ents != []:
         [previous_ents.remove(k) for k in conflicting_ents]
@@ -1115,12 +1285,16 @@ def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optio
     conflicting_ents = []
     seen_conflicting_ents = []
     covered_tokens = range(start, end)
+    print(f"new ent covering tokens: {[i for i in covered_tokens]}")
     for ent in doc.ents:
         # if ent.end == ent.start-1:
         #     covered_tokens = [ent.start]
         # else:               
         # covered_tokens = range(ent.start, ent.end)
-        if (ent.start in covered_tokens) or (ent.end-1 in covered_tokens):
+        logger.debug(f"potentital conflicting ent: {ent}; with tokens: {[i for i in range(ent.start, ent.end)]}; and label: {ent.label_}")
+        possible_conflicting_tokens_covered = [i for i in range(ent.start, ent.end-1)]
+        # check if we have a new longer ent or a new shorter ent with a required overwrite label
+        if ((ent.start in covered_tokens) or (ent.end-1 in covered_tokens)) or (any([i in covered_tokens for i in possible_conflicting_tokens_covered])):
             if conflicting_ents == []:
                 seen_conflicting_ents.append(ent)
             if ((ent.end - ent.start) <= (end - start)) or (ent.label_ in overwrite_labels if overwrite_labels else False) is True:
@@ -1128,6 +1302,9 @@ def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optio
                     conflicting_ents = seen_conflicting_ents
                 else:
                     conflicting_ents.append(ent)
+            else:
+                logger.debug(f"{ent} shouldnt be conflicting")
+                
     return conflicting_ents
 
 def _get_singular_or_plural_of_SECU_token(token):
@@ -1232,20 +1409,85 @@ class SpacyFilingTextSearch:
         return []
     
     def get_queryable_similar_spans_from_lower(self, doc: Doc, span: Span):
+        '''
+        look for similar spans by matching through regex on the
+        combined .text_with_ws of the tokens of span with re.I flag
+        (checking for last token singular or plural aslong as it is registered
+        in PLURAL_SINGULAR_SECU_TAIL_MAP and SINGULAR_PLURAL_SECU_TAIL_MAP.
+        '''
+        #adjusted for merged SECUs
         matcher = Matcher(self.nlp.vocab)
         pattern = [
             [{"LOWER": x.lower_} for x in span]
         ]
-        if len(span) > 1:
-            tail_lower = _get_singular_or_plural_of_SECU_token(span[-1])
-            if tail_lower:
-                pattern.append(
-                    [*[{"LOWER": x.lower_} for x in span[:-1]], {"LOWER": tail_lower}]
+        tokens = []
+        to_check = []
+        for token in span:
+            if token.has_extension("was_merged"):
+                if token._.was_merged is True:
+                    source_span = token._.source_span_unmerged
+                    if source_span not in tokens:
+                        tokens.append(source_span)
+            else:
+                if token not in tokens:
+                    tokens.append(token)
+        tokens = sum(tokens, [])
+        # add base case to check for later
+        to_check.append(tokens)
+        # see if we find an additional plural or singular case based on the last token
+        tail_lower = _get_singular_or_plural_of_SECU_token(tokens[-1])
+        if tail_lower:
+            additional_case = tokens.copy()
+            additional_case.pop()
+            additional_case.append(tail_lower)
+            to_check.append(additional_case)
+        re_patterns = []
+        for entry in to_check:
+            re_patterns.append(
+                re.compile(
+                    "".join([x.text_with_ws for x in entry]),
+                    re.I
+                    )
                 )
+        found_spans = set()
+        for re_pattern in re_patterns:
+            for result in self._find_full_text_spans(re_pattern, doc):
+                if result not in found_spans and result != span:
+                    found_spans.add(result)
+        matcher_patterns = []
+        for entry in to_check:
+            matcher_patterns.append([{"LOWER": x.lower_} for x in entry])
         matcher.add("similar_spans", pattern)
-        logger.debug(f"similar_spans_from_lower match patterns: {pattern}")
         matches = matcher(doc)
-        return _convert_matches_to_spans(doc, filter_matches(matches)) if matches else None
+        match_results = _convert_matches_to_spans(doc, filter_matches(matches))
+        if match_results is not None:
+            for match in match_results:
+                if match not in found_spans and match != span:
+                    found_spans.add(match)
+        return list(found_spans) if len(found_spans) != 0 else None
+    
+    def _find_full_text_spans(self, re_term: re.Pattern, doc: Doc):
+        for match in re.finditer(re_term, doc.text):
+            start, end = match.span()
+            result = doc.char_span(start, end)
+            if result:
+                yield result
+    
+    # def get_queryable_similar_spans_from_lower(self, doc: Doc, span: Span):
+    #     matcher = Matcher(self.nlp.vocab)
+    #     pattern = [
+    #         [{"LOWER": x.lower_} for x in span]
+    #     ]
+    #     if len(span) > 1:
+    #         tail_lower = _get_singular_or_plural_of_SECU_token(span[-1])
+    #         if tail_lower:
+    #             pattern.append(
+    #                 [*[{"LOWER": x.lower_} for x in span[:-1]], {"LOWER": tail_lower}]
+    #             )
+    #     matcher.add("similar_spans", pattern)
+    #     logger.debug(f"similar_spans_from_lower match patterns: {pattern}")
+    #     matches = matcher(doc)
+    #     return _convert_matches_to_spans(doc, filter_matches(matches)) if matches else None
     
     def get_prep_phrases(self, doc: Doc):
         phrases = []
@@ -1337,9 +1579,9 @@ class SpacyFilingTextSearch:
                 },
                 {
                     "LEFT_ID": "verb1",
-                    "REL_OP": ">>",
+                    "REL_OP": "<<",
                     "RIGHT_ID": "verb2",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "expire"}, 
+                    "RIGHT_ATTRS": {"POS": "VERB"}, 
                 },
                 {
                     "LEFT_ID": "verb2",
@@ -1351,7 +1593,34 @@ class SpacyFilingTextSearch:
                     "LEFT_ID": "prep1",
                     "REL_OP": ">",
                     "RIGHT_ID": "pobj1",
-                    "RIGHT_ATTRS": {"DEP": "pobj"}, 
+                    "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}, 
+                },
+            ],
+            [
+                *secu_root_pattern,
+                {
+                    "LEFT_ID": "secu_anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}}, 
+                },
+                {
+                    "LEFT_ID": "verb1",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "verb2",
+                    "RIGHT_ATTRS": {"POS": "VERB"}, 
+                },
+                {
+                    "LEFT_ID": "verb2",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "prep1",
+                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
+                },
+                {
+                    "LEFT_ID": "prep1",
+                    "REL_OP": ">",
+                    "RIGHT_ID": "pobj1",
+                    "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}, 
                 },
             ],
             [
@@ -1409,6 +1678,8 @@ class SpacyFilingTextSearch:
         dep_matcher.add("expiry", patterns)
         matches = dep_matcher(doc)
         logger.debug(f"raw expiry matches: {matches}")
+        for i in doc:
+            print(i, i.lemma_)
         if matches:
             matches = _convert_dep_matches_to_spans(doc, matches)
             logger.info(f"matches: {matches}")
@@ -1416,6 +1687,7 @@ class SpacyFilingTextSearch:
             for match in matches:
                 formatted_matches.append(self._format_expiry_match(match[1]))
             return formatted_matches
+        logger.debug("no matches for epxiry found in this sentence")
     
     def _format_expiry_match(self, match):
         # print([(i.ent_type_, i.text) for i in match])
@@ -2248,9 +2520,47 @@ class SpacyFilingTextSearch:
 
 
     def match_outstanding_shares(self, text):
-        pattern1 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]
-        pattern2 = [{"LEMMA": "base"},{"LEMMA": {"IN": ["on", "upon"]}},{"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}},{"IS_PUNCT":False, "OP": "*"},{"LOWER": "outstanding"}, {"LOWER": "shares"}, {"IS_PUNCT":False, "OP": "*"},{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}]
-        pattern3 = [{"LOWER": {"IN": ["of", "on"]}}, {"ENT_TYPE": "DATE", "OP": "+"}, {"ENT_TYPE": "DATE", "OP": "?"}, {"OP": "?"}, {"ENT_TYPE": "DATE", "OP": "*"}, {"OP": "?"}, {"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}}, {"IS_PUNCT":False, "OP": "*"}, {"LOWER": {"IN": ["issued", "outstanding"]}}]
+        # rework this to include secu
+        pattern1 = [
+            {"LEMMA": "base"},
+            {"LEMMA": {"IN": ["on", "upon"]}},
+            {"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}},
+            {"IS_PUNCT":False, "OP": "*"},
+            {"LOWER": "shares"},
+            {"IS_PUNCT":False, "OP": "*"},
+            {"LOWER": {"IN": ["outstanding", "stockoutstanding"]}},
+            {"IS_PUNCT":False, "OP": "*"},
+            {"LOWER": {"IN": ["of", "on"]}},
+            {"ENT_TYPE": "DATE", "OP": "+"},
+            {"ENT_TYPE": "DATE", "OP": "?"},
+            {"OP": "?"},
+            {"ENT_TYPE": "DATE", "OP": "*"}
+        ]
+        pattern2 = [
+            {"LEMMA": "base"},
+            {"LEMMA": {"IN": ["on", "upon"]}},
+            {"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}},
+            {"IS_PUNCT":False, "OP": "*"},
+            {"LOWER": "outstanding"},
+            {"LOWER": "shares"},
+            {"IS_PUNCT":False, "OP": "*"},
+            {"LOWER": {"IN": ["of", "on"]}},
+            {"ENT_TYPE": "DATE", "OP": "+"},
+            {"ENT_TYPE": "DATE", "OP": "?"},
+            {"OP": "?"},
+            {"ENT_TYPE": "DATE", "OP": "*"}
+        ]
+        pattern3 = [
+            {"LOWER": {"IN": ["of", "on"]}},
+            {"ENT_TYPE": "DATE", "OP": "+"},
+            {"ENT_TYPE": "DATE", "OP": "?"},
+            {"OP": "?"},
+            {"ENT_TYPE": "DATE", "OP": "*"},
+            {"OP": "?"},
+            {"ENT_TYPE": {"IN": ["CARDINAL", "SECUQUANTITY"]}},
+            {"IS_PUNCT":False, "OP": "*"},
+            {"LOWER": {"IN": ["issued", "outstanding"]}}
+        ]
         matcher = Matcher(self.nlp.vocab)
         matcher.add("outstanding", [pattern1, pattern2, pattern3])
         doc = self.nlp(text)

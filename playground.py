@@ -1,4 +1,5 @@
 
+import queue
 from typing import Optional
 from bs4 import BeautifulSoup
 from matplotlib import docstring
@@ -1056,6 +1057,10 @@ if __name__ == "__main__":
     def displacy_ent_with_search(text):
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
+        print("ENTS:")
+        print([(i, i.label_) for i in doc.ents])
+        print("TOKENS:")
+        print([i for i in doc])
         displacy.serve(doc, style="ent", options={
             "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
             "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
@@ -1204,5 +1209,110 @@ if __name__ == "__main__":
     # unique_filings(cnf)
     # 
     # do_inital_pop(cnf)
-    displacy_ent_with_search("The Common stock, Series A Preferred stock and the Series C Warrants of this.")
-    
+    # displacy_dep_with_search('The Warrants have an exercise price of $11.50 per share will be exercisable beginning on the calendar day following the six month anniversary of the date of issuance, will expire on March 17, 2026.')
+    # displacy_ent_with_search("The Series A Warrants have an exercise price of $11.50 per share.")
+    def get_span_to_span_similarity_map(secu: list, alias: list, threshold: float = 0.65):
+        similarity_map_entry = dict({"secu": secu, "alias": alias, "very_similar": [], "count_none_similar": 0})
+        similarity_map = {}
+        for secu_token in secu:
+            for alias_token in alias:
+                similarity = secu_token.similarity(alias_token)
+                similarity_map[(secu_token, alias_token)] = similarity
+        return similarity_map
+
+    text = "On February 22, 2021, we entered into the Securities Purchase Agreement (the “Securities Purchase Agreement”), pursuant to which we agreed to issue the investor named therein (the “Investor”) 8,888,890 shares (the “Shares”) of our common stock, par value $0.000001 per share, at a purchase price of $2.25 per share, and a warrant to purchase up to 6,666,668 shares of our common stock (the “Investor Warrant”) in a private placement (the “Private Placement”). The closing of the Private Placement occurred on February 24, 2021."
+    def compare_similarity(text):
+        def BFS_non_recursive(origin, target):
+            path = []
+            queue = [[origin]]
+            node = origin
+            visited = set()
+            while queue:
+                path = queue.pop(0)
+                node = path[-1]
+                if node == target:
+                    return path
+                visited.add(node)
+                adjacents = (list(node.children) if node.children else []) + (list(node.ancestors) if node.ancestors else [])
+                for adjacent in adjacents:
+                    if adjacent in visited:
+                        continue
+                    new_path = list(path)
+                    new_path.append(adjacent)
+                    queue.append(new_path)
+                    
+        
+        def get_dep_distance_between(secu, alias):
+            is_in_same_tree = False
+            if secu.is_ancestor(alias):
+                is_in_same_tree = True
+                start = secu
+                end = alias
+            if alias.is_ancestor(secu):
+                is_in_same_tree = True
+                start = alias
+                end = secu
+            if is_in_same_tree:
+                path = BFS_non_recursive(start, end)
+                return len(path)
+            else:
+                return None
+        
+        def get_dep_distance_between_spans(secu, alias):
+            distance = get_dep_distance_between(secu.root, alias.root)
+            return distance
+
+        def get_span_distance(secu, alias):
+            if secu[0].i > alias[0].i:
+                first = alias
+                second = secu
+            else:
+                first = secu
+                second = alias
+            mean_distance = ((second[0].i - first[-1].i) + (second[-1].i - first[0].i))/2
+            return mean_distance
+
+
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        from collections import defaultdict
+        from main.parser.filing_nlp import get_secu_premerge_tokens
+        possible_aliases = defaultdict(list)
+        for secu in doc._.secus:
+            secu_first_token = secu[0]
+            secu_last_token = secu[-1]
+            for sent in doc.sents:
+                if secu_first_token in sent:
+                    secu_counter = 0
+                    token_idx_offset = sent[0].i
+                    for token in sent[secu_last_token.i-token_idx_offset+1:]:
+                        alias = doc._.tokens_to_alias_map.get(token.i)
+                        if alias and alias not in possible_aliases[secu]:
+                            possible_aliases[secu].append(alias)
+        to_eval = []
+        for secu, aliases in possible_aliases.items():
+            premerge_tokens =  get_secu_premerge_tokens(secu)
+            for alias in aliases:
+                similarity_map = get_span_to_span_similarity_map(premerge_tokens, alias)
+                dep_distance = get_dep_distance_between_spans(secu, alias)
+                span_distance = get_span_distance(secu, alias)
+                if dep_distance:
+                    print(similarity_map)
+                    score = get_secu_alias_similarity_score(alias, similarity_map, dep_distance, span_distance)
+                    to_eval.append((secu, alias, score))
+        for t in to_eval:
+            print(t)
+
+    def get_secu_alias_similarity_score(alias, similarity_map, dep_distance, span_distance):
+        very_similar = sum([v > 0.65 for v in similarity_map.values()])
+        very_similar_score = very_similar / len(alias) if very_similar != 0 else 0
+        dep_distance_weight = 0.7
+        span_distance_weight = 0.3
+        dep_distance_score = dep_distance_weight * (1/dep_distance)
+        span_distance_score = span_distance_weight * (10/span_distance)
+        total_score = dep_distance_score + span_distance_score + very_similar_score
+        return total_score
+
+
+    # compare_similarity(text)
+    displacy_ent_with_search(text)
