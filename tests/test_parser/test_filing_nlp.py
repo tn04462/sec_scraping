@@ -65,6 +65,15 @@ def test__create_secu_span_dependency_matcher_dict(get_search):
             'RIGHT_ATTRS': {'ENT_TYPE': 'SECU', 'LOWER': 'series a warrants'}
         }
         ]
+
+def test_get_queryable_similar_spans_from_lower(get_search):
+    search: SpacyFilingTextSearch = get_search
+    text = "The Series A Warrants have an exercise price of $11.50 per share. The Series A Warrant has been issued in connection witha private placement."
+    doc = search.nlp(text)
+    secu = doc[1:3]
+    queryable_spans = search.get_queryable_similar_spans_from_lower(doc, secu)
+    print(queryable_spans)
+    assert queryable_spans == [doc[1:2]]
     
     
 

@@ -377,16 +377,23 @@ def retokenize_SECU(doc: Doc):
     with doc.retokenize() as retokenizer:
         for ent in doc.ents:
             if ent.label_ == "SECU":
+                logger.debug(f"Retokenizing {ent.text}")
+                logger.debug(f"tokens: {[t for t in ent]}")
                 attrs = {
                             "tag": ent.root.tag,
                             "dep": ent.root.dep,
                             "ent_type": ent.label,
                             "_": {
-                                "source_span_unmerged": ent, 
+                                "source_span_unmerged": tuple([t for t in ent]), 
                                 "was_merged": True
                             }
                 }
                 retokenizer.merge(ent, attrs=attrs)
+    # debug
+    for ent in doc.ents:
+        if ent.label_ == "SECU":
+            logger.debug(f"tokens: {[t for t in ent]}")
+            logger.debug(f"source_span_unmerged of first token: {ent[0]._.source_span_unmerged}")
     return doc
 
 def get_span_to_span_similarity_map(secu: list[Token]|Span, alias: list[Token]|Span, threshold: float = 0.65):
@@ -552,10 +559,12 @@ def _set_single_secu_alias_map(doc: Doc):
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         single_secu_alias = dict()
         secu_ents = doc._.secus
+        logger.debug(f"working from ._.secus: {secu_ents}")
         for secu in secu_ents:
             if doc._.is_alias(secu):
                 continue
             secu_key = get_secu_key(secu)
+            logger.debug(f"got secu_key: {secu_key} -> from secu -> {secu}")
             if secu_key not in single_secu_alias.keys():
                 single_secu_alias[secu_key] = {"base": [secu], "alias": []}
             else:
@@ -595,6 +604,7 @@ def is_alias(doc: Doc, secu: Span):
 
 def get_secu_key(secu: Span):
     premerge_tokens = get_secu_premerge_tokens(secu)
+    logger.debug(f"premerge_tokens while getting secu_key: {premerge_tokens}")
     if premerge_tokens:
         secu = premerge_tokens
     core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
@@ -613,12 +623,16 @@ def get_secu_key(secu: Span):
 
 def get_secu_premerge_tokens(secu: Span):
     premerge_tokens = []
+    source_spans_seen = set()
+    logger.debug(f"getting premerge_tokens for secu: {secu}")
     for token in secu:
+        logger.debug(f"checking token: {token}")
         if token.has_extension("was_merged"):
             if token._.was_merged is True:
-                print(f"token._.source_span_unmerged: {token._.source_span_unmerged}")
-                if token._.source_span_unmerged not in premerge_tokens:
+                logger.debug(f"token._.source_span_unmerged: {token._.source_span_unmerged}")
+                if token._.source_span_unmerged not in source_spans_seen:
                     premerge_tokens.append([i for i in token._.source_span_unmerged])
+                    source_spans_seen.add(token._.source_span_unmerged)
     # flatten
     premerge_tokens = sum(premerge_tokens, [])
     if premerge_tokens != []:
@@ -721,6 +735,7 @@ class SECUMatcher:
         self.set_tokens_to_alias_map(doc)
         self.matcher_SECU(doc)
         update_doc_secus_spans(doc)
+        logger.debug(f"._.secus after first SECU match: {doc._.secus}")
         self.matcher_SECUREF(doc)
         doc = self.handle_retokenize_SECU(doc)
         self.handle_SECU_special_cases(doc)
@@ -1108,10 +1123,13 @@ def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
 
 def update_doc_secus_spans(doc: Doc):
     doc._.secus = []
+    logger.debug(f"updating doc._.secus")
     for ent in doc.ents:
         if ent.label_ == "SECU":
+            logger.debug(f"found SECU ent in doc.ents: {ent}")
             if doc._.is_alias(ent):
                 continue
+            logger.debug(f"ent was not an alias, adding it.")
             doc._.secus.append(ent)
 
 def add_SECU_to_spans(doc: Doc, entity: Span):
@@ -1417,21 +1435,23 @@ class SpacyFilingTextSearch:
         '''
         #adjusted for merged SECUs
         matcher = Matcher(self.nlp.vocab)
-        pattern = [
-            [{"LOWER": x.lower_} for x in span]
-        ]
         tokens = []
         to_check = []
+        source_spans_seen = set()
         for token in span:
             if token.has_extension("was_merged"):
                 if token._.was_merged is True:
                     source_span = token._.source_span_unmerged
-                    if source_span not in tokens:
-                        tokens.append(source_span)
+                    if source_span not in source_spans_seen:
+                        for token in source_span:
+                            tokens.append(token)
+                        source_spans_seen.add(source_span)
+                else:
+                    if token not in tokens:
+                        tokens.append(token)
             else:
                 if token not in tokens:
                     tokens.append(token)
-        tokens = sum(tokens, [])
         # add base case to check for later
         to_check.append(tokens)
         # see if we find an additional plural or singular case based on the last token
@@ -1457,7 +1477,7 @@ class SpacyFilingTextSearch:
         matcher_patterns = []
         for entry in to_check:
             matcher_patterns.append([{"LOWER": x.lower_} for x in entry])
-        matcher.add("similar_spans", pattern)
+        matcher.add("similar_spans", matcher_patterns)
         matches = matcher(doc)
         match_results = _convert_matches_to_spans(doc, filter_matches(matches))
         if match_results is not None:
