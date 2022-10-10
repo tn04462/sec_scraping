@@ -1276,7 +1276,7 @@ if __name__ == "__main__":
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
         from collections import defaultdict
-        from main.parser.filing_nlp import get_secu_premerge_tokens
+        from main.parser.filing_nlp import get_premerge_tokens
         possible_aliases = defaultdict(list)
         for secu in doc._.secus:
             secu_first_token = secu[0]
@@ -1291,7 +1291,7 @@ if __name__ == "__main__":
                             possible_aliases[secu].append(alias)
         to_eval = []
         for secu, aliases in possible_aliases.items():
-            premerge_tokens =  get_secu_premerge_tokens(secu)
+            premerge_tokens =  get_premerge_tokens(secu)
             for alias in aliases:
                 similarity_map = get_span_to_span_similarity_map(premerge_tokens, alias)
                 dep_distance = get_dep_distance_between_spans(secu, alias)

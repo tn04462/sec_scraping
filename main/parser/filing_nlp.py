@@ -367,33 +367,40 @@ class SecurityActMatcher:
         ]
         self.matcher.add("sec_act", patterns, greedy="LONGEST")
 
-def get_secuquantity(span):
+def get_secuquantity(span: Span):
     if span.label_ == "SECUQUANTITY":
         return formater.money_string_to_float(span.text)
     else:
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
 def retokenize_SECU(doc: Doc):
+    # this needs to decouple the source/premerge tokens so 
+    # we dont have problem with a shift of token positions
+    # after the merge
     with doc.retokenize() as retokenizer:
         for ent in doc.ents:
             if ent.label_ == "SECU":
-                logger.debug(f"Retokenizing {ent.text}")
-                logger.debug(f"tokens: {[t for t in ent]}")
+                source_doc_slice = ent.as_doc(copy_user_data=True)
+                # handle previously merged tokens to retain 
+                # original/first source_span_unmerged
+                if not ent.has_extension("was_merged"):
+                    source_tokens = tuple([t for t in source_doc_slice])
+                else:
+                    if ent._.was_merged:
+                        source_tokens = ent._.premerge_tokens
+                    else:
+                        source_tokens = tuple([t for t in source_doc_slice])
                 attrs = {
                             "tag": ent.root.tag,
                             "dep": ent.root.dep,
                             "ent_type": ent.label,
                             "_": {
-                                "source_span_unmerged": tuple([t for t in ent]), 
+                                "source_span_unmerged": source_tokens, 
                                 "was_merged": True
                             }
                 }
+                ent._.was_merged = True
                 retokenizer.merge(ent, attrs=attrs)
-    # debug
-    for ent in doc.ents:
-        if ent.label_ == "SECU":
-            logger.debug(f"tokens: {[t for t in ent]}")
-            logger.debug(f"source_span_unmerged of first token: {ent[0]._.source_span_unmerged}")
     return doc
 
 def get_span_to_span_similarity_map(secu: list[Token]|Span, alias: list[Token]|Span, threshold: float = 0.65):
@@ -497,7 +504,7 @@ def get_span_similarity_score(
         span_distance_weight: float = 0.3,
         very_similar_threshold: float=0.65
     ):
-    premerge_tokens =  get_secu_premerge_tokens(span1)
+    premerge_tokens = span1._.premerge_tokens if span1.has_extension("premerge_tokens") else span1
     similarity_map = get_span_to_span_similarity_map(premerge_tokens, span2)
     dep_distance = get_dep_distance_between_spans(span1, span2)
     span_distance = get_span_distance(span1, span2)
@@ -603,7 +610,7 @@ def is_alias(doc: Doc, secu: Span):
     return False
 
 def get_secu_key(secu: Span):
-    premerge_tokens = get_secu_premerge_tokens(secu)
+    premerge_tokens = secu._.premerge_tokens if secu.has_extension("premerge_tokens") else None
     logger.debug(f"premerge_tokens while getting secu_key: {premerge_tokens}")
     if premerge_tokens:
         secu = premerge_tokens
@@ -621,11 +628,16 @@ def get_secu_key(secu: Span):
     # logger.debug(f"get_secu_key() returning key: {result} from secu: {secu}")
     return result
 
-def get_secu_premerge_tokens(secu: Span):
+def get_secu_key_extension(span: Span):
+    if span.label_ != "SECU":
+        raise AttributeError(f"Can only get secu_key for SECU spans, span is not a SECU span. received span.label_: {span.label_}")
+    return get_secu_key(span)
+
+def get_premerge_tokens(span: Span):
     premerge_tokens = []
     source_spans_seen = set()
-    logger.debug(f"getting premerge_tokens for secu: {secu}")
-    for token in secu:
+    logger.debug(f"getting premerge_tokens for span: {span}")
+    for token in span:
         logger.debug(f"checking token: {token}")
         if token.has_extension("was_merged"):
             if token._.was_merged is True:
@@ -636,7 +648,7 @@ def get_secu_premerge_tokens(secu: Span):
     # flatten
     premerge_tokens = sum(premerge_tokens, [])
     if premerge_tokens != []:
-        return premerge_tokens
+        return tuple(premerge_tokens)
     else:
         return None
 
@@ -647,7 +659,10 @@ def set_SECUMatcher_extensions():
     ]
     span_extensions = [
         {"name": "secuquantity", "kwargs": {"getter": get_secuquantity}},
-        {"name": "secuquantity_unit", "kwargs": {"default": None}}
+        {"name": "secuquantity_unit", "kwargs": {"default": None}},
+        {"name": "secu_key", "kwargs": {"getter": get_secu_key}},
+        {"name": "premerge_tokens", "kwargs": {"getter": get_premerge_tokens}},
+        {"name": "was_merged", "kwargs": {"default": False}},
     ]
     doc_extensions = [
         {"name": "alias_set", "kwargs": {"default": set()}},
@@ -1152,7 +1167,6 @@ def _add_SECUREF_ent(matcher, doc: Doc, i: int, matches):
             "rights"
             ])
 
-
     
 def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
     logger.debug(f"adding SECU ent: {matches[i]}")
@@ -1193,12 +1207,6 @@ def adjust_CONTRACT_ent_before_add(entity: Span):
     logger.debug(f"adjust_contract_ent_before_add entity after adjust: {entity}")
     return entity
     
-
-
-
-
-            
-
 def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     _, match_start, match_end = matches[i]
     match_tokens = [t for t in doc[match_start:match_end]]
@@ -1437,21 +1445,10 @@ class SpacyFilingTextSearch:
         matcher = Matcher(self.nlp.vocab)
         tokens = []
         to_check = []
-        source_spans_seen = set()
-        for token in span:
-            if token.has_extension("was_merged"):
-                if token._.was_merged is True:
-                    source_span = token._.source_span_unmerged
-                    if source_span not in source_spans_seen:
-                        for token in source_span:
-                            tokens.append(token)
-                        source_spans_seen.add(source_span)
-                else:
-                    if token not in tokens:
-                        tokens.append(token)
-            else:
-                if token not in tokens:
-                    tokens.append(token)
+        if (span._.was_merged if span.has_extension("was_merged") else False):
+            tokens = list(span._.premerge_tokens)
+        else:
+            tokens = [i for i in span]
         # add base case to check for later
         to_check.append(tokens)
         # see if we find an additional plural or singular case based on the last token
@@ -1462,24 +1459,29 @@ class SpacyFilingTextSearch:
             additional_case.append(tail_lower)
             to_check.append(additional_case)
         re_patterns = []
+        # convert to string
         for entry in to_check:
             re_patterns.append(
                 re.compile(
-                    "".join([x.text_with_ws for x in entry]),
+                    "".join([x.text_with_ws if isinstance(x, (Span, Token)) else x for x in entry]),
                     re.I
                     )
                 )
         found_spans = set()
         for re_pattern in re_patterns:
+            logger.debug(f"checking with re_pattern: {re_pattern}")
             for result in self._find_full_text_spans(re_pattern, doc):
+                logger.debug(f"found a match: {result}")
                 if result not in found_spans and result != span:
                     found_spans.add(result)
         matcher_patterns = []
         for entry in to_check:
-            matcher_patterns.append([{"LOWER": x.lower_} for x in entry])
+            matcher_patterns.append([{"LOWER": x.lower_ if isinstance(x, (Span, Token)) else x} for x in entry])
+        logger.debug(f"working with matcher_patterns: {matcher_patterns}")
         matcher.add("similar_spans", matcher_patterns)
         matches = matcher(doc)
         match_results = _convert_matches_to_spans(doc, filter_matches(matches))
+        logger.debug(f"matcher converted matches: {match_results}")
         if match_results is not None:
             for match in match_results:
                 if match not in found_spans and match != span:

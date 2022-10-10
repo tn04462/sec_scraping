@@ -70,10 +70,9 @@ def test_get_queryable_similar_spans_from_lower(get_search):
     search: SpacyFilingTextSearch = get_search
     text = "The Series A Warrants have an exercise price of $11.50 per share. The Series A Warrant has been issued in connection witha private placement."
     doc = search.nlp(text)
-    secu = doc[1:3]
+    secu = doc[1:2]
     queryable_spans = search.get_queryable_similar_spans_from_lower(doc, secu)
-    print(queryable_spans)
-    assert queryable_spans == [doc[1:2]]
+    assert queryable_spans == [doc[13:14]]
     
     
 
@@ -86,7 +85,7 @@ def test_get_queryable_similar_spans_from_lower(get_search):
     (
         "The Series A Warrants have an exercise price of $11.50 per share",
         11.5,
-        (1, 4)
+        (1, 2)
     ),
     (
         "Warrants to purchase 96,668 shares of common stock and remain outstanding at any time on or prior to December 31, 2022 at an initial exercise price of $3.00 per share.",
