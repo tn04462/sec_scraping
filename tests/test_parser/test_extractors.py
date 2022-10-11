@@ -207,6 +207,8 @@ def test_extract_shelf_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_s
     # change these kind of calls to use the collect_commands
     # of the message bus to assure we found the right items from
     # the filing
+    command_history = bus.collect_command_history()
+    print(command_history)
     assert expected_shelf == list(company.shelfs)[0]
 
 def test_extract_resale_s3(get_s3_extractor, get_fake_messagebus, get_filing_s3_resale):

@@ -1317,7 +1317,7 @@ def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optio
         #     covered_tokens = [ent.start]
         # else:               
         # covered_tokens = range(ent.start, ent.end)
-        logger.debug(f"potentital conflicting ent: {ent}; with tokens: {[i for i in range(ent.start, ent.end)]}; and label: {ent.label_}")
+        # logger.debug(f"potentital conflicting ent: {ent}; with tokens: {[i for i in range(ent.start, ent.end)]}; and label: {ent.label_}")
         possible_conflicting_tokens_covered = [i for i in range(ent.start, ent.end-1)]
         # check if we have a new longer ent or a new shorter ent with a required overwrite label
         if ((ent.start in covered_tokens) or (ent.end-1 in covered_tokens)) or (any([i in covered_tokens for i in possible_conflicting_tokens_covered])):
