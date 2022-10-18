@@ -1212,7 +1212,6 @@ if __name__ == "__main__":
     # displacy_dep_with_search('The Warrants have an exercise price of $11.50 per share will be exercisable beginning on the calendar day following the six month anniversary of the date of issuance, will expire on March 17, 2026.')
     # displacy_ent_with_search("The Series A Warrants have an exercise price of $11.50 per share.")
     def get_span_to_span_similarity_map(secu: list, alias: list, threshold: float = 0.65):
-        similarity_map_entry = dict({"secu": secu, "alias": alias, "very_similar": [], "count_none_similar": 0})
         similarity_map = {}
         for secu_token in secu:
             for alias_token in alias:
@@ -1312,7 +1311,19 @@ if __name__ == "__main__":
         span_distance_score = span_distance_weight * (10/span_distance)
         total_score = dep_distance_score + span_distance_score + very_similar_score
         return total_score
+    
+    def get_secu_amods(text):
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        print(f"getting amods for secus: {doc._.secus}")
+        for secu in doc._.secus:
+            search.get_secu_amods(secu, doc)
+            print(f"v2: {search.get_secu_amods2(secu)}")
+
 
 
     # compare_similarity(text)
-    displacy_ent_with_search(text)
+    # displacy_ent_with_search(text)
+    text = "This Sentence is in regard to the total outstanding common stock of the Company. This Sentence is in regard to the common stock outstanding as of may 15, 2020."
+    get_secu_amods(text)
+    displacy_dep_with_search(text)

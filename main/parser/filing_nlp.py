@@ -1,7 +1,7 @@
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Dict, Optional, Set
+from typing import Callable, Dict, Iterable, Optional, Set
 from attr import Attribute
 import spacy
 from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
@@ -696,8 +696,6 @@ class AgreementMatcher:
         self.matcher = Matcher(vocab)
         self.add_CONTRACT_ent_to_matcher()
     
-    
-    
     def add_CONTRACT_ent_to_matcher(self):
         patterns = [
             [{"LOWER": "agreement"}],
@@ -743,14 +741,12 @@ class SECUMatcher:
     
 
     def __call__(self, doc: Doc):
-        # logger.warning(f"__call__ executed")
         self._init_span_labels(doc)
         self.chars_to_token_map = self.get_chars_to_tokens_map(doc)
         self.set_possible_alias_spans(doc)
         self.set_tokens_to_alias_map(doc)
         self.matcher_SECU(doc)
         update_doc_secus_spans(doc)
-        logger.debug(f"._.secus after first SECU match: {doc._.secus}")
         self.matcher_SECUREF(doc)
         doc = self.handle_retokenize_SECU(doc)
         self.handle_SECU_special_cases(doc)
@@ -780,9 +776,6 @@ class SECUMatcher:
 
 
     def add_alias_SECU_cases_to_matcher(self, doc, matcher):
-        # duplicate spans
-        # overlapping spans ?
-        # side effects of rerunning matcher ? 
         special_patterns = []
         for secu_key, values in doc._.single_secu_alias_tuples.items():
             # logger.info(f"current key: {secu_key}")
@@ -1496,6 +1489,7 @@ class SpacyFilingTextSearch:
                 yield result
     
     # def get_queryable_similar_spans_from_lower(self, doc: Doc, span: Span):
+    # REPLACED WITH NEWER ABOVE
     #     matcher = Matcher(self.nlp.vocab)
     #     pattern = [
     #         [{"LOWER": x.lower_} for x in span]
@@ -1535,8 +1529,74 @@ class SpacyFilingTextSearch:
                 subtree = [i for i in token.subtree]
                 phrases.append(doc[subtree[0].i:subtree[-1].i])
         return phrases
+    
+    def get_secu_amods(self, secu: Span, doc: Doc):
+        root_dep_element = self._create_span_dependency_matcher_dict_lower(secu)
+        amods = self.get_amods_of_target(root_dep_element, doc.sents, target_left_id="secu_anchor")
+        logger.debug(f"for secu: {secu} we found following amod matches: {amods}")
+    
+    def get_secu_amods2(self, secu: Span):
+        return self._get_amods_of_target(secu)
+    
+    def _get_amods_of_target(self, target: Span):
+        amods = []
+        amods_to_ignore = set([token if token.dep_ == "amod" else None for token in target])
+        for token in target:
+            pool = [i for i in token.children] + [token.head]
+            for possible_match in pool:
+                if possible_match.dep_ == "amod" and possible_match not in amods_to_ignore:
+                    if possible_match not in amods:
+                        amods.append(possible_match)
+        return amods
 
-    def _create_secu_span_dependency_matcher_dict(self, secu: Span) -> dict:
+
+    
+    def get_amods_of_target(self, target: dict, doclike: list[Doc|Span], target_left_id: str="secu_anchor"):
+        rel_cases = [">", "<"]
+        dep_tail_cases = ["compound", None]
+        dep_relations = ["amod", "nummod"]
+        amod_base_patterns = [
+            [
+                *target,
+                {
+                    "LEFT_ID": target_left_id,
+                    "REL_OP": rel_op,
+                    "RIGHT_ID": "amod_relation",
+                    "RIGHT_ATTRS": {"DEP": "amod"}
+                }
+
+            ] for rel_op in rel_cases
+        ]
+        # for pattern in amod_base_patterns:
+        #     print(f"base_pattern: {pattern}")
+        amod_final_patterns = []
+        for p in amod_base_patterns:
+            for dep_tail in dep_tail_cases:
+                if dep_tail is not None:
+                    j = p.copy()
+                    j.append({
+                        "LEFT_ID": "amod_relation",
+                        "REL_OP": ">",
+                        "RIGHT_ID": "dep_tail",
+                        "RIGHT_ATTRS": {"DEP": dep_tail}
+                    })
+                    amod_final_patterns.append(j)
+                else:
+                    amod_final_patterns.append(p)
+        # print(f"amod_final_patterns: {amod_final_patterns}")
+        dep_matcher = DependencyMatcher(self.nlp.vocab)
+        dep_matcher.add("amod", amod_final_patterns)
+        result = []
+        for each in doclike:
+            matches = dep_matcher(each)
+            if matches:
+                filtered_matches = filter_dep_matches(matches)
+                converted_matches = _convert_dep_matches_to_spans(each, filtered_matches)
+                # convert the spans into a useful and uniform dict after?
+                result.append({"doc": each, "matches": converted_matches})
+        return result
+
+    def _create_span_dependency_matcher_dict_lower(self, secu: Span) -> dict:
         '''
         create a list of dicts for dependency match patterns.
         the root token will have RIGHT_ID of 'secu_anchor'
@@ -1564,7 +1624,7 @@ class SpacyFilingTextSearch:
         return root_pattern
     
     def match_secu_expiry(self, doc: Doc, secu: Span):
-        secu_root_pattern = self._create_secu_span_dependency_matcher_dict(secu)
+        secu_root_pattern = self._create_span_dependency_matcher_dict_lower(secu)
         if secu_root_pattern is None:
             logger.warning(f"couldnt get secu_root_pattern for secu: {secu}")
             return
@@ -1784,7 +1844,7 @@ class SpacyFilingTextSearch:
         
         relcl (SECU) <- VERB (purchase) >> prep(at) -> 
         '''
-        secu_root_dict = self._create_secu_span_dependency_matcher_dict(secu)
+        secu_root_dict = self._create_span_dependency_matcher_dict_lower(secu)
         if secu_root_dict is None:
             return None
         patterns = [
@@ -2066,7 +2126,7 @@ class SpacyFilingTextSearch:
     def get_secuquantities(self, doc: Doc, secu: Span):
         ''''match secuquantity and source_secu, secu, close verbs'''
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-        secu_root_pattern = self._create_secu_span_dependency_matcher_dict(secu)
+        secu_root_pattern = self._create_span_dependency_matcher_dict_lower(secu)
         # have dict of conversion functions to match_id
         # have a handle_match_formatting function
         # so we can convert each match to a sensible dictionary
@@ -2542,7 +2602,7 @@ class SpacyFilingTextSearch:
 
 
     def match_outstanding_shares(self, text):
-        # rework this to include secu
+        # rework this to include secu 
         pattern1 = [
             {"LEMMA": "base"},
             {"LEMMA": {"IN": ["on", "upon"]}},
@@ -2612,6 +2672,7 @@ class SpacyFilingTextSearch:
     # def match_issuabel_secu_primary(self, doc: Doc, primary_secu: Span)
     
     def match_issuable_secu_primary(self, doc: Doc):
+        # WILL BE REPLACED
         secu_transformative_actions = ["exercise", "conversion", "redemption"]
         part1 = [
             [
@@ -2684,6 +2745,7 @@ class SpacyFilingTextSearch:
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
     
     def match_issuable_secu_no_primary(self, doc: Doc):
+        # WILL BE REPLACED
         secu_transformative_actions = ["exercise", "conversion", "redemption"]
         part1 = [
             [
@@ -2734,6 +2796,7 @@ class SpacyFilingTextSearch:
         return matches
     
     def match_issuable_secu_no_exercise_price(self, doc: Doc):
+        # WILL BE REPLACED
         secu_transformative_actions = ["exercise", "conversion", "redemption"]
         part1 = [
             [
@@ -2809,7 +2872,27 @@ def filter_matches(matches):
             result.append(match)
             seen_tokens.update(range(match[1], match[2]))
     result = sorted(result, key=lambda match: match[1])
-    return result  
+    return result
+
+def filter_dep_matches(matches):
+    '''take the longest of the dep matches with same start token, discard rest'''
+    if len(matches) <= 1:
+        return matches
+    len_map = {}
+    result_map = {}
+    # logger.debug(f"filtering dep matches: {matches}")
+    for match in matches:
+        if match[1][0] not in len_map.keys():
+            len_map[match[1][0]] = len(match[1])
+            result_map[match[1][0]] = match
+        else:
+            current_len = len(match[1])
+            if current_len <= len_map[match[1][0]]:
+                pass
+            else:
+                len_map[match[1][0]] = len(match[1])
+                result_map[match[1][0]] = match
+    return [v for _, v in result_map.items()]  
 
 def _convert_matches_to_spans(doc, matches):
     m = []

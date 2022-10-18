@@ -52,12 +52,12 @@ def test_matcher_SECU(get_secumatcher, get_en_core_web_lg_nlp):
     secus = [i.text for i in filter(lambda x: x.ent_type_ == "SECU", doc)]
     assert secus == ['Common', 'stock', 'Series', 'A', 'Preferred', 'stock', 'Series', 'C', 'Warrants']
 
-def test__create_secu_span_dependency_matcher_dict(get_search):
+def test__create_span_dependency_matcher_dict_lower(get_search):
     search = get_search
     text = "The Series A Warrants have an exercise price of $11.50 per share."
     doc = search.nlp(text)
     secu = doc[1:2]
-    dep_dict = search._create_secu_span_dependency_matcher_dict(secu)
+    dep_dict = search._create_span_dependency_matcher_dict_lower(secu)
     print(dep_dict)
     assert dep_dict == [
         {
