@@ -1044,14 +1044,15 @@ if __name__ == "__main__":
     # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
     # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
     # output_path.open("w", encoding="utf-8").write(svg)
-    def displacy_dep_with_search(text):
+    def displacy_dep_with_search(text, print_tokens=False):
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
-        for token in doc:
-            print(token)
-            print(      spacy.explain(token.dep_),  token.dep_)
-            print(      spacy.explain(token.pos_), token.pos_)
-            print(      spacy.explain(token.tag_), token.tag_)
+        if print_tokens is True:
+            for token in doc:
+                print(token)
+                print(      spacy.explain(token.dep_),  token.dep_)
+                print(      spacy.explain(token.pos_), token.pos_)
+                print(      spacy.explain(token.tag_), token.tag_)
         displacy.serve(doc, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
 
     def displacy_ent_with_search(text):
@@ -1317,13 +1318,26 @@ if __name__ == "__main__":
         doc = search.nlp(text)
         print(f"getting amods for secus: {doc._.secus}")
         for secu in doc._.secus:
-            search.get_secu_amods(secu, doc)
-            print(f"v2: {search.get_secu_amods2(secu)}")
+            print(f"amods: {search.get_secu_amods(secu)}")
+        
+    def get_secuquantity(text):
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        from main.parser.filing_nlp import extend_token_ent_to_span
+        for secu in doc._.secus:
+            quants = search.get_secuquantities(doc, secu)
+            print(f"quants: {quants}")
+            for quant in quants:
+                print(f'quant: {quant["quantity"], type(quant["quantity"])}')
+                print(quant["quantity"]._.secuquantity, quant["quantity"]._.secuquantity_unit)
 
 
 
     # compare_similarity(text)
     # displacy_ent_with_search(text)
-    text = "This Sentence is in regard to the total outstanding common stock of the Company. This Sentence is in regard to the common stock outstanding as of may 15, 2020."
+    # text = "This Sentence is in regard to the total outstanding common stock of the Company consisting of 1000 shares. This Sentence is in regard to the 1000 shares of common stock outstanding as of may 15, 2020."
+    text = "This Sentence is in regard to the 1000 shares of common stock outstanding as of may 15, 2020. This Sentence is in regard to the 1000 outstanding shares of common stock as of may 15, 2020."
     get_secu_amods(text)
-    displacy_dep_with_search(text)
+    get_secuquantity(text)
+    # displacy_dep_with_search(text)
+    # displacy_ent_with_search(text)

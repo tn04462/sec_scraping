@@ -1530,12 +1530,7 @@ class SpacyFilingTextSearch:
                 phrases.append(doc[subtree[0].i:subtree[-1].i])
         return phrases
     
-    def get_secu_amods(self, secu: Span, doc: Doc):
-        root_dep_element = self._create_span_dependency_matcher_dict_lower(secu)
-        amods = self.get_amods_of_target(root_dep_element, doc.sents, target_left_id="secu_anchor")
-        logger.debug(f"for secu: {secu} we found following amod matches: {amods}")
-    
-    def get_secu_amods2(self, secu: Span):
+    def get_secu_amods(self, secu: Span):
         return self._get_amods_of_target(secu)
     
     def _get_amods_of_target(self, target: Span):
@@ -1548,53 +1543,6 @@ class SpacyFilingTextSearch:
                     if possible_match not in amods:
                         amods.append(possible_match)
         return amods
-
-
-    
-    def get_amods_of_target(self, target: dict, doclike: list[Doc|Span], target_left_id: str="secu_anchor"):
-        rel_cases = [">", "<"]
-        dep_tail_cases = ["compound", None]
-        dep_relations = ["amod", "nummod"]
-        amod_base_patterns = [
-            [
-                *target,
-                {
-                    "LEFT_ID": target_left_id,
-                    "REL_OP": rel_op,
-                    "RIGHT_ID": "amod_relation",
-                    "RIGHT_ATTRS": {"DEP": "amod"}
-                }
-
-            ] for rel_op in rel_cases
-        ]
-        # for pattern in amod_base_patterns:
-        #     print(f"base_pattern: {pattern}")
-        amod_final_patterns = []
-        for p in amod_base_patterns:
-            for dep_tail in dep_tail_cases:
-                if dep_tail is not None:
-                    j = p.copy()
-                    j.append({
-                        "LEFT_ID": "amod_relation",
-                        "REL_OP": ">",
-                        "RIGHT_ID": "dep_tail",
-                        "RIGHT_ATTRS": {"DEP": dep_tail}
-                    })
-                    amod_final_patterns.append(j)
-                else:
-                    amod_final_patterns.append(p)
-        # print(f"amod_final_patterns: {amod_final_patterns}")
-        dep_matcher = DependencyMatcher(self.nlp.vocab)
-        dep_matcher.add("amod", amod_final_patterns)
-        result = []
-        for each in doclike:
-            matches = dep_matcher(each)
-            if matches:
-                filtered_matches = filter_dep_matches(matches)
-                converted_matches = _convert_dep_matches_to_spans(each, filtered_matches)
-                # convert the spans into a useful and uniform dict after?
-                result.append({"doc": each, "matches": converted_matches})
-        return result
 
     def _create_span_dependency_matcher_dict_lower(self, secu: Span) -> dict:
         '''
@@ -2294,7 +2242,7 @@ class SpacyFilingTextSearch:
             secu = match[:root_pattern_len]
             rest = match[root_pattern_len:]
             unit = rest[1]
-            quantity = rest[2]
+            quantity = extend_token_ent_to_span(rest[2], doc)
             return {
                 "main_secu": secu,
                 "unit": unit,
@@ -2304,7 +2252,7 @@ class SpacyFilingTextSearch:
         def format_match_secuquantity_no_verb(match, doc: Doc, root_pattern_len: int):
             secu = match[:root_pattern_len]
             rest = match[root_pattern_len:]
-            quantity = rest[0]
+            quantity = extend_token_ent_to_span(rest[0], doc)
             return {
                 "main_secu": secu,
                 "unit": None,
@@ -2316,7 +2264,7 @@ class SpacyFilingTextSearch:
             rest = match[root_pattern_len:]
             preceding_root_verb = rest[0]
             noun_to_verb = rest[2]
-            quantity = rest[4]
+            quantity = extend_token_ent_to_span(rest[4], doc)
             return {
                 "main_secu": secu,
                 "root_verb": preceding_root_verb,
@@ -2330,7 +2278,7 @@ class SpacyFilingTextSearch:
             rest = match[root_pattern_len:]
             preceding_root_verb = rest[0]
             noun_to_verb = rest[2]
-            quantity = rest[4]
+            quantity = extend_token_ent_to_span(rest[4], doc)
             source_secu_token = rest[5]
             source_secu_span = extend_token_ent_to_span(source_secu_token, doc)
             return {
@@ -2345,7 +2293,7 @@ class SpacyFilingTextSearch:
             secu = match[:root_pattern_len]
             rest = match[root_pattern_len:]
             preceding_root_verb = rest[0]
-            quantity = rest[2]
+            quantity = extend_token_ent_to_span(rest[2], doc)
             source_secu_token = rest[3]
             source_secu_span = extend_token_ent_to_span(source_secu_token, doc)
             return {
@@ -2362,7 +2310,7 @@ class SpacyFilingTextSearch:
             secu = match[:root_pattern_len]
             rest = match[root_pattern_len:]
             preceding_root_verb = rest[0]
-            quantity = rest[1]
+            quantity = extend_token_ent_to_span(rest[1], doc)
             return {
                 "main_secu": secu,
                 "root_verb": preceding_root_verb,
