@@ -1354,5 +1354,5 @@ if __name__ == "__main__":
     # get_secu_amods(text)
     # get_secuquantity(text)
     get_secu_state(text)
-    displacy_dep_ with_search(text)
+    # displacy_dep_with_search(text)
     # displacy_ent_with_search(text)

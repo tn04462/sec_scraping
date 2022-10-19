@@ -23,6 +23,8 @@ SINGULAR_PLURAL_SECU_TAIL_MAP = {
     "warrant": "warrants"
 }
 
+SECUQUANTITY_UNITS = set(["share", "shares", "units", "unit", "tranches"])
+
 class UnclearInformationExtraction(Exception):
     pass
 
@@ -661,7 +663,7 @@ def set_SECUMatcher_extensions():
         {"name": "secuquantity", "kwargs": {"getter": get_secuquantity}},
         {"name": "secuquantity_unit", "kwargs": {"default": None}},
         {"name": "secu_key", "kwargs": {"getter": get_secu_key}},
-        {"name": "amods", "kwargs": {"getter": _get_amods_of_target}},
+        {"name": "amods", "kwargs": {"getter": amods_getter}},
         {"name": "premerge_tokens", "kwargs": {"getter": get_premerge_tokens}},
         {"name": "was_merged", "kwargs": {"default": False}},
     ]
@@ -1530,10 +1532,6 @@ class SpacyFilingTextSearch:
                 subtree = [i for i in token.subtree]
                 phrases.append(doc[subtree[0].i:subtree[-1].i])
         return phrases
-    
-    def get_secu_amods(self, secu: Span):
-        return _get_amods_of_target(secu)
-    
 
     def _create_span_dependency_matcher_dict_lower(self, secu: Span) -> dict:
         '''
@@ -2769,6 +2767,33 @@ class SpacyFilingTextSearch:
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches
 
+def amods_getter(target: Span):
+    logger.debug(f"getting amods for: {target, target.label_}")
+    if target.label_ == "SECUQUANTITY":
+        seen_tokens = set([i for i in target])
+        heads_with_dep = []
+        for token in target:
+            if token.head:
+                head = token.head
+                if head in seen_tokens:
+                    continue
+                else:
+                    head = head
+                    logger.debug(f"head: {head, head.dep_}")
+                    if head.dep_ in ["det", "pobj"]:
+                        heads_with_dep.append(head)
+        amods = []
+        if len(heads_with_dep) > 0:
+            for head in heads_with_dep:
+                if head.lower_ in SECUQUANTITY_UNITS:
+                    amods += _get_amods_of_target([head])
+        amods += _get_amods_of_target(target)
+        return amods if amods != [] else None
+    else:
+        amods = _get_amods_of_target(target)
+        return amods if amods != [] else None
+
+
 def _get_amods_of_target(target: Span):
     '''get amods of first order of target. Needs to have dep_ set.'''
     amods = []
@@ -2779,7 +2804,7 @@ def _get_amods_of_target(target: Span):
             if possible_match.dep_ == "amod" and possible_match not in amods_to_ignore:
                 if possible_match not in amods:
                     amods.append(possible_match)
-    return amods if amods != [] else None
+    return amods
 
 def extend_token_ent_to_span(token: Token, doc: Doc) -> list[Token]:
     span_tokens = [token]

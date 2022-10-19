@@ -9,4 +9,3 @@
 
 # from main.parser.pdf_parser import convert_13f_securities_pdf
 # from pysec_downloader.downloader import Downloader
-
