@@ -661,6 +661,7 @@ def set_SECUMatcher_extensions():
         {"name": "secuquantity", "kwargs": {"getter": get_secuquantity}},
         {"name": "secuquantity_unit", "kwargs": {"default": None}},
         {"name": "secu_key", "kwargs": {"getter": get_secu_key}},
+        {"name": "amods", "kwargs": {"getter": _get_amods_of_target}},
         {"name": "premerge_tokens", "kwargs": {"getter": get_premerge_tokens}},
         {"name": "was_merged", "kwargs": {"default": False}},
     ]
@@ -1531,18 +1532,8 @@ class SpacyFilingTextSearch:
         return phrases
     
     def get_secu_amods(self, secu: Span):
-        return self._get_amods_of_target(secu)
+        return _get_amods_of_target(secu)
     
-    def _get_amods_of_target(self, target: Span):
-        amods = []
-        amods_to_ignore = set([token if token.dep_ == "amod" else None for token in target])
-        for token in target:
-            pool = [i for i in token.children] + [token.head]
-            for possible_match in pool:
-                if possible_match.dep_ == "amod" and possible_match not in amods_to_ignore:
-                    if possible_match not in amods:
-                        amods.append(possible_match)
-        return amods
 
     def _create_span_dependency_matcher_dict_lower(self, secu: Span) -> dict:
         '''
@@ -2238,9 +2229,9 @@ class SpacyFilingTextSearch:
 
             ]
         ]
-        def format_match_secuquantity_shares_no_verb(match, doc: Doc, root_pattern_len: int):
-            secu = match[:root_pattern_len]
-            rest = match[root_pattern_len:]
+        def format_match_secuquantity_shares_no_verb(match, doc: Doc):
+            secu = extend_token_ent_to_span(match[0], doc)
+            rest = match[1:]
             unit = rest[1]
             quantity = extend_token_ent_to_span(rest[2], doc)
             return {
@@ -2249,9 +2240,9 @@ class SpacyFilingTextSearch:
                 "quantity": quantity
             }
 
-        def format_match_secuquantity_no_verb(match, doc: Doc, root_pattern_len: int):
-            secu = match[:root_pattern_len]
-            rest = match[root_pattern_len:]
+        def format_match_secuquantity_no_verb(match, doc: Doc):
+            secu = extend_token_ent_to_span(match[0], doc)
+            rest = match[1:]
             quantity = extend_token_ent_to_span(rest[0], doc)
             return {
                 "main_secu": secu,
@@ -2259,9 +2250,9 @@ class SpacyFilingTextSearch:
                 "quantity": quantity
             }
 
-        def format_match_secuquantity_verb_second_order_noun_no_source_secu(match, doc: Doc, root_pattern_len: int):
-            secu = match[:root_pattern_len]
-            rest = match[root_pattern_len:]
+        def format_match_secuquantity_verb_second_order_noun_no_source_secu(match, doc: Doc):
+            secu = extend_token_ent_to_span(match[0], doc)
+            rest = match[1:]
             preceding_root_verb = rest[0]
             noun_to_verb = rest[2]
             quantity = extend_token_ent_to_span(rest[4], doc)
@@ -2273,9 +2264,9 @@ class SpacyFilingTextSearch:
                 "source_secu": None,
             }
 
-        def format_match_secuquantity_verb_second_order_noun_source_secu(match, doc: Doc, root_pattern_len: int):
-            secu = match[:root_pattern_len]
-            rest = match[root_pattern_len:]
+        def format_match_secuquantity_verb_second_order_noun_source_secu(match, doc: Doc):
+            secu = extend_token_ent_to_span(match[0], doc)
+            rest = match[1:]
             preceding_root_verb = rest[0]
             noun_to_verb = rest[2]
             quantity = extend_token_ent_to_span(rest[4], doc)
@@ -2289,9 +2280,9 @@ class SpacyFilingTextSearch:
                 "source_secu": source_secu_span,
             }
 
-        def format_match_secuquantity_verb_source_secu(match, doc: Doc, root_pattern_len: int):
-            secu = match[:root_pattern_len]
-            rest = match[root_pattern_len:]
+        def format_match_secuquantity_verb_source_secu(match, doc: Doc):
+            secu = extend_token_ent_to_span(match[0], doc)
+            rest = match[1:]
             preceding_root_verb = rest[0]
             quantity = extend_token_ent_to_span(rest[2], doc)
             source_secu_token = rest[3]
@@ -2306,9 +2297,9 @@ class SpacyFilingTextSearch:
             # get full secu span from source_secu_token
             # return dict
 
-        def format_match_secuquantity_verb(match, doc: Doc, root_pattern_len: int):
-            secu = match[:root_pattern_len]
-            rest = match[root_pattern_len:]
+        def format_match_secuquantity_verb(match, doc: Doc):
+            secu = extend_token_ent_to_span(match[0], doc)
+            rest = match[1:]
             preceding_root_verb = rest[0]
             quantity = extend_token_ent_to_span(rest[1], doc)
             return {
@@ -2355,7 +2346,7 @@ class SpacyFilingTextSearch:
 
         '''
         
-        def process_matches(doc, matches, root_pattern_len):
+        def process_matches(doc, matches):
             result = []
             matches = convert_match_id_to_str_id(matches)
             sorted_by_origin = sort_matches_by_origin_token(matches)
@@ -2414,8 +2405,7 @@ class SpacyFilingTextSearch:
                             self.handle_match_formatting(
                                 match,
                                 formatting_dict,
-                                doc,
-                                root_pattern_len
+                                doc
                             )
                         )
                     # logger.debug(f"formatted_matches: {formatted_matches}")
@@ -2518,14 +2508,13 @@ class SpacyFilingTextSearch:
 
         
         if matches:
-            root_pattern_len = len(secu_root_pattern)
-            processed_matches = process_matches(doc, matches, root_pattern_len)
+            processed_matches = process_matches(doc, matches)
             logger.debug(f"processed_matches: {processed_matches}")
             return processed_matches
             # matches = _filter_dep_matches(matches)
             # matches = _convert_dep_matches_to_spans(doc, matches)
             # # logger.debug(f"raw but converted matches: {matches}")
-            # formatted_matches = [self.handle_match_formatting(match, formatting_dict, doc, root_pattern_len) for match in matches]
+            # formatted_matches = [self.handle_match_formatting(match, formatting_dict, doc) for match in matches]
             # logger.debug(f"formatted matches: {formatted_matches}")
             # return formatted_matches
         else:
@@ -2779,6 +2768,18 @@ class SpacyFilingTextSearch:
         matcher.add("secu_issuable_relation_no_exercise_price", [*patterns])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches
+
+def _get_amods_of_target(target: Span):
+    '''get amods of first order of target. Needs to have dep_ set.'''
+    amods = []
+    amods_to_ignore = set([token if token.dep_ == "amod" else None for token in target])
+    for token in target:
+        pool = [i for i in token.children] + [token.head]
+        for possible_match in pool:
+            if possible_match.dep_ == "amod" and possible_match not in amods_to_ignore:
+                if possible_match not in amods:
+                    amods.append(possible_match)
+    return amods if amods != [] else None
 
 def extend_token_ent_to_span(token: Token, doc: Doc) -> list[Token]:
     span_tokens = [token]

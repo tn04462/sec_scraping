@@ -1313,6 +1313,20 @@ if __name__ == "__main__":
         total_score = dep_distance_score + span_distance_score + very_similar_score
         return total_score
     
+    def get_secu_state(text):
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        for secu in doc._.secus:
+            state = secu._.amods
+            print(f"state: {state}")
+            quants = search.get_secuquantities(doc, secu)
+            for quant in quants:
+                main_secu = quant["main_secu"]
+                quantity = quant["quantity"]
+                for each in [main_secu, quantity]:
+                    print(each, type(each))
+                    print(each._.amods)
+    
     def get_secu_amods(text):
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
@@ -1337,7 +1351,8 @@ if __name__ == "__main__":
     # displacy_ent_with_search(text)
     # text = "This Sentence is in regard to the total outstanding common stock of the Company consisting of 1000 shares. This Sentence is in regard to the 1000 shares of common stock outstanding as of may 15, 2020."
     text = "This Sentence is in regard to the 1000 shares of common stock outstanding as of may 15, 2020. This Sentence is in regard to the 1000 outstanding shares of common stock as of may 15, 2020."
-    get_secu_amods(text)
-    get_secuquantity(text)
-    # displacy_dep_with_search(text)
+    # get_secu_amods(text)
+    # get_secuquantity(text)
+    get_secu_state(text)
+    displacy_dep_ with_search(text)
     # displacy_ent_with_search(text)
