@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+from ctypes import Union
 from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Dict, Iterable, Optional, Set
@@ -714,13 +715,41 @@ class AgreementMatcher:
     
     # def agreement_callback()
 
+class SECUQuantity:
+    def __init__(self, original, spacy_doc):
+        self.original: Token|Span = original
+        self.spacy_doc: Doc = spacy_doc
+        self.quantity = original._.secuquantity
+        self.unit: str = original._.secuquantity_unit
+        self.amods: list = original._.amods
+
 class SECUObject:
-    pass
-    # what does this do?
-    # gives a container for a SECU and its related quantities, source secu and their own properties
-    # needs to keep reference to originating doc and position thereinä$
-    # needs to be able to keep track of various relations between multiple SECUObjects
-    # create a Relation class, list for relations in SECUObject
+    def __init__(self, original, spacy_doc, quantity=None):
+        self.original: Token|Span = original
+        self.spacy_doc: Doc
+        self.secu_key: str = original._.secu_key
+        self.amods = original._.amods
+        self.relations = list()
+        self.quantity: SECUQuantity = quantity
+    
+    def __repr__(self):
+        return f"SECUObject(\
+            key: {self.secu_key},\
+            quantity: {self.quantity})"
+
+
+@dataclass
+class SECURelation:
+    rel_type: str
+    child: SECUObject
+
+@dataclass
+class SourceSECURelation(SECURelation):
+    child: SECUObject
+    parent: SECUObject
+    rel_type: str = "source"
+
+
 
 class SECUMatcher:
     def __init__(self, vocab):
@@ -731,18 +760,6 @@ class SECUMatcher:
         self.matcher_SECUQUANTITY = Matcher(vocab)
 
         set_SECUMatcher_extensions()
-
-        # Span.set_extension("secuquantity", getter=get_secuquantity)
-        # Span.set_extension("secuquantity_unit", default=None)
-        # Doc.set_extension("get_alias", method=get_alias)
-        # Doc.set_extension("alias_set", default=set())
-        # Doc.set_extension("tokens_to_alias_map", default=dict())
-
-        # Doc.set_extension("is_alias", method=is_alias)
-        # Doc.set_extension("single_secu_alias", default=dict())
-        # Doc.set_extension("single_secu_alias_tuples", default=dict())
-        # Doc.set_extension("secus", getter=_get_SECU_in_doc)
-    
         
         self.add_SECU_ent_to_matcher(self.matcher_SECU)
         self.add_SECUREF_ent_to_matcher(self.matcher_SECUREF)

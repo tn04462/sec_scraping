@@ -1317,10 +1317,12 @@ if __name__ == "__main__":
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
         for secu in doc._.secus:
+            print(f"secu: {secu}")
             state = secu._.amods
             print(f"state: {state}")
             quants = search.get_secuquantities(doc, secu)
             for quant in quants:
+                print(f"quant: {quant}")
                 main_secu = quant["main_secu"]
                 quantity = quant["quantity"]
                 for each in [main_secu, quantity]:
