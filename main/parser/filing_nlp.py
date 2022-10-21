@@ -713,7 +713,14 @@ class AgreementMatcher:
         return doc
     
     # def agreement_callback()
-    
+
+class SECUObject:
+    pass
+    # what does this do?
+    # gives a container for a SECU and its related quantities, source secu and their own properties
+    # needs to keep reference to originating doc and position thereinä$
+    # needs to be able to keep track of various relations between multiple SECUObjects
+    # create a Relation class, list for relations in SECUObject
 
 class SECUMatcher:
     def __init__(self, vocab):
@@ -2767,21 +2774,23 @@ class SpacyFilingTextSearch:
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches
 
+
 def amods_getter(target: Span):
     logger.debug(f"getting amods for: {target, target.label_}")
     if target.label_ == "SECUQUANTITY":
         seen_tokens = set([i for i in target])
         heads_with_dep = []
         for token in target:
-            if token.head:
-                head = token.head
-                if head in seen_tokens:
-                    continue
-                else:
-                    head = head
-                    logger.debug(f"head: {head, head.dep_}")
-                    if head.dep_ in ["det", "pobj"]:
+            logger.debug(f"token: {token, token.dep_}")
+            if token.dep_ == "nummod":
+                if token.head:
+                    head = token.head
+                    if head in seen_tokens:
+                        continue
+                    else:
+                        # always nouns?
                         heads_with_dep.append(head)
+                        seen_tokens.add(head)
         amods = []
         if len(heads_with_dep) > 0:
             for head in heads_with_dep:
