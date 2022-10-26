@@ -1,7 +1,9 @@
 from collections import OrderedDict, defaultdict
 from ctypes import Union
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from itertools import product
 from functools import partial
+from imp import source_from_cache
 from typing import Callable, Dict, Iterable, Optional, Set
 from attr import Attribute
 import spacy
@@ -238,8 +240,6 @@ def alphabetic_list():
 def numeric_list():
     return ["(" + str(number) + ")" for number in range(150)]
 
-
-
 class DependencyNode:
     def __init__(self, data, children=None):
         self.children: list[DependencyNode] = children if children is not None else list()
@@ -270,16 +270,245 @@ class DependencyNode:
                 new_path.append(child)
                 yield from [arr for arr in self.get_leaf_paths(child, new_path)]         
 
+ATTRIBUTE_KEY_TO_STRINGKEY = {
+        "POS": "pos_",
+        "TAG": "tag_",
+        "ORTH": "orth_",
+        "LOWER": "lower_",
+    }
+class DependencyMatchHelper:
+    def _convert_key_to_stringkey(self, key: str) -> str:
+        return key.lower() + "_"       
+
+    def _has_attributes(self, token: Token, attrs: dict) -> bool:
+        # logger.debug(f"checking if token {token} has attributes {attrs}.")
+        # logger.debug(f"{[(attr, getattr(token, ATTRIBUTE_KEY_TO_STRINGKEY[attr])) for attr in attrs]}")
+        if not isinstance(attrs, dict):
+            raise TypeError(f"expecting a dict, got: {type(attrs)}")
+        if attrs == {}:
+            return True
+        for attr, value in attrs.items():
+            if isinstance(value, dict):
+                for modifier, values in value.items():
+                    if modifier in ["IN", "NOT_IN"]:
+                        if modifier == "IN":
+                            if not getattr(token, ATTRIBUTE_KEY_TO_STRINGKEY[attr]) in values:
+                                return False
+                            else:
+                                pass
+                        if modifier == "NOT_IN":
+                            if getattr(token, ATTRIBUTE_KEY_TO_STRINGKEY[attr]) in values:
+                                return False
+                            else:
+                                pass
+            else:
+                if not getattr(token, ATTRIBUTE_KEY_TO_STRINGKEY[attr]) == value:
+                    return False
+        return True
+
+    def check_head(self, token: Token, attrs: dict) -> Token:
+        result = []
+        if not token.head:
+            return result
+        if self._has_attributes(token.head, attrs):
+            result.append(token.head)
+            return result
+        else:
+            return result
+
+    def check_children(self, token: Token, attrs: dict) -> list[Token]:
+        result = []
+        if not token.children:
+            return result
+
+        for i in filter(lambda x: x is not None,
+                    [child
+                    if self._has_attributes(child, attrs)
+                    else None
+                    for child in token.children]
+        ):
+            result.append(i)
+        return result
+
+    def check_ancestors(self, token: Token, attrs: dict) -> list[Token]:
+        result = []
+        if not token.ancestors:
+            return result
+        for ancestor in token.ancestors:
+            if self._has_attributes(ancestor, attrs):
+                result.append(ancestor)
+        return result
+
+    def check_descendants(self, token: Token, attrs: dict) -> list[Token]:
+        result = []
+        if not token.subtree:
+            return result
+        for descendant in token.subtree:
+            if token == descendant:
+                continue
+            if self._has_attributes(descendant, attrs):
+                result.append(descendant)
+        return result
+
+DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG = "was_optional"
+class DependencyAttributeMatcher():
+    '''
+    Find a specific dependency from an origin token. 
+    Currently not all of the standard operations of a SpaCy pattern dict 
+    is covered, covered attributes and modifiers are:
+        standard attributes:
+            "POS"
+            "LOWER"
+            "TAG"
+            "ORTH"
+        set modifiers:
+            "IN"
+            "NOT_IN"
+    
+    additional entries to the pattern dict:
+        "IS_OPTIONAL": bool (wether a match on this token is optional)
+    '''
+    # need to resolve what happens if an optional token isnt found and what happens to its children
+    dep_getter = DependencyMatchHelper()
+    DEPENDENCY_OPS = {
+        "<<": dep_getter.check_ancestors,
+        "<": dep_getter.check_head,
+        ">": dep_getter.check_children,
+        ">>": dep_getter.check_descendants
+    }
+
+    def get_root_verb(self, token: Token):
+        candidate_matches = self.get_possible_candidates(
+            [
+                {
+                    "RIGHT_ID": "source",
+                    "TOKEN": token    
+                },
+                {
+                    "LEFT_ID": "source",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "root_verb",
+                    "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}},
+                    "IS_OPTIONAL": False
+                }
+            ]
+        )
+        logger.debug(f"canddiate_matches for root_verb: {candidate_matches}")
+        if candidate_matches != []:
+            if len(candidate_matches) > 1:
+                raise NotImplementedError(f"multiple results for root_verb isnt handled yet. candidate_matches found: {candidate_matches}")
+            else:
+                for entry in candidate_matches[0]:
+                    token, right_id = entry
+                    if right_id == "root_verb":
+                        return token
+        return None
+    
+    def get_matches(self, dependant: Token, attr: list[dict]):
+        # logger.debug(f"getting matches for {dependant} and attr: {attr}")
+        rel_op = attr["REL_OP"]
+        matches = self.DEPENDENCY_OPS[rel_op](dependant, attr["RIGHT_ATTRS"])
+        # logger.debug(f"got matches: {matches}; for (dependant: {dependant}; attr: {attr})")
+        return matches
 
 
-    '''
-    flow of attributes:
-    secu -> quantity -> unit
-    secu -> root_verb -> source_secu
-    secu -> root_verb -> root_verb_noun
-    secu -> state
-    '''
- 
+    def get_attr_tree(self, attrs: list[dict]):
+        right_id_to_idx = {}
+        for idx, attr in enumerate(attrs):
+            right_id_to_idx[attr["RIGHT_ID"]] = idx
+        tree = defaultdict(list)
+        root = None
+        for idx, attr in enumerate(attrs):
+            if "REL_OP" in attr:
+                tree[right_id_to_idx[attr["LEFT_ID"]]].append((attr["REL_OP"], idx))
+            else:
+                root = idx
+        return tree, root
+    
+    def _conditions_optional(self, attr: dict):
+        booleans = []
+        for key, value in attr["RIGHT_ATTRS"].items():
+            if key == "OP":
+                if value == "?":
+                    booleans.append(True)
+            else:
+                booleans.append(False)
+        return any(booleans)
+    
+    def get_possible_candidates(self, attrs: list[dict]):
+        tree, root = self.get_attr_tree(attrs)
+        logger.debug(f"tree: {tree}; root: {root}")
+        candidates_cache = {k: [] for k, _ in enumerate(attrs)}
+        root_attr = None
+        candidates_cache[root].append((attrs[root]["TOKEN"], attrs[root]["RIGHT_ID"]))
+        logger.debug(f"inital candidates_cache: {candidates_cache}")
+        def resolve_matching_from_node(node, candidates_cache, tree):
+            if not tree.get(node):
+                return 
+            else:
+                children = tree.get(node)
+                for child in children:
+                    rel_op, child_idx = child
+                    for parent, parent_right_id in candidates_cache[node]:
+                        matches = self.get_matches(parent, attrs[child_idx])
+                        is_optional = attrs[child_idx].get("IS_OPTIONAL", None)
+                        right_id = attrs[child_idx]["RIGHT_ID"]
+                        if is_optional and not matches:
+                            candidates_cache[child_idx].append((DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG, right_id))
+                        if matches:
+                            for match in matches:
+                                candidates_cache[child_idx].append((match, right_id))
+                        else:
+                            if is_optional:
+                                continue 
+                            # continue and add placeholder if matching this token is optional else return -1
+                            return -1
+                    return resolve_matching_from_node(child_idx, candidates_cache, tree)
+        found_matches = resolve_matching_from_node(root, candidates_cache, tree)
+        logger.debug(f"final candidates_cache: {candidates_cache}")
+        if found_matches == -1:
+            return []
+        else:
+            def build_matches_from_candidates(candidates_cache, tree):
+                unprocessed_matches = [i for i in product(*[candidates_cache[k] for k in candidates_cache])]
+                processed_matches = []
+                for unprocessed in unprocessed_matches:
+                    processed_entry = []
+                    for entry in unprocessed:
+                        if isinstance(entry[0], type(DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG)):
+                            if entry[0] == DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG:
+                                pass
+                        else:
+                            processed_entry.append(entry)
+                    processed_matches.append(processed_entry)
+
+
+                return processed_matches
+            return build_matches_from_candidates(candidates_cache, tree)
+        
+            
+
+
+        '''
+        I need to create a tree to traverse by depth so i can assure 
+        I get the needed dependants before i resolve the rel_op 
+        '''
+            
+
+        
+
+    
+
+
+
+
+
+
+
+            
+
+
+
 
 
 class CommonFinancialRetokenizer:
@@ -716,38 +945,83 @@ class AgreementMatcher:
     # def agreement_callback()
 
 class SECUQuantity:
-    def __init__(self, original, spacy_doc):
+    def __init__(self, original):
         self.original: Token|Span = original
-        self.spacy_doc: Doc = spacy_doc
         self.quantity = original._.secuquantity
         self.unit: str = original._.secuquantity_unit
         self.amods: list = original._.amods
+    
+    def __repr__(self):
+        return f"SECUQuantity( quantity: {self.quantity},\
+\t unit: {self.unit},\
+\t amods: {self.amods})"
 
-class SECUObject:
-    def __init__(self, original, spacy_doc, quantity=None):
+class SECU:
+    def __init__(self, original, quantities=None):
         self.original: Token|Span = original
-        self.spacy_doc: Doc
         self.secu_key: str = original._.secu_key
         self.amods = original._.amods
         self.relations = list()
-        self.quantity: SECUQuantity = quantity
+        # self.quantities: list[SECUQuantity] = quantities if quantities is not None else list()
+    
+    def add_relation(self, relation):
+        if relation not in self.relations:
+            self.relations.append(relation)
+        else:
+            logger.debug(f"relation {relation} already in relations of {self}")
+
+    def __repr__(self):
+        rels = ""
+        for x in range(len(self.relations)):
+            rels += f"\n\t {x}) {self.relations[x]}"
+        return f"SECU( original: {self.original}\
+\t secu_key: {self.secu_key}\
+\t amods: {self.amods}\
+\n\t relations: {rels})"
+    
+    def __eq__(self, other):
+        return (
+            self.secu_key == other.secu_key
+            and
+            self.original == other.original
+        )
+    
+# @dataclass
+# class SECURelation:
+#     rel_type: str
+#     child: SECUObject
+
+#     def __repr__(self):
+#         return f"SECURelation(\
+#             rel_type: {self.rel_type},\
+#             child: {self.child})"
+
+@dataclass
+class QuantityRelation:
+    quantity: SECUQuantity
+    main_secu: SECU
+    rel_type: str = "quantity"
+    root_verb: Optional[Token] = None
+    root_noun: Optional[Token] = None
     
     def __repr__(self):
-        return f"SECUObject(\
-            key: {self.secu_key},\
-            quantity: {self.quantity})"
+        return f"QuantityRelation(\
+ quantity: {self.quantity}\
+\t main_secu: {self.main_secu.original}\
+\t root_verb: {self.root_verb}\
+\t root_noun: {self.root_noun})"
 
 
-@dataclass
-class SECURelation:
-    rel_type: str
-    child: SECUObject
+class SourceQuantityRelation(QuantityRelation):
+    def __init__(self, *args, source, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source: SECU = source
+        rel_type = "source_quantity"
 
-@dataclass
-class SourceSECURelation(SECURelation):
-    child: SECUObject
-    parent: SECUObject
-    rel_type: str = "source"
+    def __repr__(self):
+        return f"SourceQuantityRelation( quantity: {self.quantity},\
+\t source: {self.source.original})"
+
 
 
 
@@ -1401,6 +1675,25 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("agreement_matcher")
             # cls._instance.nlp.add_p   ipe("coreferee")
         return cls._instance
+    
+    def get_SECU_objects(self, doc: Doc):
+        secus = defaultdict(list)
+        for secu in doc._.secus:
+            secu_obj = SECU(secu)
+            # state = secu._.amods
+            # print(f"state: {state}")
+            quants = self.get_secuquantities(doc, secu)
+            for quant in quants:
+                quant_obj = SECUQuantity(quant["quantity"])
+                if getattr(quant_obj.original, "source_secu", None) is not None:
+                    source = quant["source_secu"]
+                    rel = SourceQuantityRelation(quant_obj, secu_obj, source)
+                    secu_obj.add_relation(rel)
+                else:
+                    rel = QuantityRelation(quant_obj, secu_obj)
+                    secu_obj.add_relation(rel)
+            secus[secu_obj.secu_key].append(secu_obj)
+        return secus
     
     def handle_match_formatting(self, match: tuple[str, list[Token]], formatting_dict: Dict[str, Callable], doc: Doc, *args, **kwargs) -> tuple[str, dict]:
         try:

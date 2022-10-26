@@ -1315,19 +1315,48 @@ if __name__ == "__main__":
     
     def get_secu_state(text):
         search = SpacyFilingTextSearch()
+        from main.parser.filing_nlp import SECU, SECUQuantity, QuantityRelation, SourceQuantityRelation
         doc = search.nlp(text)
+        '''
+        need to find a smart way to include root_verb and root_noun.
+        should probably add those to the SECU object and make extensions on the span/token
+        then i need to get the time and place/issuing context of a relation
+        
+        how to get root_verb?
+            go from main_secu and look if sentence has a verb root
+            or do i need to look what kind clause it is and take the verbal root
+            of said clause?
+        '''
+        secus = list()
         for secu in doc._.secus:
-            print(f"secu: {secu}")
-            state = secu._.amods
-            print(f"state: {state}")
+            secu_obj = SECU(secu)
+            # state = secu._.amods
+            # print(f"state: {state}")
             quants = search.get_secuquantities(doc, secu)
             for quant in quants:
-                print(f"quant: {quant}")
-                main_secu = quant["main_secu"]
-                quantity = quant["quantity"]
-                for each in [main_secu, quantity]:
-                    print(each, type(each))
-                    print(each._.amods)
+                print(quant)
+                quant_obj = SECUQuantity(quant["quantity"])
+                root_verb = getattr(quant, "root_verb", None)
+                root_noun = getattr(quant, "root_noun", None)
+                if getattr(quant_obj.original, "source_secu", None) is not None:
+                    source = quant["source_secu"]
+                    rel = SourceQuantityRelation(quant_obj, secu_obj, source, root_verb=root_verb, root_noun=root_noun)
+                    secu_obj.add_relation(rel)
+                else:
+                    rel = QuantityRelation(quant_obj, secu_obj, root_verb=root_verb, root_noun=root_noun)
+                    secu_obj.add_relation(rel)
+            secus.append(secu_obj)
+        for s in secus:
+            print(s)
+                # for each in [main_secu, quantity]:
+                #     print(each, type(each))
+                #     print(each._.amods)
+    
+    def print_SECU_objects(text):
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        secus = search.get_SECU_objects(doc)
+        print(secus)
     
     def get_secu_amods(text):
         search = SpacyFilingTextSearch()
@@ -1352,9 +1381,44 @@ if __name__ == "__main__":
     # compare_similarity(text)
     # displacy_ent_with_search(text)
     # text = "This Sentence is in regard to the total outstanding common stock of the Company consisting of 1000 shares. This Sentence is in regard to the 1000 shares of common stock outstanding as of may 15, 2020."
-    text = "This Sentence is in regard to the 1000 shares of common stock outstanding as of may 15, 2020. This Sentence is in regard to the 1000 outstanding shares of common stock as of may 15, 2020."
+    text = "This Prospectus relates to the 1000 shares of common stock outstanding as of may 15, 2020. This Sentence is in regard to the 1000 outstanding shares of common stock as of may 15, 2020, which were issued pursuant to a Privat Placement."
     # get_secu_amods(text)
     # get_secuquantity(text)
-    get_secu_state(text)
+    # get_secu_state(text)
+    # print(print_SECU_objects(text))
     # displacy_dep_with_search(text)
     # displacy_ent_with_search(text)
+
+    def try_own_dep_matcher():
+        # text = "This is being furnished into a test sentence for a dependency matcher."
+        doc = search.nlp(text)
+
+        pattern = [
+                {
+                    "RIGHT_ID": "anchor",
+                    "TOKEN": doc[0]
+                },
+                {
+                    "LEFT_ID": "anchor",
+                    "REL_OP": "<",
+                    "RIGHT_ID": "verb1",
+                    "RIGHT_ATTRS": {}, 
+                    "IS_OPTIONAL": True
+                },
+                # {
+                #     "LEFT_ID": "verb1",
+                #     "REL_OP": ">>",
+                #     "RIGHT_ID": "any",
+                #     "RIGHT_ATTRS": {"POS": "VERB"}, 
+                # }
+
+            ]
+        from main.parser.filing_nlp import DependencyAttributeMatcher
+        matcher = DependencyAttributeMatcher()
+        # result = matcher.get_possible_candidates(pattern)
+        # print([i for i in result])
+        root_verb = matcher.get_root_verb(doc[8])
+        print(root_verb)
+        # rework this to account correctly for optional dependency condition
+
+    try_own_dep_matcher()
