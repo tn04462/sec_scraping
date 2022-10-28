@@ -1381,7 +1381,7 @@ if __name__ == "__main__":
     # compare_similarity(text)
     # displacy_ent_with_search(text)
     # text = "This Sentence is in regard to the total outstanding common stock of the Company consisting of 1000 shares. This Sentence is in regard to the 1000 shares of common stock outstanding as of may 15, 2020."
-    text = "This Prospectus relates to the 1000 shares of common stock outstanding as of may 15, 2020. This Sentence is in regard to the 1000 outstanding shares of common stock as of may 15, 2020, which were issued pursuant to a Privat Placement."
+    text = "This Prospectus relates to the 1000 shares of common stock outstanding as of may 15, 2020 and to the 2000 $ spent on expansion. This Sentence is in regard to the 1000 outstanding shares of common stock as of may 15, 2020, which were issued pursuant to a Privat Placement."
     # get_secu_amods(text)
     # get_secuquantity(text)
     # get_secu_state(text)
@@ -1391,34 +1391,45 @@ if __name__ == "__main__":
 
     def try_own_dep_matcher():
         # text = "This is being furnished into a test sentence for a dependency matcher."
-        doc = search.nlp(text)
-
-        pattern = [
-                {
-                    "RIGHT_ID": "anchor",
-                    "TOKEN": doc[0]
-                },
-                {
-                    "LEFT_ID": "anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {}, 
-                    "IS_OPTIONAL": True
-                },
-                # {
-                #     "LEFT_ID": "verb1",
-                #     "REL_OP": ">>",
-                #     "RIGHT_ID": "any",
-                #     "RIGHT_ATTRS": {"POS": "VERB"}, 
-                # }
-
-            ]
         from main.parser.filing_nlp import DependencyAttributeMatcher
         matcher = DependencyAttributeMatcher()
         # result = matcher.get_possible_candidates(pattern)
         # print([i for i in result])
-        root_verb = matcher.get_root_verb(doc[8])
-        print(root_verb)
+        secus = []
+        for each in [
+            (
+                "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
+                ),
+            (
+                "The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022",
+                ),
+            (
+                "based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. ",
+                ),
+            (
+                "are based on 30,823,573 shares outstanding on April 11, 2022. ",
+                ),
+            (
+                "based on 70,067,147 shares of our Common Stockoutstanding as of October 18, 2021.",
+                ),
+            (
+                "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. ",
+                ) 
+        ]:
+            text = each[0]
+            doc = search.nlp(text)
+            secu_objects = search.get_SECU_objects(doc)
+            secus.append(secu_objects)
+        for i in secus:
+            print(i)
+            print("_________________________")
+
+            # root_verb = matcher.get_root_verb(doc[8])
+            # print(root_verb)
+            # quantity = matcher.get_quantities(doc[8])
+            # print(fquant, type(fquant), fquant.ent_type_, fquant._.amods, fquant._.secuquantity, fquant._.secuquantity_unit)
+        # add secuquantity_unit to individual tokens
+        # create amod getter for Token
         # rework this to account correctly for optional dependency condition
 
     try_own_dep_matcher()

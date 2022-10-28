@@ -17,16 +17,25 @@ import re
 import  pandas as pd
 from datetime import timedelta
 
+from main.parser.filing_nlp_patterns import (
+    SECU_SECUQUANTITY_PATTERNS,
+    SECU_EXERCISE_PRICE_PATTERNS,
+    SECU_EXPIRY_PATTERNS,
+    SECU_ENT_REGULAR_PATTERNS,
+    SECU_ENT_DEPOSITARY_PATTERNS,
+    SECU_ENT_SPECIAL_PATTERNS,
+    SECUQUANTITY_ENT_PATTERNS
+)
+from main.parser.filing_nlp_constants import (
+    PLURAL_SINGULAR_SECU_TAIL_MAP,
+    SINGULAR_PLURAL_SECU_TAIL_MAP,
+    SECUQUANTITY_UNITS,
+    ATTRIBUTE_KEY_TO_STRINGKEY,
+    DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG
+)
+
 logger = logging.getLogger(__name__)
 
-PLURAL_SINGULAR_SECU_TAIL_MAP = {
-    "warrants": "warrant"
-}
-SINGULAR_PLURAL_SECU_TAIL_MAP = {
-    "warrant": "warrants"
-}
-
-SECUQUANTITY_UNITS = set(["share", "shares", "units", "unit", "tranches"])
 
 class UnclearInformationExtraction(Exception):
     pass
@@ -195,24 +204,9 @@ class MatchFormater:
                 current_idxs = []                    
         return converted if converted != [] else None
 
-            
-
-    
-
-    def issuable_relation_no_primary_secu():
-        pass
-
-    def issuable_relation_with_primary_secu(self, doc: Doc, match: Span):
-        # dict with keys: primary, base, action, price
-        pass
-
-    def issuable_relation_no_exercise_price_no_primary():
-        pass
-
-    def issuable_relation_no_exercise_price_no_primary():
-        pass
 
 formater = MatchFormater()
+
 
 def int_to_roman(input):
     """ Convert an integer to a Roman numeral. """
@@ -268,14 +262,90 @@ class DependencyNode:
             for child in node.children:
                 new_path = current_path.copy()
                 new_path.append(child)
-                yield from [arr for arr in self.get_leaf_paths(child, new_path)]         
+                yield from [arr for arr in self.get_leaf_paths(child, new_path)]
 
-ATTRIBUTE_KEY_TO_STRINGKEY = {
-        "POS": "pos_",
-        "TAG": "tag_",
-        "ORTH": "orth_",
-        "LOWER": "lower_",
-    }
+
+
+class SECU:
+    def __init__(self, original, quantities=None):
+        self.original: Token|Span = original
+        self.secu_key: str = original._.secu_key
+        self.amods = original._.amods
+        self.relations = list()
+        # self.quantities: list[SECUQuantity] = quantities if quantities is not None else list()
+    
+    def add_relation(self, relation):
+        if relation not in self.relations:
+            self.relations.append(relation)
+        else:
+            logger.debug(f"relation {relation} already in relations of {self}")
+
+    def __repr__(self):
+        rels = ""
+        for x in range(len(self.relations)):
+            rels += f"\n\t {x}) {self.relations[x]}"
+        return f"SECU({self.original}\
+\t secu_key: {self.secu_key}\
+\t amods: {self.amods}\
+\n\t relations: {rels})"
+    
+    def __eq__(self, other):
+        if not isinstance(other, SECU):
+            logger.debug(f"comparing {self} to {other} which is not of type SECU, but of: {type(other)}")
+            return False
+        return (
+            self.secu_key == other.secu_key
+            and
+            self.original == other.original
+        )
+class SECUQuantity:
+    def __init__(self, original):
+        self.original: Token|Span = original
+        self.quantity = original._.secuquantity
+        self.unit: str = original._.secuquantity_unit
+        self.amods: list = original._.amods
+    
+    def __repr__(self):
+        return f"{self.quantity},\
+\t {self.unit},\
+\t {self.amods})"
+    
+@dataclass
+class QuantityRelation:
+    quantity: SECUQuantity
+    main_secu: SECU
+    rel_type: str = "quantity"
+    root_verb: Optional[Token] = None
+    root_noun: Optional[Token] = None
+    
+    def __repr__(self):
+        return f"QuantityRelation(\
+ {self.quantity}\
+\t {self.main_secu.original}\
+\t {self.root_verb}\
+\t {self.root_noun})"
+
+
+class SourceQuantityRelation(QuantityRelation):
+    def __init__(self, *args, source, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source: SECU = source
+        rel_type = "source_quantity"
+
+    def __repr__(self):
+        return f"SourceQuantityRelation({self.quantity},\
+\t {self.source.original})"
+
+
+def add_anchor_pattern_to_patterns(anchor_pattern: list[dict], patterns: list[list[dict]]) -> list[list[dict]]:
+    if not any([False if entry["RIGHT_ID"] != "anchor" else True for entry in anchor_pattern]):
+        raise ValueError("Anchor pattern must contain an anchor token with RIGHT_ID = 'anchor'")
+    finished_patterns = [None] * len(patterns)
+    for idx, pattern in enumerate(patterns):
+        finished_patterns[idx] = anchor_pattern + pattern
+    return finished_patterns
+
+
 class DependencyMatchHelper:
     def _convert_key_to_stringkey(self, key: str) -> str:
         return key.lower() + "_"       
@@ -288,21 +358,22 @@ class DependencyMatchHelper:
         if attrs == {}:
             return True
         for attr, value in attrs.items():
+            attribute_name = ATTRIBUTE_KEY_TO_STRINGKEY[attr]
             if isinstance(value, dict):
                 for modifier, values in value.items():
                     if modifier in ["IN", "NOT_IN"]:
                         if modifier == "IN":
-                            if not getattr(token, ATTRIBUTE_KEY_TO_STRINGKEY[attr]) in values:
+                            if not getattr(token, attribute_name) in values:
                                 return False
                             else:
                                 pass
                         if modifier == "NOT_IN":
-                            if getattr(token, ATTRIBUTE_KEY_TO_STRINGKEY[attr]) in values:
+                            if getattr(token, attribute_name) in values:
                                 return False
                             else:
                                 pass
             else:
-                if not getattr(token, ATTRIBUTE_KEY_TO_STRINGKEY[attr]) == value:
+                if not getattr(token, attribute_name) == value:
                     return False
         return True
 
@@ -350,7 +421,6 @@ class DependencyMatchHelper:
                 result.append(descendant)
         return result
 
-DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG = "was_optional"
 class DependencyAttributeMatcher():
     '''
     Find a specific dependency from an origin token. 
@@ -361,6 +431,9 @@ class DependencyAttributeMatcher():
             "LOWER"
             "TAG"
             "ORTH"
+            "DEP"
+            "ENT_TYPE"
+            "LEMMA"
         set modifiers:
             "IN"
             "NOT_IN"
@@ -377,15 +450,34 @@ class DependencyAttributeMatcher():
         ">>": dep_getter.check_descendants
     }
 
+    def get_quantities(self, token: Token) -> list[Token]|None:
+        secu_root_dict = [{
+            "RIGHT_ID": "anchor",
+            "TOKEN": token
+        }]
+        patterns = add_anchor_pattern_to_patterns(secu_root_dict, SECU_SECUQUANTITY_PATTERNS)
+        
+        result = []
+        for pattern in patterns:
+            logger.debug(f"currently working on pattern {pattern}")
+            candidate_matches = self.get_possible_candidates(pattern)
+            if len(candidate_matches) > 0:
+                for match in candidate_matches:
+                    for entry in match:
+                        candidate_token, right_id = entry
+                        if right_id == "secuquantity":
+                            result.append(candidate_token)
+        return result if result != [] else None
+
     def get_root_verb(self, token: Token):
         candidate_matches = self.get_possible_candidates(
             [
                 {
-                    "RIGHT_ID": "source",
+                    "RIGHT_ID": "anchor",
                     "TOKEN": token    
                 },
                 {
-                    "LEFT_ID": "source",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<<",
                     "RIGHT_ID": "root_verb",
                     "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}},
@@ -415,6 +507,8 @@ class DependencyAttributeMatcher():
     def get_attr_tree(self, attrs: list[dict]):
         right_id_to_idx = {}
         for idx, attr in enumerate(attrs):
+            logger.debug(f"currently working on attr: {attr}")
+            logger.debug(f"with idx: {idx}")
             right_id_to_idx[attr["RIGHT_ID"]] = idx
         tree = defaultdict(list)
         root = None
@@ -486,29 +580,6 @@ class DependencyAttributeMatcher():
                 return processed_matches
             return build_matches_from_candidates(candidates_cache, tree)
         
-            
-
-
-        '''
-        I need to create a tree to traverse by depth so i can assure 
-        I get the needed dependants before i resolve the rel_op 
-        '''
-            
-
-        
-
-    
-
-
-
-
-
-
-
-            
-
-
-
 
 
 class CommonFinancialRetokenizer:
@@ -599,9 +670,19 @@ class SecurityActMatcher:
         ]
         self.matcher.add("sec_act", patterns, greedy="LONGEST")
 
-def get_secuquantity(span: Span):
+def get_span_secuquantity_float(span: Span):
+    if not isinstance(span, Span):
+        raise TypeError("span must be of type spacy.tokens.span.Span, got: {}".format(type(span)))
     if span.label_ == "SECUQUANTITY":
         return formater.money_string_to_float(span.text)
+    else:
+        raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
+
+def get_token_secuquantity_float(token: Token):
+    if not isinstance(token, Token):
+        raise TypeError("token must be of type spacy.tokens.token.Token, got: {}".format(type(token)))
+    if token.ent_type_ == "SECUQUANTITY":
+        return formater.money_string_to_float(token.text)
     else:
         raise AttributeError("get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'")
 
@@ -711,7 +792,7 @@ def get_dep_distance_between_spans(origin, target) -> int:
     distance = get_dep_distance_between(origin.root, target.root)
     return distance
 
-def get_span_distance(secu, alias) -> int:
+def get_span_distance(secu, alias: list[Token]|Span) -> int:
     if secu[0].i > alias[0].i:
         first = alias
         second = secu
@@ -721,7 +802,7 @@ def get_span_distance(secu, alias) -> int:
     mean_distance = ((second[0].i - first[-1].i) + (second[-1].i - first[0].i))/2
     return mean_distance
 
-def calculate_similarity_score(alias, similarity_map, dep_distance, span_distance, very_similar_threshold: float, dep_distance_weight: float, span_distance_weight: float) -> float:
+def calculate_similarity_score(alias: list[Token]|Span, similarity_map, dep_distance: int, span_distance: int, very_similar_threshold: float, dep_distance_weight: float, span_distance_weight: float) -> float:
     very_similar = sum([v > very_similar_threshold for v in similarity_map.values()])
     very_similar_score = very_similar / len(alias) if very_similar != 0 else 0
     dep_distance_score = dep_distance_weight * (1/dep_distance)
@@ -735,7 +816,7 @@ def get_span_similarity_score(
         dep_distance_weight: float = 0.7,
         span_distance_weight: float = 0.3,
         very_similar_threshold: float=0.65
-    ):
+    ) -> float:
     premerge_tokens = span1._.premerge_tokens if span1.has_extension("premerge_tokens") else span1
     similarity_map = get_span_to_span_similarity_map(premerge_tokens, span2)
     dep_distance = get_dep_distance_between_spans(span1, span2)
@@ -786,14 +867,14 @@ def get_alias(doc: Doc, secu: Span):
         else:
             return None             
 
-def _get_SECU_in_doc(doc: Doc):
+def _get_SECU_in_doc(doc: Doc) -> list[Span]:
     secu_spans = []
     for ent in doc.ents:
         if ent.label_ == "SECU":
             secu_spans.append(ent)
     return secu_spans
 
-def _set_single_secu_alias_map(doc: Doc):
+def _set_single_secu_alias_map(doc: Doc) -> dict:
         if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         single_secu_alias = dict()
@@ -814,7 +895,7 @@ def _set_single_secu_alias_map(doc: Doc):
         logger.debug(f"got single_secu_alias map: {single_secu_alias}")
         doc._.single_secu_alias = single_secu_alias
 
-def _set_single_secu_alias_map_as_tuples(doc: Doc):
+def _set_single_secu_alias_map_as_tuples(doc: Doc) -> dict:
         if (doc.spans.get("SECU") is None) or (doc.spans.get("alias") is None):
             # print(doc.spans.get("SECU"), doc.spans.get("alias"))
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
@@ -836,12 +917,12 @@ def _set_single_secu_alias_map_as_tuples(doc: Doc):
 
                 
 
-def is_alias(doc: Doc, secu: Span):
+def is_alias(doc: Doc, secu: Span) -> bool:
     if secu.text in doc._.alias_set:
         return True
     return False
 
-def get_secu_key(secu: Span):
+def get_secu_key(secu: Span) -> str:
     premerge_tokens = secu._.premerge_tokens if secu.has_extension("premerge_tokens") else None
     logger.debug(f"premerge_tokens while getting secu_key: {premerge_tokens}")
     if premerge_tokens:
@@ -849,9 +930,11 @@ def get_secu_key(secu: Span):
     core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
     body = [token.text_with_ws.lower() for token in core_tokens[:-1]]
     try:
-        tail = core_tokens[-1].lemma_.lower()
-        if tail == "warrants":
-            tail = "warrant"
+        current_tail = core_tokens[-1].lemma_.lower()
+        if current_tail in PLURAL_SINGULAR_SECU_TAIL_MAP.keys():
+            tail = PLURAL_SINGULAR_SECU_TAIL_MAP[tail]
+        else:
+            tail = current_tail
         body.append(tail)
     except IndexError:
         logger.debug("IndexError when accessing tail information of secu_key -> no tail -> pass")
@@ -888,12 +971,15 @@ def set_SECUMatcher_extensions():
     token_extensions = [
         {"name": "source_span_unmerged", "kwargs": {"default": None}},
         {"name": "was_merged", "kwargs": {"default": False}},
+        {"name": "secuquantity", "kwargs": {"getter": get_token_secuquantity_float}},
+        {"name": "secuquantity_unit", "kwargs": {"default": None}},
+        {"name": "amods", "kwargs": {"getter": token_amods_getter}},
     ]
     span_extensions = [
-        {"name": "secuquantity", "kwargs": {"getter": get_secuquantity}},
+        {"name": "secuquantity", "kwargs": {"getter": get_span_secuquantity_float}},
         {"name": "secuquantity_unit", "kwargs": {"default": None}},
-        {"name": "secu_key", "kwargs": {"getter": get_secu_key}},
-        {"name": "amods", "kwargs": {"getter": amods_getter}},
+        {"name": "secu_key", "kwargs": {"getter": get_secu_key_extension}},
+        {"name": "amods", "kwargs": {"getter": span_amods_getter}},
         {"name": "premerge_tokens", "kwargs": {"getter": get_premerge_tokens}},
         {"name": "was_merged", "kwargs": {"default": False}},
     ]
@@ -943,85 +1029,6 @@ class AgreementMatcher:
         return doc
     
     # def agreement_callback()
-
-class SECUQuantity:
-    def __init__(self, original):
-        self.original: Token|Span = original
-        self.quantity = original._.secuquantity
-        self.unit: str = original._.secuquantity_unit
-        self.amods: list = original._.amods
-    
-    def __repr__(self):
-        return f"SECUQuantity( quantity: {self.quantity},\
-\t unit: {self.unit},\
-\t amods: {self.amods})"
-
-class SECU:
-    def __init__(self, original, quantities=None):
-        self.original: Token|Span = original
-        self.secu_key: str = original._.secu_key
-        self.amods = original._.amods
-        self.relations = list()
-        # self.quantities: list[SECUQuantity] = quantities if quantities is not None else list()
-    
-    def add_relation(self, relation):
-        if relation not in self.relations:
-            self.relations.append(relation)
-        else:
-            logger.debug(f"relation {relation} already in relations of {self}")
-
-    def __repr__(self):
-        rels = ""
-        for x in range(len(self.relations)):
-            rels += f"\n\t {x}) {self.relations[x]}"
-        return f"SECU( original: {self.original}\
-\t secu_key: {self.secu_key}\
-\t amods: {self.amods}\
-\n\t relations: {rels})"
-    
-    def __eq__(self, other):
-        return (
-            self.secu_key == other.secu_key
-            and
-            self.original == other.original
-        )
-    
-# @dataclass
-# class SECURelation:
-#     rel_type: str
-#     child: SECUObject
-
-#     def __repr__(self):
-#         return f"SECURelation(\
-#             rel_type: {self.rel_type},\
-#             child: {self.child})"
-
-@dataclass
-class QuantityRelation:
-    quantity: SECUQuantity
-    main_secu: SECU
-    rel_type: str = "quantity"
-    root_verb: Optional[Token] = None
-    root_noun: Optional[Token] = None
-    
-    def __repr__(self):
-        return f"QuantityRelation(\
- quantity: {self.quantity}\
-\t main_secu: {self.main_secu.original}\
-\t root_verb: {self.root_verb}\
-\t root_noun: {self.root_noun})"
-
-
-class SourceQuantityRelation(QuantityRelation):
-    def __init__(self, *args, source, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.source: SECU = source
-        rel_type = "source_quantity"
-
-    def __repr__(self):
-        return f"SourceQuantityRelation( quantity: {self.quantity},\
-\t source: {self.source.original})"
-
 
 
 
@@ -1222,199 +1229,26 @@ class SECUMatcher:
 
         matcher.add("SECUREF_ENT", [*patterns], on_match=_add_SECUREF_ent)
 
-    
     def add_SECU_ent_to_matcher(self, matcher):
-        # base_securities is just to keep track of the different bases we work with
-        base_securities = [
-            [{"LOWER": "common"}, {"LOWER": "stock"}], #
-            [{"TEXT": "Ordinary"}, {"LOWER": "shares"}], #
-            [{"LOWER": "warrants"}], #
-            [{"LOWER": "preferred"}], #
-            [{"LOWER": "debt"}, {"LOWER": "securities"}], #
-            [{"TEXT": "Purchase"}], #
-            [{"LOWER": "depository"}, {"LOWER": "shares"}], #
-            [{"LOWER": "depositary"}, {"LOWER": "shares"}], #
-            [{"LOWER": "subsciption"}, {"LOWER": "rights"}], #
-
-        ]
-        
-
-        debt_securities_l1_modifiers = [
-            "subordinated",
-            "senior"
-        ]
-
-        general_pre_sec_modifiers = [
-            "convertible"
-        ]
-        general_pre_sec_compound_modifiers = [
+        matcher.add(
+            "SECU_ENT",
             [
-                {"LOWER": "non"},
-                {"LOWER": "-"},
-                {"LOWER": "convertible"}
+                *SECU_ENT_REGULAR_PATTERNS,
+                *SECU_ENT_DEPOSITARY_PATTERNS,
+                *SECU_ENT_SPECIAL_PATTERNS
             ],
-            [
-                {"LOWER": "pre"},
-                {"LOWER": "-"},
-                {"LOWER": "funded"}
-            ],
-        ]
-        general_affixes = [
-            "series",
-            "tranche",
-            "class"
-        ]
-        purchase_affixes = [
-            "stock",
-            "shares"
-        ]
-        purchase_suffixes = [
-            "rights",
-            "contracts",
-            "units"
-        ]
-
-
-        special_patterns = [
-            [{"LOWER": "common"}, {"LOWER": "units"}, {"LOWER": "of"}, {"LOWER": "beneficial"}, {"LOWER": "interest"}],
-            [{"TEXT": "Subsciption"}, {"TEXT": "Rights"}],
-        ]
-        # exclude particles, conjunctions from regex match 
-        depositary_patterns = [
-            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["depository", "depositary"]}},
-                {"LOWER": {"IN": ["shares"]}}
-            ]
-                ,
-            [
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "depository", "depositary", "ordinary"]}},
-                {"LOWER": {"IN": ["shares"]}}
-            ]
-                ,
-            *[  
-                [
-                    *general_pre_sec_compound_modifier,
-                    {"LOWER": {"IN": ["depository", "depositary"]}},
-                    {"LOWER": {"IN": ["shares"]}, "OP": "?"}
-                ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
-            ]
-                ,
-            
-            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["depository", "depositary"]}, "OP": "?"},
-                {"LOWER": {"IN": ["shares", "stock"]}},
-                {"LOWER": {"IN": ["options", "option"]}}
-            ]
-                ,
-            [
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["depository", "depositary"]}, "OP": "?"},
-                {"LOWER": {"IN": ["shares", "stock"]}},
-                {"LOWER": {"IN": ["options", "option"]}}
-            ]
-
-        ]
-        patterns = [
-            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}},
-                {"LOWER": {"IN": ["stock"]}}
-            ]
-                ,
-            [
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}},
-                {"LOWER": {"IN": ["stock"]}}
-            ]
-                ,
-            *[  
-                [
-                    *general_pre_sec_compound_modifier,
-                    {"LOWER": {"IN": ["preferred", "common", "warrant", "warrants", "ordinary"]}},
-                    {"LOWER": {"IN": ["stock"]}, "OP": "?"}
-                ] for general_pre_sec_compound_modifier in general_pre_sec_compound_modifiers
-            ]
-                ,
-            
-            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}, "OP": "?"},
-                {"LOWER": {"IN": ["stock"]}},
-                {"LOWER": {"IN": ["options", "option"]}}
-            ]
-                ,
-            [
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["preferred", "common", "ordinary"]}, "OP": "?"},
-                {"LOWER": {"IN": ["stock"]}},
-                {"LOWER": {"IN": ["options", "option"]}}
-            ]
-
-                ,
-            
-            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["warrant", "warrants"]}}
-            ]
-                ,
-            [
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": ["warrant", "warrants"]}},
-                {"LOWER": {"IN": ["stock"]}, "OP": "?"}
-            ]
-                ,
-
-            [   {"LOWER": {"IN": general_affixes}}, {"TEXT": {"REGEX": "[a-zA-Z0-9]{1,3}", "NOT_IN": ["of"]}, "OP": "?"},
-                {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": "debt"}, {"LOWER": "securities"}
-            ]
-                ,
-
-            [   {"LOWER": {"IN": debt_securities_l1_modifiers}, "OP": "?"},
-                {"LOWER": {"IN": general_pre_sec_modifiers}, "OP": "?"},
-                {"LOWER": "debt"}, {"LOWER": "securities"}
-            ]
-                ,
-
-            [   {"LOWER": {"IN": purchase_affixes}, "OP": "?"}, {"TEXT": "Purchase"}, {"LOWER": {"IN": purchase_suffixes}}
-            ]
-                ,            
-        ]
-
-        matcher.add("SECU_ENT", [*patterns, *depositary_patterns, *special_patterns], on_match=_add_SECU_ent)
+            on_match=_add_SECU_ent
+        )
 
     def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
-        
-        regular_patterns = [
+        matcher.add(
+            "SECUQUANTITY_ENT",
             [
-                {"ENT_TYPE": "CARDINAL", "OP": "+"},
-                {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
-                {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
+                *SECUQUANTITY_ENT_PATTERNS
             ],
-            
-            [   
-                {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-                {"LOWER": "of", "OP": "?"},
-                {"LOWER": "our", "OP": "?"},
-                {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
-            ],
-            [
-                {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-                {"LOWER": "shares"},
-                {"OP": "*", "IS_SENT_START": False, "POS": {"NOT_IN": ["VERB"]}, "ENT_TYPE": {"NOT_IN": ["SECU", "SECUQUANTITY"]}},
-                {"LOWER": "of", "OP": "?"},
-                {"LOWER": "our", "OP": "?"},
-                {"ENT_TYPE": {"IN": ["SECU"]}}
-            ]
-
-        ]
-
-        matcher.add("SECUQUANTITY_ENT", [*regular_patterns], on_match=_add_SECUQUANTITY_ent_regular_case)
-        logger.info("added SECUQUANTITY patterns to matcher")
+            on_match=_add_SECUQUANTITY_ent_regular_case
+        )
+        logger.debug("added SECUQUANTITY patterns to matcher")
 
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if end == len(doc):
@@ -1530,10 +1364,12 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
 def _set_secuquantity_unit_on_span(match_tokens: Span, span: Span):
     if span.label_ != "SECUQUANTITY":
         raise TypeError(f"can only set secuquantity_unit on spans of label: SECUQUANTITY. got span: {span}")
+    unit = "COUNT"
     if "MONEY" in [t.ent_type_ for t in match_tokens]:
-        span._.secuquantity_unit = "MONEY"
-    else:
-        span._.secuquantity_unit = "COUNT"
+        unit = "MONEY"
+    span._.secuquantity_unit = unit
+    for token in span:
+        token._.secuquantity_unit = unit
 
 def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], exclude_before: list[str]=[], adjust_ent_before_add_callback: Optional[Callable]=None, ent_callback: Optional[Callable]=None, ent_exclude_condition: Optional[Callable]=None, always_overwrite: Optional[list[str]]=None):
     '''add a custom entity through an on_match callback.
@@ -1676,13 +1512,17 @@ class SpacyFilingTextSearch:
             # cls._instance.nlp.add_p   ipe("coreferee")
         return cls._instance
     
-    def get_SECU_objects(self, doc: Doc):
+    def get_SECU_objects(self, doc: Doc) -> dict:
         secus = defaultdict(list)
         for secu in doc._.secus:
             secu_obj = SECU(secu)
+            secus[secu_obj.secu_key].append(secu_obj)
             # state = secu._.amods
             # print(f"state: {state}")
             quants = self.get_secuquantities(doc, secu)
+            if not quants:
+                logger.debug(f"no quantities found for secu: {secu}")
+                continue
             for quant in quants:
                 quant_obj = SECUQuantity(quant["quantity"])
                 if getattr(quant_obj.original, "source_secu", None) is not None:
@@ -1692,7 +1532,6 @@ class SpacyFilingTextSearch:
                 else:
                     rel = QuantityRelation(quant_obj, secu_obj)
                     secu_obj.add_relation(rel)
-            secus[secu_obj.secu_key].append(secu_obj)
         return secus
     
     def handle_match_formatting(self, match: tuple[str, list[Token]], formatting_dict: Dict[str, Callable], doc: Doc, *args, **kwargs) -> tuple[str, dict]:
@@ -1712,15 +1551,14 @@ class SpacyFilingTextSearch:
 
     def match_secu_with_dollar_CD(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-        secu_root_token = secu.root
-        patterns = [
+        anchor_pattern = [{
+                    "RIGHT_ID": "anchor",
+                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu.root.lower_},
+                }]
+        incomplete_patterns = [
             [
                 {
-                    "RIGHT_ID": "secu_anchor",
-                    "RIGHT_ATTRS": {"ENT_TYPE": "SECU", "LOWER": secu_root_token.lower_},
-                },
-                {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<",
                     "RIGHT_ID": "verb1",
                     "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["purchase", "have"]}}, 
@@ -1740,6 +1578,7 @@ class SpacyFilingTextSearch:
 
             ]
         ]
+        patterns = add_anchor_pattern_to_patterns(anchor_pattern, incomplete_patterns)
         dep_matcher.add("secu_cd", patterns)
         matches = dep_matcher(doc)
         if matches:
@@ -1799,6 +1638,8 @@ class SpacyFilingTextSearch:
             for match in match_results:
                 if match not in found_spans and match != span:
                     found_spans.add(match)
+        logger.info(f"Found {len(found_spans)} similar spans for {span}")
+        logger.debug(f"similar spans: {found_spans}")
         return list(found_spans) if len(found_spans) != 0 else None
     
     def _find_full_text_spans(self, re_term: re.Pattern, doc: Doc):
@@ -1807,23 +1648,6 @@ class SpacyFilingTextSearch:
             result = doc.char_span(start, end)
             if result:
                 yield result
-    
-    # def get_queryable_similar_spans_from_lower(self, doc: Doc, span: Span):
-    # REPLACED WITH NEWER ABOVE
-    #     matcher = Matcher(self.nlp.vocab)
-    #     pattern = [
-    #         [{"LOWER": x.lower_} for x in span]
-    #     ]
-    #     if len(span) > 1:
-    #         tail_lower = _get_singular_or_plural_of_SECU_token(span[-1])
-    #         if tail_lower:
-    #             pattern.append(
-    #                 [*[{"LOWER": x.lower_} for x in span[:-1]], {"LOWER": tail_lower}]
-    #             )
-    #     matcher.add("similar_spans", pattern)
-    #     logger.debug(f"similar_spans_from_lower match patterns: {pattern}")
-    #     matches = matcher(doc)
-    #     return _convert_matches_to_spans(doc, filter_matches(matches)) if matches else None
     
     def get_prep_phrases(self, doc: Doc):
         phrases = []
@@ -1853,14 +1677,14 @@ class SpacyFilingTextSearch:
     def _create_span_dependency_matcher_dict_lower(self, secu: Span) -> dict:
         '''
         create a list of dicts for dependency match patterns.
-        the root token will have RIGHT_ID of 'secu_anchor'
+        the root token will have RIGHT_ID of 'anchor'
         '''
         secu_root_token = secu.root
         if secu_root_token is None:
             return None
         root_pattern = [
             {
-                "RIGHT_ID": "secu_anchor",
+                "RIGHT_ID": "anchor",
                 "RIGHT_ATTRS": {"ENT_TYPE": secu_root_token.ent_type_, "LOWER": secu_root_token.lower_}
             }
         ]
@@ -1869,7 +1693,7 @@ class SpacyFilingTextSearch:
                 if token in secu:
                     root_pattern.append(
                         {
-                            "LEFT_ID": "secu_anchor",
+                            "LEFT_ID": "anchor",
                             "REL_OP": ">",
                             "RIGHT_ID": token.lower_ + "__" + str(idx),
                             "RIGHT_ATTRS": {"LOWER": token.lower_}
@@ -1883,134 +1707,7 @@ class SpacyFilingTextSearch:
             logger.warning(f"couldnt get secu_root_pattern for secu: {secu}")
             return
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-        patterns = [
-            [
-                *secu_root_pattern,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "expire"}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj1",
-                    "RIGHT_ATTRS": {"DEP": "pobj"}, 
-                },
-            ],
-            [
-                *secu_root_pattern,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": "<<",
-                    "RIGHT_ID": "verb2",
-                    "RIGHT_ATTRS": {"POS": "VERB"}, 
-                },
-                {
-                    "LEFT_ID": "verb2",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj1",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}, 
-                },
-            ],
-            [
-                *secu_root_pattern,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": ">>",
-                    "RIGHT_ID": "verb2",
-                    "RIGHT_ATTRS": {"POS": "VERB"}, 
-                },
-                {
-                    "LEFT_ID": "verb2",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj1",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}, 
-                },
-            ],
-            [
-                *secu_root_pattern,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb2",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "exercise"}, 
-                },
-                {
-                    "LEFT_ID": "verb2",
-                    "REL_OP": ">>",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "up"}, 
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep2",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "to"}, 
-                },
-                {
-                    "LEFT_ID": "prep2",
-                    "REL_OP": ".*",
-                    "RIGHT_ID": "prep3",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "on"}, 
-                },
-                {
-                    "LEFT_ID": "prep3",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj1",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "LEMMA": "date"}, 
-                },
-                {
-                    "LEFT_ID": "pobj1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "verb3",
-                    "RIGHT_ATTRS": {"LEMMA": "be"}, 
-                },
-                {
-                    "LEFT_ID": "verb3",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "attr1",
-                    "RIGHT_ATTRS": {"DEP": "attr"}, 
-                },
-                {
-                    "LEFT_ID": "attr1",
-                    "REL_OP": ">>",
-                    "RIGHT_ID": "issuance1",
-                    "RIGHT_ATTRS": {"ENT_TYPE": {"IN": ["ORDINAL", "CARDINAL"]}}, 
-                },
-            ]
-        ]
+        patterns = add_anchor_pattern_to_patterns(secu_root_pattern, SECU_EXPIRY_PATTERNS)
         dep_matcher.add("expiry", patterns)
         matches = dep_matcher(doc)
         logger.debug(f"raw expiry matches: {matches}")
@@ -2084,10 +1781,8 @@ class SpacyFilingTextSearch:
     
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-        # secu_root_token = self._get_compound_SECU_root(secu)
         logger.debug("match_secu_exercise_price:")
         logger.debug(f"     secu: {secu}")
-        # logger.debug(f"     secu_root_token: ", secu_root_token)
         
         '''
         acl   (SECU) <- VERB (purchase) -> 					 prep (of | at) -> [pobj (price) -> compound (exercise)] -> prep (of) -> pobj CD
@@ -2101,233 +1796,7 @@ class SpacyFilingTextSearch:
         secu_root_dict = self._create_span_dependency_matcher_dict_lower(secu)
         if secu_root_dict is None:
             return None
-        patterns = [
-            [
-                *secu_root_dict,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": ">>",
-                    "RIGHT_ID": "prepverb1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
-                },
-                {
-                    "LEFT_ID": "prepverb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "price",
-                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "compound",
-                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj_CD",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-                },
-                {
-                    "LEFT_ID": "pobj_CD",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "dollar",
-                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-                } 
-            ],
-            [
-                *secu_root_dict,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "conj",
-                    "RIGHT_ATTRS": {"DEP": "conj", "LEMMA": {"IN": ["remain"]}},
-                },
-                {
-                    "LEFT_ID": "conj",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prepverb1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
-                },
-                {
-                    "LEFT_ID": "prepverb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "price",
-                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "compound",
-                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj_CD",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-                },
-                {
-                    "LEFT_ID": "pobj_CD",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "dollar",
-                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-                } 
-            ],
-            [
-                *secu_root_dict,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prepverb1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
-                },
-                {
-                    "LEFT_ID": "prepverb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "price",
-                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "compound",
-                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj_CD",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-                },
-                {
-                    "LEFT_ID": "pobj_CD",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "dollar",
-                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-                } 
-            ],
-            [
-                *secu_root_dict,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prepverb1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": {"IN": ["of", "at"]}}, 
-                },
-                {
-                    "LEFT_ID": "prepverb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "price",
-                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "compound",
-                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj_CD",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-                },
-                {
-                    "LEFT_ID": "pobj_CD",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "dollar",
-                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-                } 
-            ],
-            [
-                *secu_root_dict,
-                {
-                    "LEFT_ID": "secu_anchor",
-                    "REL_OP": "<",
-                    "RIGHT_ID": "verb1",
-                    "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "have"}, 
-                },
-                {
-                    "LEFT_ID": "verb1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "price",
-                    "RIGHT_ATTRS": {"DEP": {"IN": ["nobj", "pobj", "dobj"]}, "LOWER": "price"}, 
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "compound",
-                    "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
-                },
-                {
-                    "LEFT_ID": "price",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "prep1",
-                    "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-                },
-                {
-                    "LEFT_ID": "prep1",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "pobj_CD",
-                    "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-                },
-                {
-                    "LEFT_ID": "pobj_CD",
-                    "REL_OP": ">",
-                    "RIGHT_ID": "dollar",
-                    "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-                }  
-            ]
-        ]
+        patterns = add_anchor_pattern_to_patterns(secu_root_dict, SECU_EXERCISE_PRICE_PATTERNS)
         dep_matcher.add("exercise_price", patterns)
         matches = dep_matcher(doc)
         logger.debug(f"raw exercise_price matches: {matches}")
@@ -2389,7 +1858,7 @@ class SpacyFilingTextSearch:
             [
                 *secu_root_pattern,
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<",
                     "RIGHT_ID": "prep",
                     "RIGHT_ATTRS": {"DEP": "prep"}
@@ -2413,7 +1882,7 @@ class SpacyFilingTextSearch:
             [
                 *secu_root_pattern,
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": ">",
                     "RIGHT_ID": "secuquantity",
                     "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
@@ -2425,7 +1894,7 @@ class SpacyFilingTextSearch:
             [
                 *secu_root_pattern,
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<<",
                     "RIGHT_ID": "verb1",
                     "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
@@ -2443,7 +1912,7 @@ class SpacyFilingTextSearch:
                     "RIGHT_ATTRS": {"POS": "NOUN"}, 
                 },
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<<",
                     "RIGHT_ID": "any",
                     "RIGHT_ATTRS": {"POS": "NOUN"}
@@ -2460,7 +1929,7 @@ class SpacyFilingTextSearch:
             [
                 *secu_root_pattern,
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<<",
                     "RIGHT_ID": "verb1",
                     "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
@@ -2478,7 +1947,7 @@ class SpacyFilingTextSearch:
                     "RIGHT_ATTRS": {"POS": "NOUN"}, 
                 },
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<<",
                     "RIGHT_ID": "any",
                     "RIGHT_ATTRS": {"POS": "NOUN"}
@@ -2501,7 +1970,7 @@ class SpacyFilingTextSearch:
             [
                 *secu_root_pattern,
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<",
                     "RIGHT_ID": "verb1",
                     "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"NOT_IN": ["purchase", "acquire"]}}, 
@@ -2518,13 +1987,13 @@ class SpacyFilingTextSearch:
             [
                 *secu_root_pattern,
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<<",
                     "RIGHT_ID": "verb1",
                     "RIGHT_ATTRS": {"POS": "VERB"}
                 },
                 {
-                    "LEFT_ID": "secu_anchor",
+                    "LEFT_ID": "anchor",
                     "REL_OP": "<<",
                     "RIGHT_ID": "any",
                     "RIGHT_ATTRS": {}
@@ -3085,7 +2554,9 @@ class SpacyFilingTextSearch:
         return matches
 
 
-def amods_getter(target: Span):
+def span_amods_getter(target: Span):
+    if not isinstance(target, Span):
+        raise TypeError("target must be a Span, got: type {}".format(type(target)))
     logger.debug(f"getting amods for: {target, target.label_}")
     if target.label_ == "SECUQUANTITY":
         seen_tokens = set([i for i in target])
@@ -3105,15 +2576,36 @@ def amods_getter(target: Span):
         if len(heads_with_dep) > 0:
             for head in heads_with_dep:
                 if head.lower_ in SECUQUANTITY_UNITS:
-                    amods += _get_amods_of_target([head])
+                    amods += _get_amods_of_target(head)
         amods += _get_amods_of_target(target)
         return amods if amods != [] else None
     else:
         amods = _get_amods_of_target(target)
         return amods if amods != [] else None
 
+def token_amods_getter(target: Token):
+    if not isinstance(target, Token):
+        raise TypeError("target must be a Token, got: type {}".format(type(target)))
+    logger.debug(f"getting amods for: {target, target.ent_type_}")
+    amods = []
+    if target.ent_type_ == "SECUQUANTITY":
+        if target.dep_ == "nummod":
+            if target.head:
+                if target.head.lower_ in SECUQUANTITY_UNITS:
+                    amods += _get_amods_of_target(target.head)
+    amods += _get_amods_of_target(target)
+    return amods if amods != [] else None
 
-def _get_amods_of_target(target: Span):
+def _get_amods_of_target(target: Span|Token) -> list:
+    if isinstance(target, Span):
+        return _get_amods_of_target_span(target)
+    elif isinstance(target, Token):
+        return _get_amods_of_target_token(target)
+    else:
+        raise TypeError("target must be a Span or Token")
+
+
+def _get_amods_of_target_span(target: Span):
     '''get amods of first order of target. Needs to have dep_ set.'''
     amods = []
     amods_to_ignore = set([token if token.dep_ == "amod" else None for token in target])
@@ -3123,6 +2615,15 @@ def _get_amods_of_target(target: Span):
             if possible_match.dep_ == "amod" and possible_match not in amods_to_ignore:
                 if possible_match not in amods:
                     amods.append(possible_match)
+    return amods
+
+def _get_amods_of_target_token(target: Token):
+    amods = []
+    pool = [i for i in target.children] + [target.head]
+    for possible_match in pool:
+        if possible_match.dep_ == "amod":
+            if possible_match not in amods:
+                amods.append(possible_match)
     return amods
 
 def extend_token_ent_to_span(token: Token, doc: Doc) -> list[Token]:
