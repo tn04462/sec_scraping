@@ -1276,7 +1276,7 @@ if __name__ == "__main__":
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
         from collections import defaultdict
-        from main.parser.filing_nlp import get_premerge_tokens
+        from main.parser.filing_nlp import get_premerge_tokens_for_span
         possible_aliases = defaultdict(list)
         for secu in doc._.secus:
             secu_first_token = secu[0]
@@ -1291,7 +1291,7 @@ if __name__ == "__main__":
                             possible_aliases[secu].append(alias)
         to_eval = []
         for secu, aliases in possible_aliases.items():
-            premerge_tokens =  get_premerge_tokens(secu)
+            premerge_tokens =  get_premerge_tokens_for_span(secu)
             for alias in aliases:
                 similarity_map = get_span_to_span_similarity_map(premerge_tokens, alias)
                 dep_distance = get_dep_distance_between_spans(secu, alias)
@@ -1313,41 +1313,41 @@ if __name__ == "__main__":
         total_score = dep_distance_score + span_distance_score + very_similar_score
         return total_score
     
-    def get_secu_state(text):
-        search = SpacyFilingTextSearch()
-        from main.parser.filing_nlp import SECU, SECUQuantity, QuantityRelation, SourceQuantityRelation
-        doc = search.nlp(text)
-        '''
-        need to find a smart way to include root_verb and root_noun.
-        should probably add those to the SECU object and make extensions on the span/token
-        then i need to get the time and place/issuing context of a relation
+    # def get_secu_state(text):
+    #     search = SpacyFilingTextSearch()
+    #     from main.parser.filing_nlp import SECU, SECUQuantity, QuantityRelation, SourceQuantityRelation
+    #     doc = search.nlp(text)
+    #     '''
+    #     need to find a smart way to include root_verb and root_noun.
+    #     should probably add those to the SECU object and make extensions on the span/token
+    #     then i need to get the time and place/issuing context of a relation
         
-        how to get root_verb?
-            go from main_secu and look if sentence has a verb root
-            or do i need to look what kind clause it is and take the verbal root
-            of said clause?
-        '''
-        secus = list()
-        for secu in doc._.secus:
-            secu_obj = SECU(secu)
-            # state = secu._.amods
-            # print(f"state: {state}")
-            quants = search.get_secuquantities(doc, secu)
-            for quant in quants:
-                print(quant)
-                quant_obj = SECUQuantity(quant["quantity"])
-                root_verb = getattr(quant, "root_verb", None)
-                root_noun = getattr(quant, "root_noun", None)
-                if getattr(quant_obj.original, "source_secu", None) is not None:
-                    source = quant["source_secu"]
-                    rel = SourceQuantityRelation(quant_obj, secu_obj, source, root_verb=root_verb, root_noun=root_noun)
-                    secu_obj.add_relation(rel)
-                else:
-                    rel = QuantityRelation(quant_obj, secu_obj, root_verb=root_verb, root_noun=root_noun)
-                    secu_obj.add_relation(rel)
-            secus.append(secu_obj)
-        for s in secus:
-            print(s)
+    #     how to get root_verb?
+    #         go from main_secu and look if sentence has a verb root
+    #         or do i need to look what kind clause it is and take the verbal root
+    #         of said clause?
+    #     '''
+    #     secus = list()
+    #     for secu in doc._.secus:
+    #         secu_obj = SECU(secu)
+    #         # state = secu._.amods
+    #         # print(f"state: {state}")
+    #         quants = search.get_secuquantities(doc, secu)
+    #         for quant in quants:
+    #             print(quant)
+    #             quant_obj = SECUQuantity(quant["quantity"])
+    #             root_verb = getattr(quant, "root_verb", None)
+    #             root_noun = getattr(quant, "root_noun", None)
+    #             if getattr(quant_obj.original, "source_secu", None) is not None:
+    #                 source = quant["source_secu"]
+    #                 rel = SourceQuantityRelation(quant_obj, secu_obj, source, root_verb=root_verb, root_noun=root_noun)
+    #                 secu_obj.add_relation(rel)
+    #             else:
+    #                 rel = QuantityRelation(quant_obj, secu_obj, root_verb=root_verb, root_noun=root_noun)
+    #                 secu_obj.add_relation(rel)
+    #         secus.append(secu_obj)
+    #     for s in secus:
+    #         print(s)
                 # for each in [main_secu, quantity]:
                 #     print(each, type(each))
                 #     print(each._.amods)
@@ -1358,23 +1358,23 @@ if __name__ == "__main__":
         secus = search.get_SECU_objects(doc)
         print(secus)
     
-    def get_secu_amods(text):
-        search = SpacyFilingTextSearch()
-        doc = search.nlp(text)
-        print(f"getting amods for secus: {doc._.secus}")
-        for secu in doc._.secus:
-            print(f"amods: {search.get_secu_amods(secu)}")
+    # def get_secu_amods(text):
+    #     search = SpacyFilingTextSearch()
+    #     doc = search.nlp(text)
+    #     print(f"getting amods for secus: {doc._.secus}")
+    #     for secu in doc._.secus:
+    #         print(f"amods: {search.get_secu_amods(secu)}")
         
-    def get_secuquantity(text):
-        search = SpacyFilingTextSearch()
-        doc = search.nlp(text)
-        from main.parser.filing_nlp import extend_token_ent_to_span
-        for secu in doc._.secus:
-            quants = search.get_secuquantities(doc, secu)
-            print(f"quants: {quants}")
-            for quant in quants:
-                print(f'quant: {quant["quantity"], type(quant["quantity"])}')
-                print(quant["quantity"]._.secuquantity, quant["quantity"]._.secuquantity_unit)
+    # def get_secuquantity(text):
+    #     search = SpacyFilingTextSearch()
+    #     doc = search.nlp(text)
+    #     from main.parser.filing_nlp import extend_token_ent_to_span
+    #     for secu in doc._.secus:
+    #         quants = search.get_secuquantities(doc, secu)
+    #         print(f"quants: {quants}")
+    #         for quant in quants:
+    #             print(f'quant: {quant["quantity"], type(quant["quantity"])}')
+    #             print(quant["quantity"]._.secuquantity, quant["quantity"]._.secuquantity_unit)
 
 
 
@@ -1396,6 +1396,7 @@ if __name__ == "__main__":
         # result = matcher.get_possible_candidates(pattern)
         # print([i for i in result])
         secus = []
+        docs = []
         for each in [
             (
                 "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
@@ -1410,19 +1411,28 @@ if __name__ == "__main__":
                 "are based on 30,823,573 shares outstanding on April 11, 2022. ",
                 ),
             (
-                "based on 70,067,147 shares of our Common Stockoutstanding as of October 18, 2021.",
+                "This is based on 70,067,147 shares currently not outstanding of our Common Stock as of October 18, 2021.",
                 ),
             (
-                "based on 41,959,545 shares of our Common Stock outstanding as of October 26, 2020. ",
+                "This is based on 41,959,545 shares of our Common Stock currently not outstanding as of October 26, 2020. ",
                 ) 
         ]:
             text = each[0]
             doc = search.nlp(text)
+            docs.append(doc)
             secu_objects = search.get_SECU_objects(doc)
             secus.append(secu_objects)
         for i in secus:
             print(i)
+            for _, s in i.items():
+                for q in s:
+                    print(f"date_relation: {q.date_relation}")
             print("_________________________")
+        # displacy.serve(docs, style="ent", options={
+        #     "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
+        #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
+        #     })
+        displacy.serve(docs, style="dep", options={"fine_grained": False, "collapse_phrases": False})
 
             # root_verb = matcher.get_root_verb(doc[8])
             # print(root_verb)

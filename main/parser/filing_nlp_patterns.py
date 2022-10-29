@@ -153,7 +153,12 @@ SECUQUANTITY_ENT_PATTERNS = [
         {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
         {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
     ],
-    
+    [
+        {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
+        {"POS": "ADJ", "OP": "?"},
+        {"LOWER": {"IN": ["shares"]}},
+        {"POS": "ADJ", "OP": "?"},
+    ],
     [   
         {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
         {"LOWER": "of", "OP": "?"},
@@ -167,6 +172,13 @@ SECUQUANTITY_ENT_PATTERNS = [
         {"LOWER": "of", "OP": "?"},
         {"LOWER": "our", "OP": "?"},
         {"ENT_TYPE": {"IN": ["SECU"]}}
+    ],
+    [
+        {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
+        {"POS": "ADJ", "OP": "*"},
+        {"LOWER": "shares"},
+        {"LOWER": "of"},
+        {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
     ]
 
 ]
@@ -522,8 +534,66 @@ SECU_EXERCISE_PRICE_PATTERNS = [
     ]
 ]
 
+SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB = [
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep_phrase_start",
+            "RIGHT_ATTRS": {"DEP": "prep", "LOWER":  "as"}
+        },
+        {
+            "LEFT_ID": "prep_phrase_start",
+            "REL_OP": ">",
+            "RIGHT_ID": "second_prep",
+            "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
+        },
+        {
+            "LEFT_ID": "second_prep",
+            "REL_OP": ">",
+            "RIGHT_ID": "date_start",
+            "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}
+        }
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep_phrase_start",
+            "RIGHT_ATTRS": {"DEP": "prep", "LOWER":  "on"}
+        },
+        {
+            "LEFT_ID": "prep_phrase_start",
+            "REL_OP": ">",
+            "RIGHT_ID": "date_start",
+            "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}
+        }
+    ],
+    
+]
+
 
 SECU_SECUQUANTITY_PATTERNS = [
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<",
+            "RIGHT_ID": "pobj",
+            "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": "of"}
+        },
+        {
+            "LEFT_ID": "pobj",
+            "REL_OP": "<",
+            "RIGHT_ID": "prep",
+            "RIGHT_ATTRS": {"DEP": "prep", "POS": {"IN": ["NOUN", "PROPN"]}, "LOWER": "shares"}
+        },
+        {
+            "LEFT_ID": "prep",
+            "REL_OP": ">",
+            "RIGHT_ID": "secuquantity",
+            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+        }
+    ],
     [
         {
             "LEFT_ID": "anchor",
