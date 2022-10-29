@@ -1,3 +1,26 @@
+ADJ_NEGATION_PATTERNS = [
+    [
+        {"DEP": "neg"},
+        {"POS": "ADJ"}
+    ],
+    [
+        {"POS": "ADJ"},
+        {"DEP": "neg"}
+    ],
+]
+
+VERB_NEGATION_PATTERNS = [
+    [
+        {"DEP": {"IN": ["auxpass", "aux"]}, "OP": "?"},
+        {"DEP": "neg"},
+        {"POS": "AUX", "OP": "?"},
+        {"POS": "VERB"}
+    ]
+]
+
+
+
+
 SECU_DEBT_SECURITY_L1_MODIFIERS = [
     "subordinated",
     "senior"
@@ -146,40 +169,45 @@ SECU_ENT_REGULAR_PATTERNS = [
 ]
 
 
+SECUQUANTITY_BASE_CASES = [
+    {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
+    {"POS": "NUM", "DEP": "nummod", "OP": "+"},
+]
 
 SECUQUANTITY_ENT_PATTERNS = [
-    [
-        {"ENT_TYPE": "CARDINAL", "OP": "+"},
-        {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
-        {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
-    ],
-    [
-        {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-        {"POS": "ADJ", "OP": "?"},
-        {"LOWER": {"IN": ["shares"]}},
-        {"POS": "ADJ", "OP": "?"},
-    ],
-    [   
-        {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-        {"LOWER": "of", "OP": "?"},
-        {"LOWER": "our", "OP": "?"},
-        {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
-    ],
-    [
-        {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-        {"LOWER": "shares"},
-        {"OP": "*", "IS_SENT_START": False, "POS": {"NOT_IN": ["VERB"]}, "ENT_TYPE": {"NOT_IN": ["SECU", "SECUQUANTITY"]}},
-        {"LOWER": "of", "OP": "?"},
-        {"LOWER": "our", "OP": "?"},
-        {"ENT_TYPE": {"IN": ["SECU"]}}
-    ],
-    [
-        {"ENT_TYPE": {"IN": ["CARDINAL", "MONEY"]}, "OP": "+"},
-        {"POS": "ADJ", "OP": "*"},
-        {"LOWER": "shares"},
-        {"LOWER": "of"},
-        {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
-    ]
+    
+        *[[
+            base_case,
+            {"LOWER": {"IN": ["authorized", "outstanding"]}, "OP": "?"},
+            {"LOWER": {"IN": ["share", "shares", "warrant shares"]}}
+        ] for base_case in SECUQUANTITY_BASE_CASES],
+        *[[
+            base_case,
+            {"POS": "ADJ", "OP": "?"},
+            {"LOWER": {"IN": ["shares"]}},
+            {"POS": "ADJ", "OP": "?"},
+        ] for base_case in SECUQUANTITY_BASE_CASES],
+        *[[   
+            base_case,
+            {"LOWER": "of", "OP": "?"},
+            {"LOWER": "our", "OP": "?"},
+            {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
+        ] for base_case in SECUQUANTITY_BASE_CASES],
+        *[[
+            base_case,
+            {"LOWER": "shares"},
+            {"OP": "*", "IS_SENT_START": False, "POS": {"NOT_IN": ["VERB"]}, "ENT_TYPE": {"NOT_IN": ["SECU", "SECUQUANTITY"]}},
+            {"LOWER": "of", "OP": "?"},
+            {"LOWER": "our", "OP": "?"},
+            {"ENT_TYPE": {"IN": ["SECU"]}}
+        ] for base_case in SECUQUANTITY_BASE_CASES],
+        *[[
+            base_case,
+            {"POS": "ADJ", "OP": "*"},
+            {"LOWER": "shares"},
+            {"LOWER": "of"},
+            {"ENT_TYPE": {"IN": ["SECU", "SECUREF"]}}
+        ] for base_case in SECUQUANTITY_BASE_CASES],
 
 ]
 

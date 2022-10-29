@@ -1053,7 +1053,7 @@ if __name__ == "__main__":
                 print(      spacy.explain(token.dep_),  token.dep_)
                 print(      spacy.explain(token.pos_), token.pos_)
                 print(      spacy.explain(token.tag_), token.tag_)
-        displacy.serve(doc, style="dep", options={"fine_grained": True, "compact": True}, port=5000)
+        displacy.serve(doc, style="dep", options={"fine_grained": False, "compact": True}, port=5000)
 
     def displacy_ent_with_search(text):
         search = SpacyFilingTextSearch()
@@ -1414,7 +1414,7 @@ if __name__ == "__main__":
                 "This is based on 70,067,147 shares currently not outstanding of our Common Stock as of October 18, 2021.",
                 ),
             (
-                "This is based on 41,959,545 shares of our Common Stock currently not outstanding as of October 26, 2020. ",
+                "This is based on 41,959,545 shares, not including the 10000 Authorized shares of our Series A preferred stock as of October 26, 2020. ",
                 ) 
         ]:
             text = each[0]
@@ -1428,11 +1428,15 @@ if __name__ == "__main__":
                 for q in s:
                     print(f"date_relation: {q.date_relation}")
             print("_________________________")
+        for doc in docs:
+            for token in doc:
+                if token._.negated is True:
+                    print(f"negated: {token}")
         # displacy.serve(docs, style="ent", options={
         #     "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
         #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
         #     })
-        displacy.serve(docs, style="dep", options={"fine_grained": False, "collapse_phrases": False})
+        # displacy.serve(docs, style="dep", options={"fine_grained": False, "collapse_phrases": False})
 
             # root_verb = matcher.get_root_verb(doc[8])
             # print(root_verb)
@@ -1441,5 +1445,6 @@ if __name__ == "__main__":
         # add secuquantity_unit to individual tokens
         # create amod getter for Token
         # rework this to account correctly for optional dependency condition
-
+    # displacy_ent_with_search("This is based on 41,959,545 shares, not including shares of our Common Stock, currently outstanding as of October 26, 2020. ")
     try_own_dep_matcher()
+    # displacy_dep_with_search("Those shares of common stock arent outstanding as of may 15, 2020.")

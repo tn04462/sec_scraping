@@ -26,6 +26,9 @@ def get_secumatcher(get_en_core_web_lg_nlp):
     del secu_matcher
 
 
+# classes not tested: AggreementMatcher, NegationSetter
+
+
 class TestSECUMatcher:
     '''
     Tests currently missing:

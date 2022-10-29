@@ -26,14 +26,16 @@ from main.parser.filing_nlp_patterns import (
     SECU_ENT_DEPOSITARY_PATTERNS,
     SECU_ENT_SPECIAL_PATTERNS,
     SECUQUANTITY_ENT_PATTERNS,
-    SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB
+    SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB,
+    VERB_NEGATION_PATTERNS,
+    ADJ_NEGATION_PATTERNS,
 )
 from main.parser.filing_nlp_constants import (
     PLURAL_SINGULAR_SECU_TAIL_MAP,
     SINGULAR_PLURAL_SECU_TAIL_MAP,
     SECUQUANTITY_UNITS,
     ATTRIBUTE_KEY_TO_STRINGKEY,
-    DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG
+    DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG,
 )
 
 logger = logging.getLogger(__name__)
@@ -516,6 +518,42 @@ class DependencyAttributeMatcher():
                     if quant is not None:
                         result.append({"quantity": quant, "source_secu": source_secu})
         return result if result != [] else None
+    
+    def get_parent_verb(self, token: Token):
+        candidate_matches = self.get_possible_candidates(
+            [
+                {
+                    "RIGHT_ID": "anchor",
+                    "TOKEN": token    
+                },
+                {
+                    "LEFT_ID": "anchor",
+                    "REL_OP": "<<",
+                    "RIGHT_ID": "parent_verb",
+                    "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}},
+                    "IS_OPTIONAL": False
+                }
+            ]
+        )
+        if candidate_matches != []:
+            if len(candidate_matches) > 1:
+                verbs = []
+                for candidate_match in candidate_matches:
+                    for entry in candidate_match:
+                        candidate_token, right_id = entry
+                        if right_id == "parent_verb":
+                            verbs.append(candidate_token)
+                dep_distances = [None] * len(verbs)
+                for idx, verb in enumerate(verbs):
+                    dep_distances[idx] = get_dep_distance_between(token, verb)
+                min_idx =  dep_distances.index(min(dep_distances))
+                return verbs[min_idx]
+            else:
+                for entry in candidate_matches[0]:
+                    candidate_token, right_id = entry
+                    if right_id == "parent_verb":
+                        return candidate_token
+        return None
 
     def get_root_verb(self, token: Token):
         candidate_matches = self.get_possible_candidates(
@@ -536,12 +574,22 @@ class DependencyAttributeMatcher():
         logger.debug(f"canddiate_matches for root_verb: {candidate_matches}")
         if candidate_matches != []:
             if len(candidate_matches) > 1:
-                raise NotImplementedError(f"multiple results for root_verb isnt handled yet. candidate_matches found: {candidate_matches}")
+                verbs = []
+                for candidate_match in candidate_matches:
+                    for entry in candidate_match:
+                        candidate_token, right_id = entry
+                        if right_id == "root_verb":
+                            verbs.append(candidate_token)
+                dep_distances = [None] * len(verbs)
+                for idx, verb in enumerate(verbs):
+                    dep_distances[idx] = get_dep_distance_between(token, verb)
+                max_idx =  dep_distances.index(max(dep_distances))
+                return verbs[max_idx]
             else:
                 for entry in candidate_matches[0]:
-                    token, right_id = entry
+                    candidate_token, right_id = entry
                     if right_id == "root_verb":
-                        return token
+                        return candidate_token
         return None
     
     def get_matches(self, dependant: Token, attr: list[dict]):
@@ -1044,8 +1092,10 @@ def set_SECUMatcher_extensions():
         {"name": "secuquantity_unit", "kwargs": {"default": None}},
         {"name": "amods", "kwargs": {"getter": token_amods_getter}},
         {"name": "nsubjpass", "kwargs": {"getter": token_nsubjpass_getter}},
+        {"name": "adj", "kwargs": {"getter": token_adj_getter}},
         {"name": "premerge_tokens", "kwargs": {"getter": get_premerge_tokens_for_token}},
         {"name": "secu_key", "kwargs": {"getter": get_secu_key_extension}},
+        {"name": "negated", "kwargs": {"default": False}}
     ]
     span_extensions = [
         {"name": "secuquantity", "kwargs": {"getter": get_span_secuquantity_float}},
@@ -1073,35 +1123,6 @@ def set_SECUMatcher_extensions():
         _set_extension(Doc, each["name"], each["kwargs"])
     for each in token_extensions:
         _set_extension(Token, each["name"], each["kwargs"])
-
-class AgreementMatcher:
-    '''
-    What do i want to tag?
-        1) contractual agreements between two parties CONTRACT
-        2) placements (private placement), public offerings -> specifiers for a CONTRACT or standing alone in text
-        how else could the context of origin be present in a filing?
-    '''
-    # change the name to something more fitting, also adjust the Language.factory for name
-    def __init__(self, vocab):
-        self.vocab = vocab
-        self.matcher = Matcher(vocab)
-        self.add_CONTRACT_ent_to_matcher()
-    
-    def add_CONTRACT_ent_to_matcher(self):
-        patterns = [
-            [{"LOWER": "agreement"}],
-        ]
-        self.matcher.add("contract", patterns, on_match=_add_CONTRACT_ent)
-    
-    def add_PLACEMENT_ent_to_matcher(self):
-        pass
-    
-    def __call__(self, doc: Doc):
-        self.matcher(doc)
-        return doc
-    
-    # def agreement_callback()
-
 
 
 class SECUMatcher:
@@ -1416,7 +1437,7 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     wanted_tokens = []
     for token in match_tokens:
         # logger.debug(f"token: {token}, ent_type: {token.ent_type_}")
-        if token.ent_type_ in ["MONEY", "CARDINAL", "SECUQUANTITY"]:
+        if (token.ent_type_ in ["MONEY", "CARDINAL", "SECUQUANTITY"]) or (token.dep_ == "nummod" and token.pos_ == "NUM"):
             # end = token.i-1
             wanted_tokens.append(token.i)
     end = sorted(wanted_tokens)[-1]+1 if wanted_tokens != [] else None
@@ -1542,6 +1563,64 @@ def _get_singular_or_plural_of_SECU_token(token):
         return plural
     else:
         return singular
+
+class AgreementMatcher:
+    '''
+    What do i want to tag?
+        1) contractual agreements between two parties CONTRACT
+        2) placements (private placement), public offerings -> specifiers for a CONTRACT or standing alone in text
+        how else could the context of origin be present in a filing?
+    '''
+    # change the name to something more fitting, also adjust the Language.factory for name
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self.matcher = Matcher(vocab)
+        self.add_CONTRACT_ent_to_matcher()
+    
+    def add_CONTRACT_ent_to_matcher(self):
+        patterns = [
+            [{"LOWER": "agreement"}],
+        ]
+        self.matcher.add("contract", patterns, on_match=_add_CONTRACT_ent)
+    
+    def add_PLACEMENT_ent_to_matcher(self):
+        pass
+    
+    def __call__(self, doc: Doc):
+        self.matcher(doc)
+        return doc
+    
+    # def agreement_callback()
+
+
+class NegationSetter:
+    '''
+    sets negation for ADJ and VERBS with the token extension ._.negated.
+    '''
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self.matcher = Matcher(vocab)
+        self.add_negation_ent_to_matcher()
+    
+    def add_negation_ent_to_matcher(self):
+        self.matcher.add("negation", [*VERB_NEGATION_PATTERNS, *ADJ_NEGATION_PATTERNS], on_match=_set_negation_extension)
+        
+
+    def __call__(self, doc: Doc):
+        self.matcher(doc)
+        return doc
+
+
+    
+def _set_negation_extension(matcher: Matcher, doc: Doc, i: int, matches: list):
+    '''
+    sets the negation extension for the matched tokens
+    '''
+    match_id, start, end = matches[i]
+    for token in doc[start:end]:
+        if token.dep_ not in ["neg", "aux", "auxpass"]:
+            token._.negated = True
+
                     
 @Language.factory("secu_matcher")
 def create_secu_matcher(nlp, name):
@@ -1563,6 +1642,12 @@ def create_common_financial_retokenizer(nlp, name):
 def create_agreement_matcher(nlp, name):
     return AgreementMatcher(nlp.vocab)
 
+@Language.factory("negation_setter")
+def create_negation_setter(nlp, name):
+    if not Token.has_extension("negated"):
+        Token.set_extension("negated", default=False)
+    return NegationSetter(nlp.vocab)
+
 
 class SpacyFilingTextSearch:
     _instance = None
@@ -1578,9 +1663,10 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("secu_act_matcher", first=True)
             cls._instance.nlp.add_pipe("security_law_retokenizer", after="secu_act_matcher")
             cls._instance.nlp.add_pipe("common_financial_retokenizer", after="security_law_retokenizer")
+            cls._instance.nlp.add_pipe("negation_setter")
             cls._instance.nlp.add_pipe("secu_matcher")
             cls._instance.nlp.add_pipe("agreement_matcher")
-            # cls._instance.nlp.add_p   ipe("coreferee")
+            # cls._instance.nlp.add_pipe("coreferee")
         return cls._instance
     
     def get_SECU_objects(self, doc: Doc) -> dict:
@@ -1892,6 +1978,7 @@ class SpacyFilingTextSearch:
 
 
     def match_prospectus_relates_to(self, text):
+        # INVESTIGATIVE
         pattern = [
             # This prospectus relates to
             {"LOWER": "prospectus"},
@@ -1907,6 +1994,7 @@ class SpacyFilingTextSearch:
         
     
     def match_aggregate_offering_amount(self, doc: Doc):
+        # INVESTIGATIVE
         pattern = [
             {"ENT_TYPE": "SECU", "OP":"*"},
             {"IS_SENT_START": False, "OP": "*"},
@@ -1922,486 +2010,10 @@ class SpacyFilingTextSearch:
         matcher.add("offering_amount", [pattern])
         matches = _convert_matches_to_spans(doc, filter_matches(matcher(doc, as_spans=False)))
         return matches if matches is not None else []
-    
-    # REPLACED BY DEPENDENCY_ATTRIBUTE_MATCHER
-    # def get_secuquantities(self, doc: Doc, secu: Span):
-    #     ''''match secuquantity and source_secu, secu, close verbs'''
-    #     dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)
-    #     secu_root_pattern = self._create_span_dependency_matcher_dict_lower(secu)
-    #     # have dict of conversion functions to match_id
-    #     # have a handle_match_formatting function
-    #     # so we can convert each match to a sensible dictionary
-    #     # dict should include direct verbs, direct adjectives, source_secu
-    #     secuquantity_shares_no_verb = [
-    #         [
-    #             *secu_root_pattern,
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<",
-    #                 "RIGHT_ID": "prep",
-    #                 "RIGHT_ATTRS": {"DEP": "prep"}
-    #             },
-    #             {
-    #                 "LEFT_ID": "prep",
-    #                 "REL_OP": "<",
-    #                 "RIGHT_ID": "noun",
-    #                 "RIGHT_ATTRS": {"POS": "NOUN", "LOWER": {"IN": ["shares"]}}
-    #             },
-    #             {
-    #                 "LEFT_ID": "noun",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "secuquantity",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-    #             }
-
-    #         ]
-    #     ]
-    #     secuquantity_no_verb = [
-    #         [
-    #             *secu_root_pattern,
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "secuquantity",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-    #             }
-
-    #         ]
-    #     ]
-    #     secuquantity_verb_second_order_noun_no_source_secu = [
-    #         [
-    #             *secu_root_pattern,
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<<",
-    #                 "RIGHT_ID": "verb1",
-    #                 "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
-    #             },
-    #             {
-    #                 "LEFT_ID": "verb1",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "prep",
-    #                 "RIGHT_ATTRS": {"DEP": "prep"}, 
-    #             },
-    #             {
-    #                 "LEFT_ID": "prep",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "noun_relation",
-    #                 "RIGHT_ATTRS": {"POS": "NOUN"}, 
-    #             },
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<<",
-    #                 "RIGHT_ID": "any",
-    #                 "RIGHT_ATTRS": {"POS": "NOUN"}
-    #             },
-    #             {
-    #                 "LEFT_ID": "any",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "secuquantity",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-    #             }
-    #         ]
-    #     ]
-    #     secuquantity_verb_second_order_noun_source_secu = [
-    #         [
-    #             *secu_root_pattern,
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<<",
-    #                 "RIGHT_ID": "verb1",
-    #                 "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
-    #             },
-    #             {
-    #                 "LEFT_ID": "verb1",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "prep",
-    #                 "RIGHT_ATTRS": {"DEP": "prep"}, 
-    #             },
-    #             {
-    #                 "LEFT_ID": "prep",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "noun_relation",
-    #                 "RIGHT_ATTRS": {"POS": "NOUN"}, 
-    #             },
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<<",
-    #                 "RIGHT_ID": "any",
-    #                 "RIGHT_ATTRS": {"POS": "NOUN"}
-    #             },
-    #             {
-    #                 "LEFT_ID": "any",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "secuquantity",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-    #             },
-    #             {
-    #                 "LEFT_ID": "verb1",
-    #                 "REL_OP": "<",
-    #                 "RIGHT_ID": "source_secu",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
-    #             }
-    #         ]
-    #     ]
-    #     secuquantity_verb_patterns = [
-    #         [
-    #             *secu_root_pattern,
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<",
-    #                 "RIGHT_ID": "verb1",
-    #                 "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"NOT_IN": ["purchase", "acquire"]}}, 
-    #             },
-    #             {
-    #                 "LEFT_ID": "verb1",
-    #                 "REL_OP": ">>",
-    #                 "RIGHT_ID": "secuquantity",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-    #             }
-    #         ]
-    #     ]
-    #     secuquantity_verb_source_secu_patterns = [
-    #         [
-    #             *secu_root_pattern,
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<<",
-    #                 "RIGHT_ID": "verb1",
-    #                 "RIGHT_ATTRS": {"POS": "VERB"}
-    #             },
-    #             {
-    #                 "LEFT_ID": "anchor",
-    #                 "REL_OP": "<<",
-    #                 "RIGHT_ID": "any",
-    #                 "RIGHT_ATTRS": {}
-    #             },
-    #             {
-    #                 "LEFT_ID": "any",
-    #                 "REL_OP": ">",
-    #                 "RIGHT_ID": "secuquantity",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-    #             },
-    #             {
-    #                 "LEFT_ID": "verb1",
-    #                 "REL_OP": "<",
-    #                 "RIGHT_ID": "source_secu",
-    #                 "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
-    #             },
-
-    #         ]
-    #     ]
-    #     def format_match_secuquantity_shares_no_verb(match, doc: Doc):
-    #         secu = extend_token_ent_to_span(match[0], doc)
-    #         rest = match[1:]
-    #         unit = rest[1]
-    #         quantity = extend_token_ent_to_span(rest[2], doc)
-    #         return {
-    #             "main_secu": secu,
-    #             "unit": unit,
-    #             "quantity": quantity
-    #         }
-
-    #     def format_match_secuquantity_no_verb(match, doc: Doc):
-    #         secu = extend_token_ent_to_span(match[0], doc)
-    #         rest = match[1:]
-    #         quantity = extend_token_ent_to_span(rest[0], doc)
-    #         return {
-    #             "main_secu": secu,
-    #             "unit": None,
-    #             "quantity": quantity
-    #         }
-
-    #     def format_match_secuquantity_verb_second_order_noun_no_source_secu(match, doc: Doc):
-    #         secu = extend_token_ent_to_span(match[0], doc)
-    #         rest = match[1:]
-    #         preceding_root_verb = rest[0]
-    #         noun_to_verb = rest[2]
-    #         quantity = extend_token_ent_to_span(rest[4], doc)
-    #         return {
-    #             "main_secu": secu,
-    #             "root_verb": preceding_root_verb,
-    #             "root_noun": noun_to_verb,
-    #             "quantity": quantity,
-    #             "source_secu": None,
-    #         }
-
-    #     def format_match_secuquantity_verb_second_order_noun_source_secu(match, doc: Doc):
-    #         secu = extend_token_ent_to_span(match[0], doc)
-    #         rest = match[1:]
-    #         preceding_root_verb = rest[0]
-    #         noun_to_verb = rest[2]
-    #         quantity = extend_token_ent_to_span(rest[4], doc)
-    #         source_secu_token = rest[5]
-    #         source_secu_span = extend_token_ent_to_span(source_secu_token, doc)
-    #         return {
-    #             "main_secu": secu,
-    #             "root_verb": preceding_root_verb,
-    #             "root_noun": noun_to_verb,
-    #             "quantity": quantity,
-    #             "source_secu": source_secu_span,
-    #         }
-
-    #     def format_match_secuquantity_verb_source_secu(match, doc: Doc):
-    #         secu = extend_token_ent_to_span(match[0], doc)
-    #         rest = match[1:]
-    #         preceding_root_verb = rest[0]
-    #         quantity = extend_token_ent_to_span(rest[2], doc)
-    #         source_secu_token = rest[3]
-    #         source_secu_span = extend_token_ent_to_span(source_secu_token, doc)
-    #         return {
-    #             "main_secu": secu,
-    #             "root_verb": preceding_root_verb,
-    #             "root_noun": None,
-    #             "quantity": quantity,
-    #             "source_secu": source_secu_span,
-    #         }
-    #         # get full secu span from source_secu_token
-    #         # return dict
-
-    #     def format_match_secuquantity_verb(match, doc: Doc):
-    #         secu = extend_token_ent_to_span(match[0], doc)
-    #         rest = match[1:]
-    #         preceding_root_verb = rest[0]
-    #         quantity = extend_token_ent_to_span(rest[1], doc)
-    #         return {
-    #             "main_secu": secu,
-    #             "root_verb": preceding_root_verb,
-    #             "root_noun": None,
-    #             "quantity": quantity,
-    #             "source_secu": None,
-    #         }
-        
-    #     formatting_dict = {
-    #         "secuquantity_shares_no_verb": format_match_secuquantity_shares_no_verb,
-    #         "secuquantity_no_verb": format_match_secuquantity_no_verb,
-    #         "secuquantity_verb": format_match_secuquantity_verb,
-    #         "secuquantity_verb_source_secu": format_match_secuquantity_verb_source_secu,
-    #         "secuquantity_verb_second_order_noun": format_match_secuquantity_verb_second_order_noun_no_source_secu,
-    #         "secuquantity_verb_second_order_noun_source_secu": format_match_secuquantity_verb_second_order_noun_source_secu,
-    #     }
-            
-
-    #     dep_matcher.add("secuquantity_shares_no_verb", secuquantity_shares_no_verb)
-    #     dep_matcher.add("secuquantity_no_verb", secuquantity_no_verb)
-    #     dep_matcher.add("secuquantity_verb", secuquantity_verb_patterns)
-    #     dep_matcher.add("secuquantity_verb_source_secu", secuquantity_verb_source_secu_patterns)
-    #     dep_matcher.add("secuquantity_verb_second_order_noun", secuquantity_verb_second_order_noun_no_source_secu)
-    #     dep_matcher.add("secuquantity_verb_second_order_noun_source_secu", secuquantity_verb_second_order_noun_source_secu)
-
-    #     matches = dep_matcher(doc)
-
-    #     '''
-    #     target: have a list of attributes originating from same span (secu)
-
-    #     changes:
-    #     - change _filter_dep_matches to only take the longest in 
-    #       a group of pattern_keys.
-    #       eg take longest of (secuquantity_shares_no_verb, secuquantity_no_verb)
-    #     - sort the results by secu index of doc
-    #         -> matches with same origin
-    #     - filter matches by longest in group
-    #     - check if minimum requirements are met
-    #     - format the matches per origin
-    #     - merge the formatted dicts of the same origin match
-        
-
-    #     '''
-        
-    #     def process_matches(doc, matches):
-    #         result = []
-    #         matches = convert_match_id_to_str_id(matches)
-    #         sorted_by_origin = sort_matches_by_origin_token(matches)
-    #         # logger.debug(f"sorted_by_origin: {sorted_by_origin}")
-    #         for origin, matches in sorted_by_origin.items():
-    #             origin_by_groups = sort_by_groups(
-    #                 [
-    #                     [
-    #                         "secuquantity_shares_no_verb",
-    #                         "secuquantity_no_verb"
-    #                     ],
-    #                     [
-    #                         "secuquantity_verb",
-    #                         "secuquantity_verb_source_secu",
-    #                         "secuquantity_verb_second_order_noun_source_secu"
-    #                     ],
-    #                     [
-    #                         "secuquantity_verb_second_order_noun"
-    #                     ]
-    #                 ],
-    #                 matches
-    #             )
-    #             # logger.debug(f"origin_by_groups: {origin_by_groups}")
-    #             longest_matches_by_group = _keep_longest_match_in_groups(origin_by_groups)
-    #             # discard matches which dont have needed groups
-    #             def do_matches_have_required_groups(matches, required_at_least_one: list[list[str]], required: Optional[list[str]]=None):
-    #                 valid = True
-    #                 for group in required_at_least_one:
-    #                     if any([g in matches.keys() for g in group]):
-    #                         pass
-    #                     else:
-    #                         valid = False
-    #                 if required is not None:
-    #                     for group in required:
-    #                         if all([g in matches.keys() for g in group]):
-    #                             pass
-    #                         else:
-    #                             valid = False
-    #                 return valid
-    #             valid_matches = do_matches_have_required_groups(
-    #                 longest_matches_by_group,
-    #                 [
-    #                     ["secuquantity_shares_no_verb", "secuquantity_no_verb"],
-    #                     ["secuquantity_verb", "secuquantity_verb_source_secu", "secuquantity_verb_second_order_noun_source_secu", "secuquantity_verb_second_order_noun"]
-    #                 ]
-    #             )
-    #             valid_matches = True
-    #             if valid_matches:
-    #                 matches_in_regular_match_format = _convert_longest_matches_by_groups_to_match_format(longest_matches_by_group)
-    #                 # logger.debug(f"matches_in_regular_match_format: {matches_in_regular_match_format}")
-    #                 formatted_matches = []
-    #                 converted_matches = _convert_dep_matches_to_spans(doc, matches_in_regular_match_format)
-    #                 # logger.debug(f"converted_matches: {converted_matches}")
-    #                 for match in converted_matches:
-    #                     formatted_matches.append(
-    #                         self.handle_match_formatting(
-    #                             match,
-    #                             formatting_dict,
-    #                             doc
-    #                         )
-    #                     )
-    #                 # logger.debug(f"formatted_matches: {formatted_matches}")
-    #                 result.append(merge_dicts([m[1] for m in formatted_matches]))
-    #                 # logger.debug(f"result: {result}")
-    #             else:
-    #                 logger.debug(f"discarded matches: {longest_matches_by_group}")
-    #                 logger.debug(f"Reason: matches didnt have required groups.")
-    #         return result
-    #             # now merge formatted matches
-    #             # return list of merged dicts
-    #             # delete unused code after testing this
-        
-    #     def _convert_longest_matches_by_groups_to_match_format(longest_matches):
-    #         result = []
-    #         for group_name, matches in longest_matches.items():
-    #             m = matches[0]
-    #             if not isinstance(m, list):
-    #                 formatted = tuple([group_name, matches])
-    #             else:
-    #                 formatted = tuple([group_name, m])
-    #             result.append(formatted)
-    #         return result
-                
-
-            
-    #     def convert_match_id_to_str_id(matches):
-    #         for i, match in enumerate(matches):
-    #             string_id = self.nlp.vocab.strings[match[0]]
-    #             matches[i] = (string_id, match[1])
-    #         return matches
-
-                
-    #     def merge_dicts(dicts: list[dict]):
-    #         merged = {}
-    #         # logger.debug(f"merge_dicts received dicts: {dicts}")
-    #         for d in dicts:
-    #             for k, v in d.items():
-    #                 merged[k] = v
-    #             # merged.update(d)
-    #         return merged
-                    
-    #     def sort_matches_by_origin_token(matches) -> dict[list[list]]:
-    #         origins_map = defaultdict(list)
-    #         for match in matches:
-    #             # take secu idx as origin
-    #             origin = match[1][0]
-    #             origins_map[origin].append(match)
-    #         return origins_map
-        
-    #     def sort_by_groups(groups: list[list[str]], key_value_lists: list[list]) -> dict[list[list]]:
-    #         '''
-    #         sort a list of key, value lists into groups.
-    #         '''
-    #         individual_groups = OrderedDict()
-    #         for item_key, match in key_value_lists:
-    #             individual_groups.setdefault(item_key, []).append(match)
-    #         grouped_items = defaultdict(list)
-    #         for group in groups:
-    #             for item_key in group:
-    #                 if item_key in individual_groups.keys():
-    #                     for item in individual_groups[item_key]:
-    #                         grouped_items[item_key].append(item)
-    #         return grouped_items
-        
-    #     def _keep_longest_match_in_groups(groups: dict[str, list]) -> dict[list]:
-    #         longest = {}
-    #         for group_keys, matches in groups.items():
-    #             longest_match = _take_longest_list(matches)
-    #             longest[group_keys] = longest_match
-    #         return longest
-        
-    #     def _take_longest_list(input: list[list]):
-    #         longest = -1
-    #         longest_len = -1
-    #         for item in input:
-    #             if len(item) > longest_len:
-    #                 longest = item
-    #                 longest_len = len(item)
-    #         return longest
-
-    #     def _filter_dep_matches(matches):
-    #         '''take the longest of the dep matches with same start token, discard rest'''
-    #         if len(matches) <= 1:
-    #             return matches
-    #         len_map = {}
-    #         result_map = {}
-    #         for match in matches:
-    #             if match[1][0] not in len_map.keys():
-    #                 len_map[match[1][0]] = len(match[1])
-    #                 result_map[match[1][0]] = match
-    #             else:
-    #                 current_len = len(match[1])
-    #                 if current_len <= len_map[match[1][0]]:
-    #                     pass
-    #                 else:
-    #                     len_map[match[1][0]] = len(match[1])
-    #                     result_map[match[1][0]] = match
-    #         return [v for _, v in result_map.items()]
-
-        
-    #     if matches:
-    #         processed_matches = process_matches(doc, matches)
-    #         logger.debug(f"processed_matches: {processed_matches}")
-    #         return processed_matches
-    #         # matches = _filter_dep_matches(matches)
-    #         # matches = _convert_dep_matches_to_spans(doc, matches)
-    #         # # logger.debug(f"raw but converted matches: {matches}")
-    #         # formatted_matches = [self.handle_match_formatting(match, formatting_dict, doc) for match in matches]
-    #         # logger.debug(f"formatted matches: {formatted_matches}")
-    #         # return formatted_matches
-    #     else:
-    #         logger.debug(f"no secu_and_secuquantity matches found")
-    #         return None
-    
-    # def get_head_verbs(self, token: Token):
-    #     # DEBUG CODE
-    #     verbs = []
-    #     for t in [i for i in token.ancestors] + [i for i  in token.children]:
-    #         if t.pos_ == "VERB":
-    #             verbs.append(t)
-    #     return verbs
-    
-    # def get_SECU_subtree_adjectives(self, token: Token):
-    #     # DEBUG CODE
-    #     adj = []
-    #     for t in [i for i in token.subtree]:
-    #         if (t.tag_ == "JJ") and (t.ent_type_ != "SECU"):
-    #             adj.append(t)
-    #     return adj
 
 
     def match_outstanding_shares(self, text):
-        # rework this to include secu 
+        # WILL BE REPLACED
         pattern1 = [
             {"LEMMA": "base"},
             {"LEMMA": {"IN": ["on", "upon"]}},
@@ -2638,6 +2250,15 @@ def token_adj_getter(target: Token):
         return _secuquantity_adj_getter(target)
     if target.ent_type_ == "SECU":
         return _secu_adj_getter(target)
+    return _regular_adj_getter(target)
+
+def _regular_adj_getter(target: Token):
+    adjs = []
+    if target.children:
+        for child in target.children:
+            if child.pos_ == "ADJ":
+                adjs.append(child)
+    return adjs
 
 def _secu_adj_getter(target: Token):
     if not isinstance(target, Token):
@@ -2651,7 +2272,6 @@ def _secu_adj_getter(target: Token):
             if child.pos_ == "ADJ":
                 adjs.append(child)
     return adjs
-       
 
 def _secuquantity_adj_getter(target: Token):
     if not isinstance(target, Token):
