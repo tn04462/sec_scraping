@@ -1,16 +1,11 @@
 from collections import OrderedDict, defaultdict
-from ctypes import Union
 from dataclasses import dataclass, field
 from itertools import product
-from functools import partial
-from imp import source_from_cache
 from typing import Callable, Dict, Iterable, Optional, Set
-from attr import Attribute
 import spacy
 from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
 from spacy import Language
-from spacy.util import filter_spans
 import logging
 import string
 import re
@@ -456,6 +451,21 @@ class DependencyAttributeMatcher():
         ">>": dep_getter.check_descendants
     }
 
+    def _get_exercise_price(self, secu: Token):
+        anchor_pattern = [{
+            "RIGHT_ID": "anchor",
+            "TOKEN": secu
+        }]
+        complete_pattern = add_anchor_pattern_to_patterns(anchor_pattern, SECU_EXERCISE_PRICE_PATTERNS)
+        result = []
+        for pattern in complete_pattern:
+            candidate_matches = self.get_possible_candidates(pattern)
+            if candidate_matches:
+                for match in candidate_matches:
+                    result.append(match)
+        return result
+
+
     def get_date_relation(self, token: Token) -> list[Span]:
         unformatted_dates = []
         unformatted_dates += self._get_date_relation_through_root_verb(token)
@@ -637,10 +647,14 @@ class DependencyAttributeMatcher():
                 return 
             else:
                 children = tree.get(node)
+                print(f"children: {children}")
                 for child in children:
                     rel_op, child_idx = child
+                    print(f"\t rel_op, child_idx: {rel_op}, {child_idx}")
                     for parent, parent_right_id in candidates_cache[node]:
+                        print(f"\t\t parent, parent_right_id: {parent}, {parent_right_id}")
                         matches = self.get_matches(parent, attrs[child_idx])
+                        print("\t\t ",matches)
                         is_optional = attrs[child_idx].get("IS_OPTIONAL", None)
                         right_id = attrs[child_idx]["RIGHT_ID"]
                         if is_optional and not matches:
@@ -652,8 +666,10 @@ class DependencyAttributeMatcher():
                             if is_optional:
                                 continue 
                             # continue and add placeholder if matching this token is optional else return -1
+                            logger.debug(f"breaking out and returning -1")
                             return -1
-                    return resolve_matching_from_node(child_idx, candidates_cache, tree)
+                    logger.debug(f"continuing with recursion.")
+                    resolve_matching_from_node(child_idx, candidates_cache, tree)
         found_matches = resolve_matching_from_node(root, candidates_cache, tree)
         logger.debug(f"final candidates_cache: {candidates_cache}")
         if found_matches == -1:
@@ -1028,7 +1044,7 @@ def get_secu_key(secu: Span|Token) -> str:
     try:
         current_tail = core_tokens[-1].lemma_.lower()
         if current_tail in PLURAL_SINGULAR_SECU_TAIL_MAP.keys():
-            tail = PLURAL_SINGULAR_SECU_TAIL_MAP[tail]
+            tail = PLURAL_SINGULAR_SECU_TAIL_MAP[current_tail]
         else:
             tail = current_tail
         body.append(tail)
@@ -1939,8 +1955,7 @@ class SpacyFilingTextSearch:
                     return deltas[0]
                 elif len(deltas) > 1:
                     raise UnclearInformationExtraction(f"unhandled case of extraction found more than one timedelta for the expiry: {deltas}")
-            return None
-            
+            return None            
     
     def match_secu_exercise_price(self, doc: Doc, secu: Span):
         dep_matcher = DependencyMatcher(self.nlp.vocab, validate=True)

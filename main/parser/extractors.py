@@ -311,19 +311,13 @@ class BaseHTMExtractor:
         pass
     
     def get_issuable_relation(self, doc: Doc, security_name: str):
-        # make patterns match on base secu explicitly
-        # if part1[0] matches assume common stock?
-        # then extract relation (and note span of SECU aswell)
-        # normalize secu text to lower so we reduce amount of cases
-        # write function to create secu from secu_type and optional kwargs
+        # DEPRECATED
         primary_matches = self.spacy_text_search.match_issuable_secu_primary(doc)
         print(f"primary_matches: {primary_matches}")
         no_primary_matches = self.spacy_text_search.match_issuable_secu_no_primary(doc)
         print(f"no_primary_matches: {no_primary_matches}")
         no_exercise_price = self.spacy_text_search.match_issuable_secu_no_exercise_price(doc)
         print(f"no_exercise_price_matches: {no_exercise_price}")
-        #WIP
-
 
     # def _handle_issuable_no_primary_secu_match(self, match):
     #     converted_security = CommonShare()

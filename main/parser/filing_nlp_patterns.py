@@ -338,7 +338,11 @@ SECU_EXPIRY_PATTERNS = [
     ]
 ]
 
-
+PRICE_TRANSFORM_VERB_LEMMAS = [
+    "exercise",
+    "convert",
+    "redeem"
+]
 SECU_EXERCISE_PRICE_PATTERNS = [
     [
         {
@@ -362,8 +366,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
         {
             "LEFT_ID": "price",
             "REL_OP": ">",
-            "RIGHT_ID": "compound",
-            "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+            "RIGHT_ID": "transformative",
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
         },
         {
             "LEFT_ID": "price",
@@ -412,8 +416,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
         {
             "LEFT_ID": "price",
             "REL_OP": ">",
-            "RIGHT_ID": "compound",
-            "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+            "RIGHT_ID": "transformative",
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
         },
         {
             "LEFT_ID": "price",
@@ -456,8 +460,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
         {
             "LEFT_ID": "price",
             "REL_OP": ">",
-            "RIGHT_ID": "compound",
-            "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+            "RIGHT_ID": "transformative",
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
         },
         {
             "LEFT_ID": "price",
@@ -500,8 +504,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
         {
             "LEFT_ID": "price",
             "REL_OP": ">",
-            "RIGHT_ID": "compound",
-            "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+            "RIGHT_ID": "transformative",
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
         },
         {
             "LEFT_ID": "price",
@@ -538,8 +542,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
         {
             "LEFT_ID": "price",
             "REL_OP": ">",
-            "RIGHT_ID": "compound",
-            "RIGHT_ATTRS": {"DEP": "compound", "LOWER": "exercise"}
+            "RIGHT_ID": "transformative",
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
         },
         {
             "LEFT_ID": "price",
@@ -551,13 +555,13 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "LEFT_ID": "prep1",
             "REL_OP": ">",
             "RIGHT_ID": "pobj_CD",
-            "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
+            "RIGHT_ATTRS": {"DEP": "pobj", "POS": "NUM"}
         },
         {
             "LEFT_ID": "pobj_CD",
             "REL_OP": ">",
             "RIGHT_ID": "dollar",
-            "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
+            "RIGHT_ATTRS": {"DEP": "nmod", "POS": "SYM"}
         }  
     ]
 ]

@@ -1397,6 +1397,7 @@ if __name__ == "__main__":
         # print([i for i in result])
         secus = []
         docs = []
+        eps = []
         for each in [
             (
                 "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
@@ -1415,23 +1416,32 @@ if __name__ == "__main__":
                 ),
             (
                 "This is based on 41,959,545 shares, not including the 10000 Authorized shares of our Series A preferred stock as of October 26, 2020. ",
-                ) 
+                ),
+            (
+                "The Warrants have an exercise price of 10.50 $ per share and are exercisable for a period of 5 years from the date of issuance. ",
+            ),
+            ("The Series A Warrants have an exercise price of $11.50 per share",)
         ]:
             text = each[0]
             doc = search.nlp(text)
             docs.append(doc)
-            secu_objects = search.get_SECU_objects(doc)
-            secus.append(secu_objects)
-        for i in secus:
-            print(i)
-            for _, s in i.items():
-                for q in s:
-                    print(f"date_relation: {q.date_relation}")
-            print("_________________________")
-        for doc in docs:
-            for token in doc:
-                if token._.negated is True:
-                    print(f"negated: {token}")
+            for secu in doc._.secus:
+                ep = search.dep_getter._get_exercise_price(secu[0])
+                eps.append(ep)
+        for ep in eps:
+            print(ep)
+        #     secu_objects = search.get_SECU_objects(doc)
+        #     secus.append(secu_objects)
+        # for i in secus:
+        #     print(i)
+        #     for _, s in i.items():
+        #         for q in s:
+        #             print(f"date_relation: {q.date_relation}")
+        #     print("_________________________")
+        # for doc in docs:
+        #     for token in doc:
+        #         if token._.negated is True:
+        #             print(f"negated: {token}")
         # displacy.serve(docs, style="ent", options={
         #     "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
         #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
@@ -1446,5 +1456,5 @@ if __name__ == "__main__":
         # create amod getter for Token
         # rework this to account correctly for optional dependency condition
     # displacy_ent_with_search("This is based on 41,959,545 shares, not including shares of our Common Stock, currently outstanding as of October 26, 2020. ")
-    try_own_dep_matcher()
-    # displacy_dep_with_search("Those shares of common stock arent outstanding as of may 15, 2020.")
+    # try_own_dep_matcher()
+    displacy_dep_with_search("This is a test sentence for detecting an exercise price.")

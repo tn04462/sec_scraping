@@ -26,8 +26,44 @@ def get_secumatcher(get_en_core_web_lg_nlp):
     del secu_matcher
 
 
+
+
 # classes not tested: AggreementMatcher, NegationSetter
 
+class TestDependencyAttributeMatcher:
+    def test_match_simple_pattern_one_child_per_level(self, get_search):
+        search = get_search
+        text = "This is a test sentence for detecting an exercise price."
+        doc = search.nlp(text)
+        pattern = [
+            {"RIGHT_ID": "one", "TOKEN": doc[0]},
+            {"LEFT_ID": "one", "REL_OP": "<", "RIGHT_ID": "two", "RIGHT_ATTRS": {"LOWER": "is"}},
+            {"LEFT_ID": "two", "REL_OP": ">", "RIGHT_ID": "three", "RIGHT_ATTRS": {"LOWER": "sentence"}},
+            {"LEFT_ID": "three", "REL_OP": ">", "RIGHT_ID": "four", "RIGHT_ATTRS": {"LOWER": "test"}},
+        ]
+        matches = search.dep_getter.get_possible_candidates(pattern)
+        assert len(matches) == 1
+        expected_tokens = [doc[0], doc[1], doc[4], doc[3]]
+        found_tokens = [i[0] for i in matches[0]]
+        assert found_tokens == expected_tokens
+
+    def test_match_simple_pattern_two_children(self, get_search):
+        search = get_search
+        text = "This is a test sentence for detecting an exercise price."
+        doc = search.nlp(text)
+        pattern = [
+            {"RIGHT_ID": "one", "TOKEN": doc[0]},
+            {"LEFT_ID": "one", "REL_OP": "<", "RIGHT_ID": "two", "RIGHT_ATTRS": {"LOWER": "is"}},
+            {"LEFT_ID": "two", "REL_OP": ">", "RIGHT_ID": "three", "RIGHT_ATTRS": {"LOWER": "sentence"}},
+            {"LEFT_ID": "three", "REL_OP": ">", "RIGHT_ID": "four", "RIGHT_ATTRS": {"LOWER": "test"}},
+            {"LEFT_ID": "three", "REL_OP": ">", "RIGHT_ID": "five", "RIGHT_ATTRS": {"LOWER": "for"}},
+        ]
+        matches = search.dep_getter.get_possible_candidates(pattern)
+        assert len(matches) == 1
+        expected_tokens = [doc[0], doc[1], doc[4], doc[3], doc[5]]
+        found_tokens = [i[0] for i in matches[0]]
+        assert found_tokens == expected_tokens
+        
 
 class TestSECUMatcher:
     '''
@@ -48,7 +84,7 @@ class TestSECUMatcher:
             ["up", "to", "9,497,051"]
         )
     ])
-    def test_matcher_SECUQUANTITY(input, expected, get_secumatcher, get_en_core_web_lg_nlp):
+    def test_matcher_SECUQUANTITY(self, input, expected, get_secumatcher, get_en_core_web_lg_nlp):
         sm =  get_secumatcher
         nlp = get_en_core_web_lg_nlp
         doc = nlp(input)
@@ -56,8 +92,7 @@ class TestSECUMatcher:
         secuquantities = [i.text for i in filter(lambda x: x.ent_type_ == "SECUQUANTITY", doc)]
         assert expected == secuquantities
 
-
-    def test_matcher_SECU(get_secumatcher, get_en_core_web_lg_nlp):
+    def test_matcher_SECU(self, get_secumatcher, get_en_core_web_lg_nlp):
         sm = get_secumatcher
         nlp = get_en_core_web_lg_nlp
         doc = nlp("The Common stock, Series A Preferred stock and the Series C Warrants of company xyz is fairly valued.")
@@ -65,13 +100,14 @@ class TestSECUMatcher:
         secus = [i.text for i in filter(lambda x: x.ent_type_ == "SECU", doc)]
         assert secus == ['Common', 'stock', 'Series', 'A', 'Preferred', 'stock', 'Series', 'C', 'Warrants']
 
+
 class TestSpacyFilingTextSearch:
     '''
     Tests currently missing:
         * getting correct SECU objects with get_SECU_objects
         *
     '''
-    def test__create_span_dependency_matcher_dict_lower(get_search):
+    def test__create_span_dependency_matcher_dict_lower(self, get_search):
         search:  SpacyFilingTextSearch = get_search
         text = "The Series A Warrants have an exercise price of $11.50 per share."
         doc = search.nlp(text)
@@ -85,15 +121,15 @@ class TestSpacyFilingTextSearch:
             }
             ]
 
-    def test_get_queryable_similar_spans_from_lower(get_search):
+    def test_get_queryable_similar_spans_from_lower(self, get_search):
         search: SpacyFilingTextSearch = get_search
         text = "The Series A Warrants have an exercise price of $11.50 per share. The Series A Warrant has been issued in connection witha private placement."
         doc = search.nlp(text)
         secu = doc[1:2]
         queryable_spans = search.get_queryable_similar_spans_from_lower(doc, secu)
         assert queryable_spans == [doc[13:14]]
-    
-    
+
+
 
     @pytest.mark.parametrize(["text", "expected", "secu_idx"], [
         (
@@ -112,7 +148,7 @@ class TestSpacyFilingTextSearch:
             (0, 1)
         ),
         ])
-    def test_match_exercise_price(text, expected, secu_idx, get_search):
+    def test_match_exercise_price(self, text, expected, secu_idx, get_search):
         search: SpacyFilingTextSearch = get_search
         doc = search.nlp(text)
         secu = doc[secu_idx[0]:secu_idx[1]]
@@ -143,7 +179,7 @@ class TestSpacyFilingTextSearch:
 
             ),
         ])
-    def test_match_expiry(text, expected, secu_idx, get_search):
+    def test_match_expiry(self, text, expected, secu_idx, get_search):
         search: SpacyFilingTextSearch = get_search
         doc = search.nlp(text)
         secu = doc[secu_idx[0]:secu_idx[1]]
@@ -152,7 +188,7 @@ class TestSpacyFilingTextSearch:
         assert expected == matches[0]
 
 
-    def test_secu_alias_map(get_search):
+    def test_secu_alias_map(self, get_search):
         search = get_search
         text = "On February 22, 2021, we entered into the Securities Purchase Agreement (the “Securities Purchase Agreement”), pursuant to which we agreed to issue the investor named therein (the “Investor”) 8,888,890 shares (the “Shares”) of our common stock, par value $0.000001 per share, at a purchase price of $2.25 per share, and a warrant to purchase up to 6,666,668 shares of our common stock (the “Investor Warrant”) in a private placement (the “Private Placement”). The closing of the Private Placement occurred on February 24, 2021."
         # text = "On February 22, 2021, we entered into the Securities Purchase Agreement (the “Securities Purchase Agreement”), pursuant to which we agreed to issue the investor named therein (the “Investor”) 8,888,890 shares (the “Shares”) of our common stock, par value $0.000001 per share, at a purchase price of $2.25 per share, and a warrant (the “Investor Warrant”) to purchase up to 6,666,668 shares of our common stock in a private placement (the “Private Placement”). The closing of the Private Placement occurred on February 24, 2021."
@@ -194,14 +230,14 @@ class TestSpacyFilingTextSearch:
                 {"date": to_datetime("October 26, 2020"),"amount": 41959545}) 
         ]
     )
-    def test_match_outstanding_shares(get_search, phrase, expected):
+    def test_match_outstanding_shares(self, get_search, phrase, expected):
         search: SpacyFilingTextSearch = get_search
         res = search.match_outstanding_shares(phrase)
         print(f"sent: {phrase}")
         print(f"res: {res}")
         assert res[0] == expected
 
-    def test_get_conflicting_ents(get_search, get_secumatcher):
+    def test_get_conflicting_ents(self, get_search, get_secumatcher):
         search = get_search
         text = "one or three or five are the magic numbers."
         doc = search.nlp(text)
@@ -216,7 +252,7 @@ class TestSpacyFilingTextSearch:
 
 
 class TestDependencyNode:
-    def test_dependency_node_get_nodes_base_case():
+    def test_dependency_node_get_nodes_base_case(self):
         root = DependencyNode(data=0)
         child1 = DependencyNode(data=1)
         root.children.append(child1)
@@ -224,7 +260,7 @@ class TestDependencyNode:
         assert [[i.data for i in li] for li in result] == [[0, 1]]
 
 
-    def test_dependency_node_get_nodes_more_nodes():
+    def test_dependency_node_get_nodes_more_nodes(self):
         root = DependencyNode(data=0)
         child1 = DependencyNode(data=1)
         child2 = DependencyNode(data=2)
@@ -237,7 +273,7 @@ class TestDependencyNode:
         result = [i for i in root.get_leaf_paths(root)]
         assert [[i.data for i in li] for li in result] == [[0, 1, 11], [0, 1, 12], [0, 2]]
 
-    def test_dependency_node_get_more_nodes_without_specifing_node(): 
+    def test_dependency_node_get_more_nodes_without_specifing_node(self): 
         root = DependencyNode(data=0)
         child1 = DependencyNode(data=1)
         child2 = DependencyNode(data=2)

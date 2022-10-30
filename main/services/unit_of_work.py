@@ -33,10 +33,10 @@ class AbstractUnitOfWork(ABC):
     def _rollback(self):
         raise NotImplementedError
 
-
+print(cnf.DILUTION_DB_CONNECTION_STRING)
 DEFAULT_SESSION_FACTORY = sessionmaker(
     bind=create_engine(
-        cnf.DILUTION_DB_CONNECTION_STRING,
+        url=cnf.DILUTION_DB_CONNECTION_STRING,
         # isolation_level="REPEATABLE READ"  
     ),
     expire_on_commit=False

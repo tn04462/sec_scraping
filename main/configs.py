@@ -43,7 +43,7 @@ class GlobalConfig(BaseSettings):
     DILUTION_DB_PORT: Optional[int] = None
     DILUTION_DB_USER: Optional[str] = None
     DILUTION_DB_DATABASE_NAME: Optional[str] = None
-    DILUTION_DB_CONNECTION_STRING = f"postgres://{DILUTION_DB_USER}:{DILUTION_DB_PASSWORD}@{DILUTION_DB_HOST}:{DILUTION_DB_PORT}/{DILUTION_DB_DATABASE_NAME}"
+    DILUTION_DB_CONNECTION_STRING: Optional[str] = None
 
 
 
@@ -65,8 +65,7 @@ class GlobalConfig(BaseSettings):
 
     class Config:
         """Loads the dotenv file."""
-
-        env_file: str = "./main/configuration/secret.env"
+        env_file: str = r"./main/configuration/secret.env"
 
 class TestConfig(GlobalConfig):
     """Testing configurations."""
@@ -107,5 +106,4 @@ class FactoryConfig:
             return TestConfig()
 
 
-cnf = FactoryConfig("dev")()
-
+cnf = FactoryConfig("test")()
