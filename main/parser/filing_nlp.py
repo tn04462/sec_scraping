@@ -462,11 +462,15 @@ class DependencyAttributeMatcher():
             candidate_matches = self.get_possible_candidates(pattern)
             if candidate_matches:
                 for match in candidate_matches:
-                    result.append(match)
+                    for t in self._get_tokens_with_tag_from_match_tuples(match, "pobj_CD"):
+                        if t is None:
+                            break
+                        logger.debug(f"appending t {t} to result")
+                        result.append(t)
         return result
 
 
-    def get_date_relation(self, token: Token) -> list[Span]:
+    def get_date_relation(self, token: Token) -> dict:
         unformatted_dates = []
         unformatted_dates += self._get_date_relation_through_root_verb(token)
         dates = defaultdict(list)
@@ -480,6 +484,19 @@ class DependencyAttributeMatcher():
             else:
                 continue
         return dates
+    
+    #TODO: create function to get selected tags from candidate matches -> dict
+    def _get_tokens_with_tag_from_match_tuples(self, match: list[tuple[Token, str]], tag: str) -> Token|None:
+        if not match:
+            yield None
+        if len(match) == 0:
+            yield None
+        for entry in match:
+            token, right_id = entry
+            if right_id == tag:
+                yield token
+        yield None
+
 
     def _get_date_relation_through_root_verb(self, token: Token) -> list[Span]:
         root_verb = self.get_root_verb(token)
@@ -529,7 +546,8 @@ class DependencyAttributeMatcher():
                         result.append({"quantity": quant, "source_secu": source_secu})
         return result if result != [] else None
     
-    def get_parent_verb(self, token: Token):
+    def get_parent_verb(self, token: Token) -> Token|None:
+        '''get the closest parent verb in the dependency tree of token.'''
         candidate_matches = self.get_possible_candidates(
             [
                 {
@@ -565,7 +583,8 @@ class DependencyAttributeMatcher():
                         return candidate_token
         return None
 
-    def get_root_verb(self, token: Token):
+    def get_root_verb(self, token: Token) -> Token|None:
+        '''get the root parent verb of the dependency tree of token.'''
         candidate_matches = self.get_possible_candidates(
             [
                 {
@@ -602,7 +621,7 @@ class DependencyAttributeMatcher():
                         return candidate_token
         return None
     
-    def get_matches(self, dependant: Token, attr: list[dict]):
+    def _get_matches(self, dependant: Token, attr: list[dict]):
         # logger.debug(f"getting matches for {dependant} and attr: {attr}")
         rel_op = attr["REL_OP"]
         matches = self.DEPENDENCY_OPS[rel_op](dependant, attr["RIGHT_ATTRS"])
@@ -635,6 +654,7 @@ class DependencyAttributeMatcher():
                 booleans.append(False)
         return any(booleans)
     
+    # TODO: split below function into two functions (one for the candidates and the other the build_matchtes_from_candidates)
     def get_possible_candidates(self, attrs: list[dict]):
         tree, root = self.get_attr_tree(attrs)
         logger.debug(f"tree: {tree}; root: {root}")
@@ -653,7 +673,7 @@ class DependencyAttributeMatcher():
                     print(f"\t rel_op, child_idx: {rel_op}, {child_idx}")
                     for parent, parent_right_id in candidates_cache[node]:
                         print(f"\t\t parent, parent_right_id: {parent}, {parent_right_id}")
-                        matches = self.get_matches(parent, attrs[child_idx])
+                        matches = self._get_matches(parent, attrs[child_idx])
                         print("\t\t ",matches)
                         is_optional = attrs[child_idx].get("IS_OPTIONAL", None)
                         right_id = attrs[child_idx]["RIGHT_ID"]

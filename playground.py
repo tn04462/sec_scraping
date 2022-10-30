@@ -1456,5 +1456,5 @@ if __name__ == "__main__":
         # create amod getter for Token
         # rework this to account correctly for optional dependency condition
     # displacy_ent_with_search("This is based on 41,959,545 shares, not including shares of our Common Stock, currently outstanding as of October 26, 2020. ")
-    # try_own_dep_matcher()
-    displacy_dep_with_search("This is a test sentence for detecting an exercise price.")
+    try_own_dep_matcher()
+    # displacy_dep_with_search("This is a test sentence for detecting an exercise price.")

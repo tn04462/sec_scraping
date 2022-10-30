@@ -63,6 +63,53 @@ class TestDependencyAttributeMatcher:
         expected_tokens = [doc[0], doc[1], doc[4], doc[3], doc[5]]
         found_tokens = [i[0] for i in matches[0]]
         assert found_tokens == expected_tokens
+    
+    # TODO: test above two cases for multiple matches and using the IS_OPTIONAL attribute
+
+    def test_match_root_verb(self):
+        pass
+
+    def test_get_quantities(self):
+        pass
+    
+    def test_get_date_relation(self):
+        pass
+    
+    @pytest.mark.parametrize(["input", "expected", "secu_idx"], [
+        (
+            "The Warrants have an exercise price of 10.50 $ per share.",
+            10.50,
+            1
+        ),
+        (
+            "The Warrants have an exercise price of $ 10.50 per share.",
+            10.50,
+            1
+        ),
+        (
+            "The Warrants have an exercise price of $10.50 per share.",
+            10.50,
+            1
+        ),
+        (
+            "The Warrants have an exercise price of 10.50$ per share.",
+            10.50,
+            1
+        ),
+        (
+            "The common shares are issuable upon exercise of the Warrants at an exercise price of 10.50 $ per share.",
+            10.50,
+            9
+        )
+    ])
+    def test__get_exercise_price(self, input, expected, secu_idx, get_search):
+        search = get_search
+        doc = search.nlp(input)
+        matches = search.dep_getter._get_exercise_price(doc[secu_idx])
+        print(matches)
+        assert len(matches) == 1
+        assert matches[0] == expected
+        
         
 
 class TestSECUMatcher:

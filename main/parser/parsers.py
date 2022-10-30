@@ -493,8 +493,7 @@ class HTMFilingParser(AbstractFilingParser):
             )
             return None
         except Exception as e:
-            # debug
-            logger.info(e, exc_info=True)
+            logger.debug(e, exc_info=True)
             return None
         return sections
 
