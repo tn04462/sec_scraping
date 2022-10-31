@@ -1044,7 +1044,7 @@ if __name__ == "__main__":
     # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
     # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
     # output_path.open("w", encoding="utf-8").write(svg)
-    def displacy_dep_with_search(text, print_tokens=False):
+    def displacy_dep_with_search(text, print_tokens=False, show_lemmas=False):
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
         if print_tokens is True:
@@ -1053,7 +1053,7 @@ if __name__ == "__main__":
                 print(      spacy.explain(token.dep_),  token.dep_)
                 print(      spacy.explain(token.pos_), token.pos_)
                 print(      spacy.explain(token.tag_), token.tag_)
-        displacy.serve(doc, style="dep", options={"fine_grained": False, "compact": True}, port=5000)
+        displacy.serve(doc, style="dep", options={"fine_grained": False, "compact": True, "add_lemma": show_lemmas}, port=5000)
 
     def displacy_ent_with_search(text):
         search = SpacyFilingTextSearch()
@@ -1456,5 +1456,5 @@ if __name__ == "__main__":
         # create amod getter for Token
         # rework this to account correctly for optional dependency condition
     # displacy_ent_with_search("This is based on 41,959,545 shares, not including shares of our Common Stock, currently outstanding as of October 26, 2020. ")
-    try_own_dep_matcher()
-    # displacy_dep_with_search("This is a test sentence for detecting an exercise price.")
+    # try_own_dep_matcher()
+    displacy_dep_with_search("The common shares are issuable upon exercise of the Warrants at an exercise price of 10.50 $ per share. The Warrants have an exercise price of 10.50$ per share.", show_lemmas=True)

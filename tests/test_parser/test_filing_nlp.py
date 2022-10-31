@@ -2,7 +2,7 @@ import pytest
 import spacy
 # from spacy.tokens import Span, Token, Doc
 # from spacy.matcher import Matcher
-from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher, DependencyNode
+from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher, DependencyNode, DependencyAttributeMatcher
 from pandas import to_datetime
 import datetime
 
@@ -24,6 +24,12 @@ def get_secumatcher(get_en_core_web_lg_nlp):
     secu_matcher = SECUMatcher(nlp.vocab)
     yield secu_matcher
     del secu_matcher
+
+@pytest.fixture
+def get_dependency_attribute_matcher():
+    dep_matcher = DependencyAttributeMatcher()
+    yield dep_matcher
+    del dep_matcher
 
 
 
@@ -66,6 +72,15 @@ class TestDependencyAttributeMatcher:
     
     # TODO: test above two cases for multiple matches and using the IS_OPTIONAL attribute
 
+    def test__get_tokens_with_tag_from_match_tuples(self, get_dependency_attribute_matcher):
+        dep_getter = get_dependency_attribute_matcher
+        expected = ["this", "is", None]
+        match = [("this", "tag1"), ("is", "tag1")]
+        for idx, found in enumerate(dep_getter._get_tokens_with_tag_from_match_tuples(match, "tag1")):
+            assert found == expected[idx]
+            if found is None:
+                break
+
     def test_match_root_verb(self):
         pass
 
@@ -78,37 +93,42 @@ class TestDependencyAttributeMatcher:
     @pytest.mark.parametrize(["input", "expected", "secu_idx"], [
         (
             "The Warrants have an exercise price of 10.50 $ per share.",
-            10.50,
+            (10.50, "$"),
             1
         ),
         (
             "The Warrants have an exercise price of $ 10.50 per share.",
-            10.50,
+            (10.50, "$"),
             1
         ),
         (
             "The Warrants have an exercise price of $10.50 per share.",
-            10.50,
+            (10.50, "$"),
             1
         ),
         (
             "The Warrants have an exercise price of 10.50$ per share.",
-            10.50,
+            (10.50, "$"),
             1
         ),
         (
             "The common shares are issuable upon exercise of the Warrants at an exercise price of 10.50 $ per share.",
-            10.50,
+            (10.50, "$"),
+            9
+        ),
+        (
+            "The common shares are issuable upon exercise of the Warrants at an exercise price of 0.50 $ to 10.50 $ per share.",
+            None,
             9
         )
     ])
     def test__get_exercise_price(self, input, expected, secu_idx, get_search):
+        #TODO: adjust patterns to account for money signs                            
         search = get_search
         doc = search.nlp(input)
-        matches = search.dep_getter._get_exercise_price(doc[secu_idx])
-        print(matches)
-        assert len(matches) == 1
-        assert matches[0] == expected
+        match = search.dep_getter.get_exercise_price(doc[secu_idx])
+        print(match)
+        assert match == expected
         
         
 

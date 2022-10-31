@@ -451,22 +451,45 @@ class DependencyAttributeMatcher():
         ">>": dep_getter.check_descendants
     }
 
+    def get_exercise_price(self, secu: Token):
+        prices = self._get_exercise_price(secu)
+        if not prices:
+            return None
+        if len(prices) > 1:
+            # TODO: handle multiple prices. eg a range in a security class "warrants have exercise prices between 10 and 20" ect. since i dont need that information or rather i mostlikely cant link it back to a specific security i will just ignore it for now
+            logger.info("Multiple exercise prices found, current case only handles one. pretending we didnt find any.")
+            logger.info(f"actual prices found were: {prices}")
+        else:
+            return (formater.money_string_to_float(prices[0][0].text), prices[0][1].text)
+    
+
     def _get_exercise_price(self, secu: Token):
         anchor_pattern = [{
             "RIGHT_ID": "anchor",
             "TOKEN": secu
         }]
         complete_pattern = add_anchor_pattern_to_patterns(anchor_pattern, SECU_EXERCISE_PRICE_PATTERNS)
-        result = []
+        longest_match = []
         for pattern in complete_pattern:
             candidate_matches = self.get_possible_candidates(pattern)
             if candidate_matches:
                 for match in candidate_matches:
-                    for t in self._get_tokens_with_tag_from_match_tuples(match, "pobj_CD"):
-                        if t is None:
-                            break
-                        logger.debug(f"appending t {t} to result")
-                        result.append(t)
+                    if len(match) > len(longest_match):
+                        longest_match = match
+        result = []
+        if len(longest_match) > 0:
+            amount, symbol = None, None
+            for currency_amount in self._get_tokens_with_tag_from_match_tuples(longest_match, "pobj_CD"):
+                for currency_symbol in self._get_tokens_with_tag_from_match_tuples(longest_match, "currency_symbol"):
+                    if currency_symbol is None:
+                        break
+                    symbol = currency_symbol
+                if currency_amount is None:
+                    break
+                amount = currency_amount
+            if amount is None or symbol is None:
+                logger.debug(f"couldnt extract the amount:{amount} or the symbol:{symbol} from the match: {longest_match}")
+            result.append((amount, symbol))
         return result
 
 

@@ -338,19 +338,82 @@ SECU_EXPIRY_PATTERNS = [
     ]
 ]
 
-PRICE_TRANSFORM_VERB_LEMMAS = [
+PRICE_TRANSFORM_COMPOUND_TO_PRICE_LEMMA = [
     "exercise",
     "convert",
-    "redeem"
+    "conversion",
+    "redeem",
+    "redemption",
+    "issuance",
 ]
-SECU_EXERCISE_PRICE_PATTERNS = [
+
+SECU_EXERCISE_PRICE_PREP_MONEY_DOLLAR_VARIANTS = [
+    [
+        {
+            "LEFT_ID": "prep1",
+            "REL_OP": ">",
+            "RIGHT_ID": "pobj_CD",
+            "RIGHT_ATTRS": {"DEP": "pobj", "POS": "NUM"}
+        },
+        {
+            "LEFT_ID": "pobj_CD",
+            "REL_OP": ">",
+            "RIGHT_ID": "currency_symbol",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["nmod", "nummod"]}, "LOWER": {"IN": ["$"]}}
+        } 
+    ],
+    [
+        {
+            "LEFT_ID": "prep1",
+            "REL_OP": ">",
+            "RIGHT_ID": "currency_symbol",
+            "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": {"IN": ["$"]}}
+        },
+        {
+            "LEFT_ID": "currency_symbol",
+            "REL_OP": ">",
+            "RIGHT_ID": "pobj_CD",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["nmod", "nummod"]}, "POS": "NUM"}
+        } 
+    ],
+
+]
+SECU_EXERCISE_PRICE_FIRST_VERB_VARIANTS = [
     [
         {
             "LEFT_ID": "anchor",
             "REL_OP": ">",
             "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
+            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["have", "be", "purchase", "issuable"]}}, 
         },
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<",
+            "RIGHT_ID": "verb1",
+            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["have", "be", "purchase", "issuable"]}}, 
+        },
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">>",
+            "RIGHT_ID": "verb1",
+            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["have", "be", "purchase", "issuable"]}}, 
+        },
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<<",
+            "RIGHT_ID": "verb1",
+            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["have", "be", "purchase", "issuable"]}}, 
+        },
+    ]
+]
+INCOMPLETE_SECU_EXERCISE_PRICE_PATTERNS = [
+    [
         {
             "LEFT_ID": "verb1",
             "REL_OP": ">>",
@@ -367,34 +430,16 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "LEFT_ID": "price",
             "REL_OP": ">",
             "RIGHT_ID": "transformative",
-            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_COMPOUND_TO_PRICE_LEMMA}}
         },
         {
             "LEFT_ID": "price",
             "REL_OP": ">",
             "RIGHT_ID": "prep1",
             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-        },
-        {
-            "LEFT_ID": "prep1",
-            "REL_OP": ">",
-            "RIGHT_ID": "pobj_CD",
-            "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-        },
-        {
-            "LEFT_ID": "pobj_CD",
-            "REL_OP": ">",
-            "RIGHT_ID": "dollar",
-            "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-        } 
+        }
     ],
     [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-        },
         {
             "LEFT_ID": "verb1",
             "REL_OP": ">",
@@ -417,7 +462,7 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "LEFT_ID": "price",
             "REL_OP": ">",
             "RIGHT_ID": "transformative",
-            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_COMPOUND_TO_PRICE_LEMMA}}
         },
         {
             "LEFT_ID": "price",
@@ -425,26 +470,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "RIGHT_ID": "prep1",
             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
         },
-        {
-            "LEFT_ID": "prep1",
-            "REL_OP": ">",
-            "RIGHT_ID": "pobj_CD",
-            "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-        },
-        {
-            "LEFT_ID": "pobj_CD",
-            "REL_OP": ">",
-            "RIGHT_ID": "dollar",
-            "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-        } 
     ],
     [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": ">",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-        },
         {
             "LEFT_ID": "verb1",
             "REL_OP": ">",
@@ -461,7 +488,7 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "LEFT_ID": "price",
             "REL_OP": ">",
             "RIGHT_ID": "transformative",
-            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_COMPOUND_TO_PRICE_LEMMA}}
         },
         {
             "LEFT_ID": "price",
@@ -469,26 +496,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "RIGHT_ID": "prep1",
             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
         },
-        {
-            "LEFT_ID": "prep1",
-            "REL_OP": ">",
-            "RIGHT_ID": "pobj_CD",
-            "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-        },
-        {
-            "LEFT_ID": "pobj_CD",
-            "REL_OP": ">",
-            "RIGHT_ID": "dollar",
-            "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-        } 
     ],
     [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LOWER": "purchase"}, 
-        },
         {
             "LEFT_ID": "verb1",
             "REL_OP": ">",
@@ -505,7 +514,7 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "LEFT_ID": "price",
             "REL_OP": ">",
             "RIGHT_ID": "transformative",
-            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_COMPOUND_TO_PRICE_LEMMA}}
         },
         {
             "LEFT_ID": "price",
@@ -513,26 +522,8 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "RIGHT_ID": "prep1",
             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
         },
-        {
-            "LEFT_ID": "prep1",
-            "REL_OP": ">",
-            "RIGHT_ID": "pobj_CD",
-            "RIGHT_ATTRS": {"DEP": "pobj", "TAG": "CD"}
-        },
-        {
-            "LEFT_ID": "pobj_CD",
-            "REL_OP": ">",
-            "RIGHT_ID": "dollar",
-            "RIGHT_ATTRS": {"DEP": "nmod", "TAG": "$"}
-        } 
     ],
     [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": "have"}, 
-        },
         {
             "LEFT_ID": "verb1",
             "REL_OP": ">",
@@ -543,27 +534,25 @@ SECU_EXERCISE_PRICE_PATTERNS = [
             "LEFT_ID": "price",
             "REL_OP": ">",
             "RIGHT_ID": "transformative",
-            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_VERB_LEMMAS}}
+            "RIGHT_ATTRS": {"DEP": "compound", "LEMMA": {"IN": PRICE_TRANSFORM_COMPOUND_TO_PRICE_LEMMA}}
         },
         {
             "LEFT_ID": "price",
             "REL_OP": ">",
             "RIGHT_ID": "prep1",
             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "of"}
-        },
-        {
-            "LEFT_ID": "prep1",
-            "REL_OP": ">",
-            "RIGHT_ID": "pobj_CD",
-            "RIGHT_ATTRS": {"DEP": "pobj", "POS": "NUM"}
-        },
-        {
-            "LEFT_ID": "pobj_CD",
-            "REL_OP": ">",
-            "RIGHT_ID": "dollar",
-            "RIGHT_ATTRS": {"DEP": "nmod", "POS": "SYM"}
-        }  
+        },  
     ]
+]
+
+SECU_EXERCISE_PRICE_PATTERNS = [
+    first_verb_lemma + incomplete + tail 
+    for tail
+    in SECU_EXERCISE_PRICE_PREP_MONEY_DOLLAR_VARIANTS
+    for first_verb_lemma
+    in SECU_EXERCISE_PRICE_FIRST_VERB_VARIANTS
+    for incomplete
+    in INCOMPLETE_SECU_EXERCISE_PRICE_PATTERNS
 ]
 
 SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB = [
