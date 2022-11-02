@@ -555,6 +555,74 @@ SECU_EXERCISE_PRICE_PATTERNS = [
     in INCOMPLETE_SECU_EXERCISE_PRICE_PATTERNS
 ]
 
+CORE_DATE_RELATION_CONTEXT_PATTERNS = [
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep1",
+            "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": "of"}
+        },
+        {
+            "LEFT_ID": "prep1",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep_end",
+            "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "as"}
+        },
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep1",
+            "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": "of"}
+        },
+        {
+            "LEFT_ID": "prep1",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep2",
+            "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "period"}
+        },
+        {
+            "LEFT_ID": "prep2",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep_end",
+            "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": "for"}
+        },
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">",
+            "RIGHT_ID": "prep_end",
+            "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": "on"}
+        },
+    ],
+]
+
+TAIL_DATE_RELATION_ADJECTIVE_CONTEXT_PATTERNS = [
+    [
+        {
+            "LEFT_ID": "prep_end",
+            "REL_OP": ">",
+            "RIGHT_ID": "adj",
+            "RIGHT_ATTRS": {"DEP": "prep", "POS": "ADJ"}
+        },
+        {
+            "LEFT_ID": "adj",
+            "REL_OP": ">",
+            "RIGHT_ID": "aux_verb",
+            "RIGHT_ATTRS": {"DEP": "acomp", "LEMMA": "be"}
+        },
+    ]
+]
+
+SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS = [
+    core + adjective_tail
+    for core in CORE_DATE_RELATION_CONTEXT_PATTERNS
+    for adjective_tail in TAIL_DATE_RELATION_ADJECTIVE_CONTEXT_PATTERNS
+]
+
 SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB = [
     [
         {

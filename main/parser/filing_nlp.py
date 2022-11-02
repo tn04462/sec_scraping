@@ -22,6 +22,7 @@ from main.parser.filing_nlp_patterns import (
     SECU_ENT_SPECIAL_PATTERNS,
     SECUQUANTITY_ENT_PATTERNS,
     SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB,
+    SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS,
     VERB_NEGATION_PATTERNS,
     ADJ_NEGATION_PATTERNS,
 )
@@ -451,6 +452,23 @@ class DependencyAttributeMatcher():
         ">>": dep_getter.check_descendants
     }
 
+    def _get_anchor_pattern(self, anchor: Token):
+        if not isinstance(anchor, Token):
+            raise TypeError(f"anchor must be a Token to correctly match, got {type(anchor)}")
+        return [{
+            "RIGHT_ID": "anchor",
+            "TOKEN": anchor
+        }]
+
+    #TODO split this interface into get and format so we can reuse the resulting tokens from matches for further evaluation ?
+
+    def get_expiry_date(self, secu: Token):
+        pass
+
+    def _get_expiry_date(self, secu: Token):
+        pass
+
+
     def get_exercise_price(self, secu: Token):
         prices = self._get_exercise_price(secu)
         if not prices:
@@ -462,16 +480,15 @@ class DependencyAttributeMatcher():
         else:
             return (formater.money_string_to_float(prices[0][0].text), prices[0][1].text)
     
+    #TODO: what kind of pattern do exercise, expiry dates etc follow ?
+    #TODO: if we encounter "be" as a parent verb we need to check if it is a adjective modifier ?
 
     def _get_exercise_price(self, secu: Token):
-        anchor_pattern = [{
-            "RIGHT_ID": "anchor",
-            "TOKEN": secu
-        }]
+        anchor_pattern = self._get_anchor_pattern(secu)
         complete_pattern = add_anchor_pattern_to_patterns(anchor_pattern, SECU_EXERCISE_PRICE_PATTERNS)
         longest_match = []
         for pattern in complete_pattern:
-            candidate_matches = self.get_possible_candidates(pattern)
+            candidate_matches = self.get_candidate_matches(pattern)
             if candidate_matches:
                 for match in candidate_matches:
                     if len(match) > len(longest_match):
@@ -495,8 +512,9 @@ class DependencyAttributeMatcher():
 
     def get_date_relation(self, token: Token) -> dict:
         unformatted_dates = []
+        #TODO: add aux verb path for date relation
         unformatted_dates += self._get_date_relation_through_root_verb(token)
-        dates = defaultdict(list)
+        dates = {"datetime": [], "timedelta": []}
         for unformatted in unformatted_dates:
             try:
                 date = formater.coerce_tokens_to_datetime(unformatted)
@@ -508,7 +526,6 @@ class DependencyAttributeMatcher():
                 continue
         return dates
     
-    #TODO: create function to get selected tags from candidate matches -> dict
     def _get_tokens_with_tag_from_match_tuples(self, match: list[tuple[Token, str]], tag: str) -> Token|None:
         if not match:
             yield None
@@ -519,42 +536,77 @@ class DependencyAttributeMatcher():
             if right_id == tag:
                 yield token
         yield None
+    
+    #FIXME: add patterns for AUX verb + acomp (is this only needed if the secu is subject of sentence?)
+    def _get_context_for_date_relation(self, date_root_token: Token):
+        date_root_pattern = self._get_anchor_pattern(date_root_token)
+        complete_patterns = add_anchor_pattern_to_patterns(date_root_pattern, SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS)
+        matches = self.run_patterns_for_match(complete_patterns)
+        if not matches:
+            return []
+        return self.format_wanted_tags_as_dict(matches, ["prep1", "prep2", "prep_end", "adj", "aux_verb"])
 
+    def format_wanted_tags_as_dict(self, matches, filter_tags: list[str]):
+        wanted_tokens = []
+        for match in matches:
+            wanted = {}
+            for tag in filter_tags:
+                for entry in match:
+                    token, right_id = entry
+                    if right_id == tag:
+                        wanted[tag] = token
+            if wanted != {}:
+                wanted_tokens.append(wanted)
+        return wanted_tokens
+
+
+    def run_patterns_for_match(self, complete_patterns):
+        matches = []
+        for pattern in complete_patterns:
+            matches.append(self.get_candidate_matches(pattern))
+        return matches if matches != [] else None
+    
+    def _get_date_relation_through_aux_verb(self, token: Token) -> list[Span]:
+        anchor_pattern = self._get_anchor_pattern(token)
+        complete_patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_DATE_RELATION_FROM_AUX_VERB_PATTERNS)
+        matches = self.run_patterns_for_match(complete_patterns)
+        if matches:
+            print(matches)
+        
+
+        
 
     def _get_date_relation_through_root_verb(self, token: Token) -> list[Span]:
         root_verb = self.get_root_verb(token)
         result = []
         if root_verb:
-            anchor_pattern = [
-                {
-                    "RIGHT_ID": "anchor",
-                    "TOKEN": root_verb
-                }
-            ]
-            root_verb_patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB)
-            for pattern in root_verb_patterns:
-                candidate_matches = self.get_possible_candidates(pattern)
+            #TODO: extract the relevant preps (as of, for a period, until, etc) also (for + pobj, from + pobj)
+            anchor_pattern = self._get_anchor_pattern(root_verb)
+            date_relation_root_verb_patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB)
+            #TODO: REFACTOR
+            for pattern in date_relation_root_verb_patterns:
+                candidate_matches = self.get_candidate_matches(pattern)
                 if len(candidate_matches) > 0:
                     for match in candidate_matches:
                         for entry in match:
                             candidate_token, right_id = entry
                             if right_id == "date_start":
                                 span = extend_token_ent_to_span(candidate_token, candidate_token.doc)
-                                result.append(span)
+                                # FIXME: this doesnt currently work and either needs to be reverted to test passing or fixed
+                                # logger.warning(f"root used: {span.root}")
+                                context = self._get_context_for_date_relation(span.root)
+                                result.append((span, context))
+                                # result.append(span)
         return result
 
 
     def get_quantities(self, token: Token) -> list[Token]|None:
-        secu_root_dict = [{
-            "RIGHT_ID": "anchor",
-            "TOKEN": token
-        }]
-        patterns = add_anchor_pattern_to_patterns(secu_root_dict, SECU_SECUQUANTITY_PATTERNS)
-        
+        anchor_pattern = self._get_anchor_pattern(token)
+        patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_SECUQUANTITY_PATTERNS)
         result = []
         for pattern in patterns:
             logger.debug(f"currently working on pattern {pattern}")
-            candidate_matches = self.get_possible_candidates(pattern)
+            candidate_matches = self.get_candidate_matches(pattern)
             if len(candidate_matches) > 0:
                 for match in candidate_matches:
                     source_secu = None
@@ -571,7 +623,7 @@ class DependencyAttributeMatcher():
     
     def get_parent_verb(self, token: Token) -> Token|None:
         '''get the closest parent verb in the dependency tree of token.'''
-        candidate_matches = self.get_possible_candidates(
+        candidate_matches = self.get_candidate_matches(
             [
                 {
                     "RIGHT_ID": "anchor",
@@ -608,7 +660,7 @@ class DependencyAttributeMatcher():
 
     def get_root_verb(self, token: Token) -> Token|None:
         '''get the root parent verb of the dependency tree of token.'''
-        candidate_matches = self.get_possible_candidates(
+        candidate_matches = self.get_candidate_matches(
             [
                 {
                     "RIGHT_ID": "anchor",
@@ -678,7 +730,7 @@ class DependencyAttributeMatcher():
         return any(booleans)
     
     # TODO: split below function into two functions (one for the candidates and the other the build_matchtes_from_candidates)
-    def get_possible_candidates(self, attrs: list[dict]):
+    def get_candidate_matches(self, attrs: list[dict]):
         tree, root = self.get_attr_tree(attrs)
         logger.debug(f"tree: {tree}; root: {root}")
         candidates_cache = {k: [] for k, _ in enumerate(attrs)}

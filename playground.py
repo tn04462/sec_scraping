@@ -1063,8 +1063,8 @@ if __name__ == "__main__":
         print("TOKENS:")
         print([i for i in doc])
         displacy.serve(doc, style="ent", options={
-            "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
-            "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
+            "ents": ["SECU", "SECUQUANTITY", "CONTRACT", "DATE", "ORG"],
+            "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green", "DATE": "yellow"}
             },
             port=5000
         )
@@ -1420,16 +1420,22 @@ if __name__ == "__main__":
             (
                 "The Warrants have an exercise price of 10.50 $ per share and are exercisable for a period of 5 years from the date of issuance. ",
             ),
-            ("The Series A Warrants have an exercise price of $11.50 per share",)
+            ("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",)
         ]:
             text = each[0]
             doc = search.nlp(text)
             docs.append(doc)
             for secu in doc._.secus:
-                ep = search.dep_getter._get_exercise_price(secu[0])
-                eps.append(ep)
+                
+                # ep = search.dep_getter.get_exercise_price(secu[0])
+                dr = search.dep_getter._get_date_relation_through_root_verb(secu[0])
+                # parent = search.dep_getter.get_parent_verb(secu[0])
+                # root = search.dep_getter.get_root_verb(secu[0])
+                # eps.append((ep, dr, parent, root))
+                eps.append(dr)
         for ep in eps:
             print(ep)
+        
         #     secu_objects = search.get_SECU_objects(doc)
         #     secus.append(secu_objects)
         # for i in secus:
@@ -1443,8 +1449,8 @@ if __name__ == "__main__":
         #         if token._.negated is True:
         #             print(f"negated: {token}")
         # displacy.serve(docs, style="ent", options={
-        #     "ents": ["SECU", "SECUQUANTITY", "CONTRACT"],
-        #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green"}
+        #     "ents": ["SECU", "SECUQUANTITY", "CONTRACT", "DATE"],
+        #     "colors": {"SECU": "#e171f0", "SECUQUANTITY": "#03fcb1", "CONTRACT": "green", "DATE": "yellow"}
         #     })
         # displacy.serve(docs, style="dep", options={"fine_grained": False, "collapse_phrases": False})
 
@@ -1456,5 +1462,6 @@ if __name__ == "__main__":
         # create amod getter for Token
         # rework this to account correctly for optional dependency condition
     # displacy_ent_with_search("This is based on 41,959,545 shares, not including shares of our Common Stock, currently outstanding as of October 26, 2020. ")
-    # try_own_dep_matcher()
-    displacy_dep_with_search("The common shares are issuable upon exercise of the Warrants at an exercise price of 10.50 $ per share. The Warrants have an exercise price of 10.50$ per share.", show_lemmas=True)
+    try_own_dep_matcher()
+    # displacy_dep_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.", show_lemmas=True)
+    # displacy_ent_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.")

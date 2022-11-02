@@ -47,7 +47,7 @@ class TestDependencyAttributeMatcher:
             {"LEFT_ID": "two", "REL_OP": ">", "RIGHT_ID": "three", "RIGHT_ATTRS": {"LOWER": "sentence"}},
             {"LEFT_ID": "three", "REL_OP": ">", "RIGHT_ID": "four", "RIGHT_ATTRS": {"LOWER": "test"}},
         ]
-        matches = search.dep_getter.get_possible_candidates(pattern)
+        matches = search.dep_getter.get_candidate_matches(pattern)
         assert len(matches) == 1
         expected_tokens = [doc[0], doc[1], doc[4], doc[3]]
         found_tokens = [i[0] for i in matches[0]]
@@ -64,7 +64,7 @@ class TestDependencyAttributeMatcher:
             {"LEFT_ID": "three", "REL_OP": ">", "RIGHT_ID": "four", "RIGHT_ATTRS": {"LOWER": "test"}},
             {"LEFT_ID": "three", "REL_OP": ">", "RIGHT_ID": "five", "RIGHT_ATTRS": {"LOWER": "for"}},
         ]
-        matches = search.dep_getter.get_possible_candidates(pattern)
+        matches = search.dep_getter.get_candidate_matches(pattern)
         assert len(matches) == 1
         expected_tokens = [doc[0], doc[1], doc[4], doc[3], doc[5]]
         found_tokens = [i[0] for i in matches[0]]
@@ -80,15 +80,60 @@ class TestDependencyAttributeMatcher:
             assert found == expected[idx]
             if found is None:
                 break
-
-    def test_match_root_verb(self):
-        pass
+    @pytest.mark.parametrize(["input", "expected", "origin_idx"], [
+        (
+            "The warrants are exercisable at $0.50 per share.",
+            "are",
+            1
+        ),
+    ])
+    def test_get_root_verb(self, input, expected, origin_idx, get_search):
+        search = get_search
+        doc = search.nlp(input)
+        match = search.dep_getter.get_root_verb(doc[origin_idx])
+        assert match.text == expected
+    
+    @pytest.mark.parametrize(["input", "expected", "origin_idx"], [
+        (
+            "We are to purchase the warrants at $0.50 per unit.",
+            "purchase",
+            5
+        ),
+    ])
+    def test_get_parent_verb(self, input, expected, origin_idx, get_search):
+        search = get_search
+        doc = search.nlp(input)
+        match = search.dep_getter.get_parent_verb(doc[origin_idx])
+        assert match.text == expected
 
     def test_get_quantities(self):
         pass
     
-    def test_get_date_relation(self):
-        pass
+    @pytest.mark.parametrize(["input", "expected", "origin_idx"], [
+        (
+            "",
+            "",
+            0
+        ),
+    ])
+    def test_get_expiry(self, input, expected, secu_idx, get_search):
+        search = get_search
+        doc = search.nlp(input)
+        match = search.dep_getter.get_expiry(doc[secu_idx])
+        assert match == expected
+    
+    @pytest.mark.parametrize(["input", "expected", "origin_idx"], [
+        (
+            "The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",
+            {"datetime": datetime.date(2021, 5, 5), "timedelta": []},
+            1
+        ),
+    ])
+    def test_get_date_relation(self, input, expected, origin_idx, get_search):
+        search = get_search
+        doc = search.nlp(input)
+        match = search.dep_getter.get_date_relation(doc[origin_idx])
+        assert match == expected
     
     @pytest.mark.parametrize(["input", "expected", "secu_idx"], [
         (
@@ -122,8 +167,7 @@ class TestDependencyAttributeMatcher:
             9
         )
     ])
-    def test__get_exercise_price(self, input, expected, secu_idx, get_search):
-        #TODO: adjust patterns to account for money signs                            
+    def test_get_exercise_price(self, input, expected, secu_idx, get_search):
         search = get_search
         doc = search.nlp(input)
         match = search.dep_getter.get_exercise_price(doc[secu_idx])

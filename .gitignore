@@ -19,3 +19,4 @@ main/parser/spacy_model/data/test.spacy
 pdf_playground.py
 fact_extractor_playground.py
 *.pyc
+__pycache__/_constants.cpython-310.pyc
