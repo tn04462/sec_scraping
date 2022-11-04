@@ -1420,7 +1420,8 @@ if __name__ == "__main__":
             (
                 "The Warrants have an exercise price of 10.50 $ per share and are exercisable for a period of 5 years from the date of issuance. ",
             ),
-            ("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",)
+            ("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",),
+            ("The warrants we issued pursuant to our Private Placement can be exercised as of May 5, 2021.",)
         ]:
             text = each[0]
             doc = search.nlp(text)
@@ -1428,7 +1429,7 @@ if __name__ == "__main__":
             for secu in doc._.secus:
                 
                 # ep = search.dep_getter.get_exercise_price(secu[0])
-                dr = search.dep_getter._get_date_relation_through_root_verb(secu[0])
+                dr = search.dep_getter.get_date_relation(secu[0])
                 # parent = search.dep_getter.get_parent_verb(secu[0])
                 # root = search.dep_getter.get_root_verb(secu[0])
                 # eps.append((ep, dr, parent, root))

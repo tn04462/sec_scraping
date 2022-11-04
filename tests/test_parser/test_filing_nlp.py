@@ -122,6 +122,7 @@ class TestDependencyAttributeMatcher:
         match = search.dep_getter.get_expiry(doc[secu_idx])
         assert match == expected
     
+    #FIXME: adjust for new context format when decided on which to use
     @pytest.mark.parametrize(["input", "expected", "origin_idx"], [
         (
             "The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",

@@ -512,16 +512,18 @@ class DependencyAttributeMatcher():
 
     def get_date_relation(self, token: Token) -> dict:
         unformatted_dates = []
-        #TODO: add aux verb path for date relation
+        #TODO: get context for dates
         unformatted_dates += self._get_date_relation_through_root_verb(token)
         dates = {"datetime": [], "timedelta": []}
+        contexts = []
         for unformatted in unformatted_dates:
+            context = self._get_context_for_date_relation(unformatted.root)
             try:
                 date = formater.coerce_tokens_to_datetime(unformatted)
-                dates["datetime"].append(unformatted)
+                dates["datetime"].append((date, context))
             except Exception as e:
                 date = formater.coerce_tokens_to_timedelta(unformatted)
-                dates["timedelta"].append(date)
+                dates["timedelta"].append((date, context))
             else:
                 continue
         return dates
@@ -537,16 +539,18 @@ class DependencyAttributeMatcher():
                 yield token
         yield None
     
-    #FIXME: add patterns for AUX verb + acomp (is this only needed if the secu is subject of sentence?)
     def _get_context_for_date_relation(self, date_root_token: Token):
+        logger.info(f"getting context for date relation with root token: {date_root_token}")
         date_root_pattern = self._get_anchor_pattern(date_root_token)
         complete_patterns = add_anchor_pattern_to_patterns(date_root_pattern, SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS)
         matches = self.run_patterns_for_match(complete_patterns)
+        logger.info(f"matches for context: {matches}")
+        # TODO: Filter the context matches to eliminate duplicates (or a set that is fully contained within another)
         if not matches:
             return []
-        return self.format_wanted_tags_as_dict(matches, ["prep1", "prep2", "prep_end", "adj", "aux_verb"])
+        return self._format_wanted_tags_as_dict(matches, ["prep1", "prep2", "prep_end", "adj_to_aux", "aux_verb", "verb"])
 
-    def format_wanted_tags_as_dict(self, matches, filter_tags: list[str]):
+    def _format_wanted_tags_as_dict(self, matches, filter_tags: list[str]):
         wanted_tokens = []
         for match in matches:
             wanted = {}
@@ -563,24 +567,13 @@ class DependencyAttributeMatcher():
     def run_patterns_for_match(self, complete_patterns):
         matches = []
         for pattern in complete_patterns:
-            matches.append(self.get_candidate_matches(pattern))
-        return matches if matches != [] else None
-    
-    def _get_date_relation_through_aux_verb(self, token: Token) -> list[Span]:
-        anchor_pattern = self._get_anchor_pattern(token)
-        complete_patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_DATE_RELATION_FROM_AUX_VERB_PATTERNS)
-        matches = self.run_patterns_for_match(complete_patterns)
-        if matches:
-            print(matches)
-        
-
-        
+            matches += self.get_candidate_matches(pattern)
+        return matches if matches != [] else None      
 
     def _get_date_relation_through_root_verb(self, token: Token) -> list[Span]:
         root_verb = self.get_root_verb(token)
         result = []
         if root_verb:
-            #TODO: extract the relevant preps (as of, for a period, until, etc) also (for + pobj, from + pobj)
             anchor_pattern = self._get_anchor_pattern(root_verb)
             date_relation_root_verb_patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB)
             #TODO: REFACTOR
@@ -592,11 +585,7 @@ class DependencyAttributeMatcher():
                             candidate_token, right_id = entry
                             if right_id == "date_start":
                                 span = extend_token_ent_to_span(candidate_token, candidate_token.doc)
-                                # FIXME: this doesnt currently work and either needs to be reverted to test passing or fixed
-                                # logger.warning(f"root used: {span.root}")
-                                context = self._get_context_for_date_relation(span.root)
-                                result.append((span, context))
-                                # result.append(span)
+                                result.append(span)
         return result
 
 
@@ -605,7 +594,7 @@ class DependencyAttributeMatcher():
         patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_SECUQUANTITY_PATTERNS)
         result = []
         for pattern in patterns:
-            logger.debug(f"currently working on pattern {pattern}")
+            # logger.debug(f"currently working on pattern {pattern}")
             candidate_matches = self.get_candidate_matches(pattern)
             if len(candidate_matches) > 0:
                 for match in candidate_matches:
@@ -620,6 +609,33 @@ class DependencyAttributeMatcher():
                     if quant is not None:
                         result.append({"quantity": quant, "source_secu": source_secu})
         return result if result != [] else None
+    
+    def get_aux_verbs(self, token: Token) -> list[Token]|None:
+        '''get the child aux verbs of token.'''
+        candidate_matches = self.get_candidate_matches(
+            [
+                {
+                    "RIGHT_ID": "anchor",
+                    "TOKEN": token    
+                },
+                {
+                    "LEFT_ID": "anchor",
+                    "REL_OP": ">>",
+                    "RIGHT_ID": "aux_verb",
+                    "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}},
+                }
+            ]
+        )
+        logger.debug(f"canddiate_matches for aux_verb: {candidate_matches}")
+        aux_verbs = []
+        if candidate_matches != []:
+            for match in candidate_matches:
+                for aux in self._get_tokens_with_tag_from_match_tuples(match, "aux_verb"):
+                    if aux is None:
+                        break
+                    aux_verbs.append(aux)
+            return aux_verbs if aux_verbs != [] else None
+        return None
     
     def get_parent_verb(self, token: Token) -> Token|None:
         '''get the closest parent verb in the dependency tree of token.'''
@@ -707,8 +723,8 @@ class DependencyAttributeMatcher():
     def get_attr_tree(self, attrs: list[dict]):
         right_id_to_idx = {}
         for idx, attr in enumerate(attrs):
-            logger.debug(f"currently working on attr: {attr}")
-            logger.debug(f"with idx: {idx}")
+            # logger.debug(f"currently working on attr: {attr}")
+            # logger.debug(f"with idx: {idx}")
             right_id_to_idx[attr["RIGHT_ID"]] = idx
         tree = defaultdict(list)
         root = None
@@ -732,24 +748,24 @@ class DependencyAttributeMatcher():
     # TODO: split below function into two functions (one for the candidates and the other the build_matchtes_from_candidates)
     def get_candidate_matches(self, attrs: list[dict]):
         tree, root = self.get_attr_tree(attrs)
-        logger.debug(f"tree: {tree}; root: {root}")
+        # logger.debug(f"tree: {tree}; root: {root}")
         candidates_cache = {k: [] for k, _ in enumerate(attrs)}
         root_attr = None
         candidates_cache[root].append((attrs[root]["TOKEN"], attrs[root]["RIGHT_ID"]))
-        logger.debug(f"inital candidates_cache: {candidates_cache}")
+        # logger.debug(f"inital candidates_cache: {candidates_cache}")
         def resolve_matching_from_node(node, candidates_cache, tree):
             if not tree.get(node):
                 return 
             else:
                 children = tree.get(node)
-                print(f"children: {children}")
+                # print(f"children: {children}")
                 for child in children:
                     rel_op, child_idx = child
-                    print(f"\t rel_op, child_idx: {rel_op}, {child_idx}")
+                    # print(f"\t rel_op, child_idx: {rel_op}, {child_idx}")
                     for parent, parent_right_id in candidates_cache[node]:
-                        print(f"\t\t parent, parent_right_id: {parent}, {parent_right_id}")
+                        # print(f"\t\t parent, parent_right_id: {parent}, {parent_right_id}")
                         matches = self._get_matches(parent, attrs[child_idx])
-                        print("\t\t ",matches)
+                        # print("\t\t ",matches)
                         is_optional = attrs[child_idx].get("IS_OPTIONAL", None)
                         right_id = attrs[child_idx]["RIGHT_ID"]
                         if is_optional and not matches:
@@ -761,9 +777,9 @@ class DependencyAttributeMatcher():
                             if is_optional:
                                 continue 
                             # continue and add placeholder if matching this token is optional else return -1
-                            logger.debug(f"breaking out and returning -1")
+                            # logger.debug(f"breaking out and returning -1")
                             return -1
-                    logger.debug(f"continuing with recursion.")
+                    # logger.debug(f"continuing with recursion.")
                     resolve_matching_from_node(child_idx, candidates_cache, tree)
         found_matches = resolve_matching_from_node(root, candidates_cache, tree)
         logger.debug(f"final candidates_cache: {candidates_cache}")
