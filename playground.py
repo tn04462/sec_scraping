@@ -1391,8 +1391,8 @@ if __name__ == "__main__":
 
     def try_own_dep_matcher():
         # text = "This is being furnished into a test sentence for a dependency matcher."
-        from main.parser.filing_nlp import DependencyAttributeMatcher
-        matcher = DependencyAttributeMatcher()
+        from main.parser.filing_nlp import SecurityDependencyAttributeMatcher
+        matcher = SecurityDependencyAttributeMatcher()
         # result = matcher.get_possible_candidates(pattern)
         # print([i for i in result])
         secus = []
@@ -1426,16 +1426,36 @@ if __name__ == "__main__":
             text = each[0]
             doc = search.nlp(text)
             docs.append(doc)
-            for secu in doc._.secus:
+            secus = search.get_SECU_objects(doc)
+            eps.append(secus)
+            # for secu in doc._.secus:
                 
                 # ep = search.dep_getter.get_exercise_price(secu[0])
-                dr = search.dep_getter.get_date_relation(secu[0])
+                # dr = search.secu_attr_getter.get_date_relation(secu[0])
+
                 # parent = search.dep_getter.get_parent_verb(secu[0])
                 # root = search.dep_getter.get_root_verb(secu[0])
                 # eps.append((ep, dr, parent, root))
-                eps.append(dr)
+                # eps.append(dr)
         for ep in eps:
-            print(ep)
+            for key, secus in ep.items():
+                for secu in secus:
+                    print("---------------")
+                    print(key)
+                    print(secu.date_relations)
+                    quants = secu.quantity_relations
+                    if quants:
+                        for quant in quants:
+                            print("quant date_relations: ", quant.quantity.date_relations)
+                            print("quant amods: ", quant.quantity.amods)
+                            print("quant parent_verb", quant.quantity.parent_verb)
+
+
+                    # get = [secu.original, secu.date_relations, secu.exercise_price, secu.quantity_relations, secu.other_relations, secu.root_verb, secu.parent_verb, secu.aux_verbs, secu.amods]
+                    # name = ["original", "date_relations", "exercise_price", "quantity_relations", "other_relations", "root_verb", "parent_verb", "aux_verbs", "amods"]
+                    # for x, y in zip(get, name):
+                    #     print(f"{y}: {x}")
+                    # print(secu.parent_verb._.negated if secu.parent_verb else None)
         
         #     secu_objects = search.get_SECU_objects(doc)
         #     secus.append(secu_objects)

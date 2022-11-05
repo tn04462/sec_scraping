@@ -1,7 +1,7 @@
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Callable, Dict, Iterable, Optional, Set
+from typing import Any, Callable, Dict, Iterable, Optional, Set
 import spacy
 from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
@@ -266,79 +266,6 @@ class DependencyNode:
 
 
 
-class SECU:
-    def __init__(self, original, quantities=None):
-        self.original: Token|Span = original
-        self.secu_key: str = original._.secu_key
-        self.amods = original._.amods
-        self.relations = list()
-        self.date_relation = None
-        # self.quantities: list[SECUQuantity] = quantities if quantities is not None else list()
-    
-    def add_relation(self, relation):
-        if relation not in self.relations:
-            self.relations.append(relation)
-        else:
-            logger.debug(f"relation {relation} already in relations of {self}")
-
-    def __repr__(self):
-        rels = ""
-        for x in range(len(self.relations)):
-            rels += f"\n\t {x}) {self.relations[x]}"
-        return f"SECU({self.original}\
-\t secu_key: {self.secu_key}\
-\t amods: {self.amods}\
-\n\t relations: {rels})"
-    
-    def __eq__(self, other):
-        if not isinstance(other, SECU):
-            logger.debug(f"comparing {self} to {other} which is not of type SECU, but of: {type(other)}")
-            return False
-        return (
-            self.secu_key == other.secu_key
-            and
-            self.original == other.original
-        )
-
-class SECUQuantity:
-    def __init__(self, original):
-        self.original: Token|Span = original
-        self.quantity = original._.secuquantity
-        self.unit: str = original._.secuquantity_unit
-        self.amods: list = original._.amods
-    
-    def __repr__(self):
-        return f"{self.quantity},\
-\t {self.unit},\
-\t {self.amods})"
-    
-@dataclass
-class QuantityRelation:
-    quantity: SECUQuantity
-    main_secu: SECU
-    rel_type: str = "quantity"
-    root_verb: Optional[Token] = None
-    root_noun: Optional[Token] = None
-    
-    def __repr__(self):
-        return f"QuantityRelation(\
- {self.quantity}\
-\t {self.main_secu.original}\
-\t {self.root_verb}\
-\t {self.root_noun})"
-
-
-class SourceQuantityRelation(QuantityRelation):
-    def __init__(self, *args, source, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.source: SECU = source
-        rel_type = "source_quantity"
-
-    def __repr__(self):
-        return f"SourceQuantityRelation({self.quantity},\
-\t {self.source.original})"
-
-
 def add_anchor_pattern_to_patterns(anchor_pattern: list[dict], patterns: list[list[dict]]) -> list[list[dict]]:
     if not any([False if entry["RIGHT_ID"] != "anchor" else True for entry in anchor_pattern]):
         raise ValueError("Anchor pattern must contain an anchor token with RIGHT_ID = 'anchor'")
@@ -442,6 +369,21 @@ class DependencyAttributeMatcher():
     
     additional entries to the pattern dict:
         "IS_OPTIONAL": bool (wether a match on this token is optional)
+
+    example pattern dict with anchor:
+        [
+            {
+                "RIGHT_ID": "anchor",
+                "TOKEN": origin_token   
+            },
+            {
+                "LEFT_ID": "anchor",
+                "REL_OP": ">>",
+                "RIGHT_ID": "aux_verb",
+                "RIGHT_ATTRS": {"POS": {"IN": ["VERB", "AUX"]}},
+            }
+        ]
+
     '''
     # need to resolve what happens if an optional token isnt found and what happens to its children
     dep_getter = DependencyMatchHelper()
@@ -452,6 +394,23 @@ class DependencyAttributeMatcher():
         ">>": dep_getter.check_descendants
     }
 
+    def run_patterns_for_match(self, complete_patterns: list[list[dict]]) -> list[list]:
+        matches = []
+        for pattern in complete_patterns:
+            matches += self.get_candidate_matches(pattern)
+        return matches if matches != [] else None 
+
+    def _get_tokens_with_tag_from_match_tuples(self, match: list[tuple[Token, str]], tag: str) -> Token|None:
+        if not match:
+            yield None
+        if len(match) == 0:
+            yield None
+        for entry in match:
+            token, right_id = entry
+            if right_id == tag:
+                yield token
+        yield None
+
     def _get_anchor_pattern(self, anchor: Token):
         if not isinstance(anchor, Token):
             raise TypeError(f"anchor must be a Token to correctly match, got {type(anchor)}")
@@ -460,14 +419,104 @@ class DependencyAttributeMatcher():
             "TOKEN": anchor
         }]
 
+    def _get_matches(self, dependant: Token, attr: list[dict]):
+        # logger.debug(f"getting matches for {dependant} and attr: {attr}")
+        rel_op = attr["REL_OP"]
+        matches = self.DEPENDENCY_OPS[rel_op](dependant, attr["RIGHT_ATTRS"])
+        # logger.debug(f"got matches: {matches}; for (dependant: {dependant}; attr: {attr})")
+        return matches
+
+
+    def _get_attr_tree(self, attrs: list[dict]):
+        right_id_to_idx = {}
+        for idx, attr in enumerate(attrs):
+            # logger.debug(f"currently working on attr: {attr}")
+            # logger.debug(f"with idx: {idx}")
+            right_id_to_idx[attr["RIGHT_ID"]] = idx
+        tree = defaultdict(list)
+        root = None
+        for idx, attr in enumerate(attrs):
+            if "REL_OP" in attr:
+                tree[right_id_to_idx[attr["LEFT_ID"]]].append((attr["REL_OP"], idx))
+            else:
+                root = idx
+        return tree, root
+    
+    def _conditions_optional(self, attr: dict):
+        booleans = []
+        for key, value in attr["RIGHT_ATTRS"].items():
+            if key == "OP":
+                if value == "?":
+                    booleans.append(True)
+            else:
+                booleans.append(False)
+        return any(booleans)
+    
+    # TODO: REFACTOR split below function into two functions (one for the candidates and the other the build_matchtes_from_candidates)
+    def get_candidate_matches(self, attrs: list[dict]) -> list[list[tuple[Token, str]]]:
+        tree, root = self._get_attr_tree(attrs)
+        # logger.debug(f"tree: {tree}; root: {root}")
+        candidates_cache = {k: [] for k, _ in enumerate(attrs)}
+        root_attr = None
+        candidates_cache[root].append((attrs[root]["TOKEN"], attrs[root]["RIGHT_ID"]))
+        # logger.debug(f"inital candidates_cache: {candidates_cache}")
+        def resolve_matching_from_node(node, candidates_cache, tree):
+            if not tree.get(node):
+                return 
+            else:
+                children = tree.get(node)
+                # print(f"children: {children}")
+                for child in children:
+                    rel_op, child_idx = child
+                    # print(f"\t rel_op, child_idx: {rel_op}, {child_idx}")
+                    for parent, parent_right_id in candidates_cache[node]:
+                        # print(f"\t\t parent, parent_right_id: {parent}, {parent_right_id}")
+                        matches = self._get_matches(parent, attrs[child_idx])
+                        # print("\t\t ",matches)
+                        is_optional = attrs[child_idx].get("IS_OPTIONAL", None)
+                        right_id = attrs[child_idx]["RIGHT_ID"]
+                        if is_optional and not matches:
+                            candidates_cache[child_idx].append((DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG, right_id))
+                        if matches:
+                            for match in matches:
+                                candidates_cache[child_idx].append((match, right_id))
+                        else:
+                            if is_optional:
+                                continue 
+                            # continue and add placeholder if matching this token is optional else return -1
+                            # logger.debug(f"breaking out and returning -1")
+                            return -1
+                    # logger.debug(f"continuing with recursion.")
+                    resolve_matching_from_node(child_idx, candidates_cache, tree)
+        found_matches = resolve_matching_from_node(root, candidates_cache, tree)
+        logger.debug(f"final candidates_cache: {candidates_cache}")
+        if found_matches == -1:
+            return []
+        else:
+            def build_matches_from_candidates(candidates_cache, tree):
+                unprocessed_matches = [i for i in product(*[candidates_cache[k] for k in candidates_cache])]
+                processed_matches = []
+                for unprocessed in unprocessed_matches:
+                    processed_entry = []
+                    for entry in unprocessed:
+                        if isinstance(entry[0], type(DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG)):
+                            if entry[0] == DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG:
+                                pass
+                        else:
+                            processed_entry.append(entry)
+                    processed_matches.append(processed_entry)
+                return processed_matches
+            return build_matches_from_candidates(candidates_cache, tree)
+
     #TODO split this interface into get and format so we can reuse the resulting tokens from matches for further evaluation ?
 
+class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
+    def __init__(self):
+        super().__init__()
+
     def get_expiry_date(self, secu: Token):
+        # TODO: expiry date should be accessable through date_relation 
         pass
-
-    def _get_expiry_date(self, secu: Token):
-        pass
-
 
     def get_exercise_price(self, secu: Token):
         prices = self._get_exercise_price(secu)
@@ -481,7 +530,6 @@ class DependencyAttributeMatcher():
             return (formater.money_string_to_float(prices[0][0].text), prices[0][1].text)
     
     #TODO: what kind of pattern do exercise, expiry dates etc follow ?
-    #TODO: if we encounter "be" as a parent verb we need to check if it is a adjective modifier ?
 
     def _get_exercise_price(self, secu: Token):
         anchor_pattern = self._get_anchor_pattern(secu)
@@ -509,10 +557,9 @@ class DependencyAttributeMatcher():
             result.append((amount, symbol))
         return result
 
-
     def get_date_relation(self, token: Token) -> dict:
+        # TODO: format context better into distinct pieces with a common key: like "prep" -> 'as of', "verbal_context" ect 
         unformatted_dates = []
-        #TODO: get context for dates
         unformatted_dates += self._get_date_relation_through_root_verb(token)
         dates = {"datetime": [], "timedelta": []}
         contexts = []
@@ -527,48 +574,86 @@ class DependencyAttributeMatcher():
             else:
                 continue
         return dates
-    
-    def _get_tokens_with_tag_from_match_tuples(self, match: list[tuple[Token, str]], tag: str) -> Token|None:
-        if not match:
-            yield None
-        if len(match) == 0:
-            yield None
-        for entry in match:
-            token, right_id = entry
-            if right_id == tag:
-                yield token
-        yield None
-    
+
     def _get_context_for_date_relation(self, date_root_token: Token):
-        logger.info(f"getting context for date relation with root token: {date_root_token}")
+        logger.debug(f"getting context for date relation with root token: {date_root_token}")
         date_root_pattern = self._get_anchor_pattern(date_root_token)
         complete_patterns = add_anchor_pattern_to_patterns(date_root_pattern, SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS)
         matches = self.run_patterns_for_match(complete_patterns)
-        logger.info(f"matches for context: {matches}")
+        logger.debug(f"matches for context: {matches}")
         # TODO: Filter the context matches to eliminate duplicates (or a set that is fully contained within another)
         if not matches:
             return []
-        return self._format_wanted_tags_as_dict(matches, ["prep1", "prep2", "prep_end", "adj_to_aux", "aux_verb", "verb"])
-
-    def _format_wanted_tags_as_dict(self, matches, filter_tags: list[str]):
-        wanted_tokens = []
+        merged_set = self._merge_wanted_tags_into_set(matches)
+        formatted_tags = self._format_wanted_tags_from_set_as_dict(merged_set)
+        return {"original": merged_set, "formatted": formatted_tags}
+    
+    def _merge_wanted_tags_into_set(
+            self,
+            matches: list[list[tuple]],
+            wanted_tags: list[str]=["prep1", "prep2", "prep_end", "adj_to_aux", "aux_verb", "verb"],
+        ) -> list[tuple]:
+        merged_set = set()
+        print("matches: ", matches)
         for match in matches:
-            wanted = {}
-            for tag in filter_tags:
-                for entry in match:
-                    token, right_id = entry
-                    if right_id == tag:
-                        wanted[tag] = token
-            if wanted != {}:
-                wanted_tokens.append(wanted)
-        return wanted_tokens
+            for entry in match:
+                if entry[1] in wanted_tags:
+                    if entry not in merged_set:
+                        merged_set.add(entry)
+        return merged_set if len(merged_set) != 0 else None
 
+    #FIXME: currently unusable since I dont know in what way to format the different prep tags
+    def _format_wanted_tags_from_set_as_dict(
+            self,
+            wanted_tags_set,
+            default_groups: list[str]=[
+                "prep",
+                "aux_verb",
+                "adj",
+                "verb"
+            ],
+            group_mapping: dict[str, str]={
+                "prep1": "prep",
+                "prep2": "prep",
+                "prep_end": "prep",
+                "verb": "verb", 
+                "aux_verb": "aux_verb",
+                "adj_to_aux": "adj"
+            },
+            sort_order: dict[str, list]={
+                "prep": ["prep_end", "prep2", "prep1"]
+            }
+        ) -> dict[str, dict]:
+        finished_grouping = {k: [] for k in default_groups}
+        unsorted_grouping = defaultdict(list)
+        # wanted_tags_set = self._merge_wanted_tags_into_set(matches)
+        def _index_for_sort_group(element, sort_group):
+            idx = -1
+            try:
+                idx = sort_group.index(element)
+            except ValueError:
+                return len(sort_group) + 1
+            else:
+                return idx
+        for entry in wanted_tags_set:
+            parent_tag = group_mapping.get(entry[1], None)
+            if parent_tag:
+                unsorted_grouping[parent_tag].append(entry)
+        for key in unsorted_grouping.keys():
+            if sort_order.get(key, None):
+                finished_group = [i[0] for i in sorted(
+                    unsorted_grouping[key],
+                    key=lambda x: _index_for_sort_group(x[1],
+                    sort_order.get(key))
+                )]
+                finished_grouping[key] = finished_group
+            else:
+                finished_grouping[key] = [i[0] for i in unsorted_grouping[key]]
+        return finished_grouping
+                
 
-    def run_patterns_for_match(self, complete_patterns):
-        matches = []
-        for pattern in complete_patterns:
-            matches += self.get_candidate_matches(pattern)
-        return matches if matches != [] else None      
+    
+                 
 
     def _get_date_relation_through_root_verb(self, token: Token) -> list[Span]:
         root_verb = self.get_root_verb(token)
@@ -712,97 +797,128 @@ class DependencyAttributeMatcher():
                         return candidate_token
         return None
     
-    def _get_matches(self, dependant: Token, attr: list[dict]):
-        # logger.debug(f"getting matches for {dependant} and attr: {attr}")
-        rel_op = attr["REL_OP"]
-        matches = self.DEPENDENCY_OPS[rel_op](dependant, attr["RIGHT_ATTRS"])
-        # logger.debug(f"got matches: {matches}; for (dependant: {dependant}; attr: {attr})")
-        return matches
 
-
-    def get_attr_tree(self, attrs: list[dict]):
-        right_id_to_idx = {}
-        for idx, attr in enumerate(attrs):
-            # logger.debug(f"currently working on attr: {attr}")
-            # logger.debug(f"with idx: {idx}")
-            right_id_to_idx[attr["RIGHT_ID"]] = idx
-        tree = defaultdict(list)
-        root = None
-        for idx, attr in enumerate(attrs):
-            if "REL_OP" in attr:
-                tree[right_id_to_idx[attr["LEFT_ID"]]].append((attr["REL_OP"], idx))
-            else:
-                root = idx
-        return tree, root
+class SECUQuantity:
+    def __init__(self, original, attr_matcher: SecurityDependencyAttributeMatcher):
+        self.original: Token|Span = original
+        self.quantity = original._.secuquantity
+        self.unit: str = original._.secuquantity_unit
+        self.amods: list = original._.amods
+        self.parent_verb = attr_matcher.get_parent_verb(self.original)
+        self.date_relations = attr_matcher.get_date_relation(self.original)
     
-    def _conditions_optional(self, attr: dict):
-        booleans = []
-        for key, value in attr["RIGHT_ATTRS"].items():
-            if key == "OP":
-                if value == "?":
-                    booleans.append(True)
-            else:
-                booleans.append(False)
-        return any(booleans)
-    
-    # TODO: split below function into two functions (one for the candidates and the other the build_matchtes_from_candidates)
-    def get_candidate_matches(self, attrs: list[dict]):
-        tree, root = self.get_attr_tree(attrs)
-        # logger.debug(f"tree: {tree}; root: {root}")
-        candidates_cache = {k: [] for k, _ in enumerate(attrs)}
-        root_attr = None
-        candidates_cache[root].append((attrs[root]["TOKEN"], attrs[root]["RIGHT_ID"]))
-        # logger.debug(f"inital candidates_cache: {candidates_cache}")
-        def resolve_matching_from_node(node, candidates_cache, tree):
-            if not tree.get(node):
-                return 
-            else:
-                children = tree.get(node)
-                # print(f"children: {children}")
-                for child in children:
-                    rel_op, child_idx = child
-                    # print(f"\t rel_op, child_idx: {rel_op}, {child_idx}")
-                    for parent, parent_right_id in candidates_cache[node]:
-                        # print(f"\t\t parent, parent_right_id: {parent}, {parent_right_id}")
-                        matches = self._get_matches(parent, attrs[child_idx])
-                        # print("\t\t ",matches)
-                        is_optional = attrs[child_idx].get("IS_OPTIONAL", None)
-                        right_id = attrs[child_idx]["RIGHT_ID"]
-                        if is_optional and not matches:
-                            candidates_cache[child_idx].append((DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG, right_id))
-                        if matches:
-                            for match in matches:
-                                candidates_cache[child_idx].append((match, right_id))
-                        else:
-                            if is_optional:
-                                continue 
-                            # continue and add placeholder if matching this token is optional else return -1
-                            # logger.debug(f"breaking out and returning -1")
-                            return -1
-                    # logger.debug(f"continuing with recursion.")
-                    resolve_matching_from_node(child_idx, candidates_cache, tree)
-        found_matches = resolve_matching_from_node(root, candidates_cache, tree)
-        logger.debug(f"final candidates_cache: {candidates_cache}")
-        if found_matches == -1:
-            return []
-        else:
-            def build_matches_from_candidates(candidates_cache, tree):
-                unprocessed_matches = [i for i in product(*[candidates_cache[k] for k in candidates_cache])]
-                processed_matches = []
-                for unprocessed in unprocessed_matches:
-                    processed_entry = []
-                    for entry in unprocessed:
-                        if isinstance(entry[0], type(DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG)):
-                            if entry[0] == DEPENDENCY_ATTRIBUTE_MATCHER_IS_OPTIONAL_FLAG:
-                                pass
-                        else:
-                            processed_entry.append(entry)
-                    processed_matches.append(processed_entry)
-
-
-                return processed_matches
-            return build_matches_from_candidates(candidates_cache, tree)
+    def __repr__(self):
+        return f"{self.quantity},\
+\t {self.unit},\
+\t {self.amods})"
         
+@dataclass
+class QuantityRelation:
+    quantity: SECUQuantity
+    main_secu: Any
+    rel_type: str = "quantity"
+    root_verb: Optional[Token] = None
+    root_noun: Optional[Token] = None
+    
+    def __repr__(self):
+        return f"QuantityRelation(\
+ {self.quantity}\
+\t {self.main_secu.original}\
+\t {self.root_verb}\
+\t {self.root_noun})"
+
+
+class SourceQuantityRelation(QuantityRelation):
+    def __init__(self, *args, source, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source: SECU = source
+        self.rel_type = "source_quantity"
+
+    def __repr__(self):
+        return f"SourceQuantityRelation({self.quantity},\
+\t {self.source.original})"
+
+class SECU:
+    def __init__(self, original, attr_matcher: SecurityDependencyAttributeMatcher):
+        self.original: Token = self._set_original(original)
+        self.attr_matcher: SecurityDependencyAttributeMatcher = attr_matcher
+        self.secu_key: str = original._.secu_key
+        self.amods = original._.amods
+        self.other_relations: list = list()
+        self.quantity_relations: list = list()
+        self._set_quantity_relations()
+        self.root_verb: Token|None = attr_matcher.get_root_verb(self.original)
+        self.parent_verb: Token|None = attr_matcher.get_parent_verb(self.original)
+        self.aux_verbs: list = attr_matcher.get_aux_verbs(self.original)
+        self.date_relations: list[dict] = attr_matcher.get_date_relation(self.original)
+        self.exercise_price: tuple|None = attr_matcher.get_exercise_price(self.original)
+        self.expiry_date = self._set_expiry_date
+    
+    def _set_expiry_date(self):
+        if self.date_relations is None:
+            return None
+        for date_relation in self.date_relations:
+            # TODO: filter for wanted verbs, aux_verbs, etc. and pick right one or return None
+            pass
+
+    def _set_quantity_relations(self):
+        quants = self.attr_matcher.get_quantities(self.original)
+        if not quants:
+            logger.debug(f"no quantities found for secu: {self.original}")
+            return
+        for quant in quants:
+            quant_obj = SECUQuantity(quant["quantity"], self.attr_matcher)
+            if getattr(quant_obj.original, "source_secu", None) is not None:
+                source = quant["source_secu"]
+                rel = SourceQuantityRelation(quant_obj, self, source)
+                self._add_quantity_relation(rel)
+            else:
+                rel = QuantityRelation(quant_obj, self)
+                self._add_quantity_relation(rel)
+
+
+    def _set_original(self, original: Token|Span) -> None:
+        if isinstance(original, Token):
+            return original
+        elif isinstance(original, Span):
+            if len(original) == 1:
+                return original[0]
+            else:
+                raise NotImplementedError("Span with more than one token for use as original argument is not supported yet.")
+    
+    def _add_quantity_relation(self, relation: QuantityRelation|SourceQuantityRelation):
+        if relation not in self.quantity_relations:
+            self.quantity_relations.append(relation)
+        else:
+            logger.debug(f"quantity_relation {relation} already present in {self}")
+
+    def _add_relation(self, relation):
+        if relation not in self.other_relations:
+            self.other_relations.append(relation)
+        else:
+            logger.debug(f"relation {relation} already in relations of {self}")
+
+    def __repr__(self):
+        rels = ""
+        for x in range(len(self.other_relations)):
+            rels += f"\n\t {x}) {self.other_relations[x]}"
+        return f"SECU({self.original}\
+\t secu_key: {self.secu_key}\
+\t amods: {self.amods}\
+\n\t relations: {rels})"
+    
+    def __eq__(self, other):
+        if not isinstance(other, SECU):
+            logger.debug(f"comparing {self} to {other} which is not of type SECU, but of: {type(other)}")
+            return False
+        return (
+            self.secu_key == other.secu_key
+            and
+            self.original == other.original
+        )
+
+
+    
 
 
 class CommonFinancialRetokenizer:
@@ -1781,7 +1897,7 @@ class SpacyFilingTextSearch:
     # make this a singleton/get it from factory through cls._instance so we can avoid
     # the slow process of adding patterns (if we end up with a few 100)
     def __init__(self):
-        self.dep_getter = DependencyAttributeMatcher()
+        self.secu_attr_getter = SecurityDependencyAttributeMatcher()
 
     def __new__(cls):
         if cls._instance is None:
@@ -1795,7 +1911,7 @@ class SpacyFilingTextSearch:
             cls._instance.nlp.add_pipe("agreement_matcher")
             # cls._instance.nlp.add_pipe("coreferee")
         return cls._instance
-    
+        
     def get_SECU_objects(self, doc: Doc) -> dict:
         if not self.nlp.has_pipe("secu_matcher"):
             raise AttributeError("SECUMatcher not added to pipeline. Please add it with nlp.add_pipe('secu_matcher')")
@@ -1803,25 +1919,25 @@ class SpacyFilingTextSearch:
         for secu in doc._.secus:
             if len(secu)==1:
                 secu = secu[0]
-            secu_obj = SECU(secu)
+            secu_obj = SECU(secu, self.secu_attr_getter)
             secus[secu_obj.secu_key].append(secu_obj)
-            # state = secu._.amods
-            # print(f"state: {state}")
-            secu_obj.date_relation = self.dep_getter.get_date_relation(secu)
-            quants = self.dep_getter.get_quantities(secu)
-            # quants = self.get_secuquantities(doc, secu)
-            if not quants:
-                logger.debug(f"no quantities found for secu: {secu}")
-                continue
-            for quant in quants:
-                quant_obj = SECUQuantity(quant["quantity"])
-                if getattr(quant_obj.original, "source_secu", None) is not None:
-                    source = quant["source_secu"]
-                    rel = SourceQuantityRelation(quant_obj, secu_obj, source)
-                    secu_obj.add_relation(rel)
-                else:
-                    rel = QuantityRelation(quant_obj, secu_obj)
-                    secu_obj.add_relation(rel)
+            # # state = secu._.amods
+            # # print(f"state: {state}")
+            # secu_obj.date_relations = self.secu_attr_getter.get_date_relation(secu)
+            # quants = self.secu_attr_getter.get_quantities(secu)
+            # # quants = self.get_secuquantities(doc, secu)
+            # if not quants:
+            #     logger.debug(f"no quantities found for secu: {secu}")
+            #     continue
+            # for quant in quants:
+            #     quant_obj = SECUQuantity(quant["quantity"])
+            #     if getattr(quant_obj.original, "source_secu", None) is not None:
+            #         source = quant["source_secu"]
+            #         rel = SourceQuantityRelation(quant_obj, secu_obj, source)
+            #         secu_obj._add_relation(rel)
+            #     else:
+            #         rel = QuantityRelation(quant_obj, secu_obj)
+            #         secu_obj._add_relation(rel)
         return secus
     
     def handle_match_formatting(self, match: tuple[str, list[Token]], formatting_dict: Dict[str, Callable], doc: Doc, *args, **kwargs) -> tuple[str, dict]:
