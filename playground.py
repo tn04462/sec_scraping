@@ -1399,29 +1399,30 @@ if __name__ == "__main__":
         docs = []
         eps = []
         for each in [
-            (
-                "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
-                ),
-            (
-                "The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022",
-                ),
-            (
-                "based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. ",
-                ),
-            (
-                "are based on 30,823,573 shares outstanding on April 11, 2022. ",
-                ),
-            (
-                "This is based on 70,067,147 shares currently not outstanding of our Common Stock as of October 18, 2021.",
-                ),
-            (
-                "This is based on 41,959,545 shares, not including the 10000 Authorized shares of our Series A preferred stock as of October 26, 2020. ",
-                ),
-            (
-                "The Warrants have an exercise price of 10.50 $ per share and are exercisable for a period of 5 years from the date of issuance. ",
-            ),
-            ("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",),
-            ("The warrants we issued pursuant to our Private Placement can be exercised as of May 5, 2021.",)
+            # (
+            #     "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
+            #     ),
+            # (
+            #     "The number of shares and percent of class stated above are calculated based upon 399,794,291 total shares outstanding as of May 16, 2022",
+            #     ),
+            # (
+            #     "based on 34,190,415 total outstanding shares of common stock of the Company as of January 17, 2020. ",
+            #     ),
+            # (
+            #     "are based on 30,823,573 shares outstanding on April 11, 2022. ",
+            #     ),
+            # (
+            #     "This is based on 70,067,147 shares currently not outstanding of our Common Stock as of October 18, 2021.",
+            #     ),
+            # (
+            #     "This is based on 41,959,545 shares, not including the 10000 Authorized shares of our Series A preferred stock as of October 26, 2020. ",
+            #     ),
+            # (
+            #     "The Warrants have an exercise price of 10.50 $ per share and are exercisable for a period of 5 years from the date of issuance. ",
+            # ),
+            # ("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",),
+            # ("The warrants we issued pursuant to our Private Placement can be exercised as of May 5, 2021.",),
+            ("The warrants were exercisable on the grant date (April 26, 2016) and remain exercisable until April 26, 2021. The warrants were exercisable on the grant date (May 25, 2018) and remain exercisable until May 24, 2023.",)
         ]:
             text = each[0]
             doc = search.nlp(text)

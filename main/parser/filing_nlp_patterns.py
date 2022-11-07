@@ -598,6 +598,14 @@ CORE_DATE_RELATION_CONTEXT_PATTERNS = [
             "RIGHT_ATTRS": {"DEP": "pobj", "LOWER": "on"}
         },
     ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<",
+            "RIGHT_ID": "prep_end",
+            "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "until"}
+        },
+    ],
 ]
 
 TAIL_DATE_RELATION_CONTEXT_PATTERNS = [
@@ -627,6 +635,20 @@ TAIL_DATE_RELATION_CONTEXT_PATTERNS = [
             "REL_OP": ">",
             "RIGHT_ID": "aux_verb",
             "RIGHT_ATTRS": {"DEP": "aux"}
+        },  
+    ],
+    [
+        {
+            "LEFT_ID": "prep_end",
+            "REL_OP": "<",
+            "RIGHT_ID": "verb",
+            "RIGHT_ATTRS": {"POS": "VERB"}
+        },
+        {
+            "LEFT_ID": "verb",
+            "REL_OP": ">",
+            "RIGHT_ID": "adj_to_verb",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["aux", "acomp"]}, "POS": "ADJ"}
         },  
     ],
     []
@@ -669,6 +691,20 @@ SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB = [
         },
         {
             "LEFT_ID": "prep_phrase_start",
+            "REL_OP": ">",
+            "RIGHT_ID": "date_start",
+            "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}
+        }
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">>",
+            "RIGHT_ID": "prep_end",
+            "RIGHT_ATTRS": {"DEP": "prep", "LOWER":  "until"}
+        },
+        {
+            "LEFT_ID": "prep_end",
             "REL_OP": ">",
             "RIGHT_ID": "date_start",
             "RIGHT_ATTRS": {"DEP": "pobj", "ENT_TYPE": "DATE"}

@@ -265,7 +265,6 @@ class DependencyNode:
                 yield from [arr for arr in self.get_leaf_paths(child, new_path)]
 
 
-
 def add_anchor_pattern_to_patterns(anchor_pattern: list[dict], patterns: list[list[dict]]) -> list[list[dict]]:
     if not any([False if entry["RIGHT_ID"] != "anchor" else True for entry in anchor_pattern]):
         raise ValueError("Anchor pattern must contain an anchor token with RIGHT_ID = 'anchor'")
@@ -452,7 +451,7 @@ class DependencyAttributeMatcher():
                 booleans.append(False)
         return any(booleans)
     
-    # TODO: REFACTOR split below function into two functions (one for the candidates and the other the build_matchtes_from_candidates)
+    # TODO: REFACTOR split below function into two functions (one for the candidates and the other the build_matches_from_candidates)
     def get_candidate_matches(self, attrs: list[dict]) -> list[list[tuple[Token, str]]]:
         tree, root = self._get_attr_tree(attrs)
         # logger.debug(f"tree: {tree}; root: {root}")
@@ -591,7 +590,7 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
     def _merge_wanted_tags_into_set(
             self,
             matches: list[list[tuple]],
-            wanted_tags: list[str]=["prep1", "prep2", "prep_end", "adj_to_aux", "aux_verb", "verb"],
+            wanted_tags: list[str]=["prep1", "prep2", "prep_end", "adj_to_aux", "adj_to_verb", "aux_verb", "verb"],
         ) -> list[tuple]:
         merged_set = set()
         print("matches: ", matches)
@@ -602,7 +601,6 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                         merged_set.add(entry)
         return merged_set if len(merged_set) != 0 else None
 
-    #FIXME: currently unusable since I dont know in what way to format the different prep tags
     def _format_wanted_tags_from_set_as_dict(
             self,
             wanted_tags_set,
@@ -618,7 +616,8 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                 "prep_end": "prep",
                 "verb": "verb", 
                 "aux_verb": "aux_verb",
-                "adj_to_aux": "adj"
+                "adj_to_aux": "adj",
+                "adj_to_verb": "adj"
             },
             sort_order: dict[str, list]={
                 "prep": ["prep_end", "prep2", "prep1"]
@@ -651,10 +650,6 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                 finished_grouping[key] = [i[0] for i in unsorted_grouping[key]]
         return finished_grouping
                 
-
-    
-                 
-
     def _get_date_relation_through_root_verb(self, token: Token) -> list[Span]:
         root_verb = self.get_root_verb(token)
         result = []
@@ -672,7 +667,6 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                                 span = extend_token_ent_to_span(candidate_token, candidate_token.doc)
                                 result.append(span)
         return result
-
 
     def get_quantities(self, token: Token) -> list[Token]|None:
         anchor_pattern = self._get_anchor_pattern(token)
