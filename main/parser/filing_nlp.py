@@ -1,17 +1,19 @@
-from collections import OrderedDict, defaultdict
-from dataclasses import dataclass, field
+from collections import defaultdict
+from dataclasses import dataclass
 from itertools import product
-from typing import Any, Callable, Dict, Iterable, Optional, Set
+from typing import Any, Callable, Dict, Optional, Set
 import spacy
-from spacy.matcher import Matcher, PhraseMatcher, DependencyMatcher
+from spacy.matcher import Matcher, DependencyMatcher
 from spacy.tokens import Span, Doc, Token
 from spacy import Language
 import logging
 import string
 import re
 import  pandas as pd
-from datetime import timedelta
+from pandas import Timestamp
 
+
+from main.parser.filing_nlp_utils import MatchFormater
 from main.parser.filing_nlp_patterns import (
     SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB,
     SECU_SECUQUANTITY_PATTERNS,
@@ -25,6 +27,10 @@ from main.parser.filing_nlp_patterns import (
     SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS,
     VERB_NEGATION_PATTERNS,
     ADJ_NEGATION_PATTERNS,
+    SECU_GET_EXPIRY_DATE_LEMMA_COMBINATIONS,
+    SECU_GET_EXERCISE_DATE_LEMMA_COMBINATIONS,
+
+
 )
 from main.parser.filing_nlp_constants import (
     PLURAL_SINGULAR_SECU_TAIL_MAP,
@@ -35,206 +41,15 @@ from main.parser.filing_nlp_constants import (
 )
 
 logger = logging.getLogger(__name__)
+formater = MatchFormater()
 
 
 class UnclearInformationExtraction(Exception):
     pass
 
-class WordToNumberConverter():
-    numbers_map = {
-        "one": 1,
-        "first": 1,
-        "two": 2,
-        "second": 2,
-        "three": 3,
-        "third": 3,
-        "four": 4,
-        "fourth": 4,
-        "five": 5,
-        "fifth": 5,
-        "six": 6,
-        "sixth": 6,
-        "seven": 7,
-        "seventh": 7,
-        "eight": 8,
-        "eighth": 8,
-        "nine": 9,
-        "ninth": 9,
-        "ten": 10,
-        "tenth": 10,
-        "eleven": 11,
-        "eleventh": 11,
-        "twelve": 12,
-        "twelfth": 12
-    }
-    timedelta_map = {
-        "day": timedelta(days=1),
-        "week": timedelta(weeks=1),
-        "month": timedelta(days=30),
-        "year": timedelta(days=365.25),
-        "days": timedelta(days=1),
-        "weeks": timedelta(weeks=1),
-        "months": timedelta(days=30),
-        "years": timedelta(days=365.25)
-    }
-
-    def convert_spacy_token(self, token: Token):
-        if self.numbers_map.get(token.lower_):
-            return self.numbers_map[token.lower_]
-        if self.timedelta_map.get(token.lower_):
-            return self.timedelta_map[token.lower_]
-        return None
-
-class MatchFormater:
-    def __init__(self):
-        self.w2n = WordToNumberConverter()
-
-    def parse_number(self, text):
-        '''from https://github.com/hayj/SystemTools/blob/master/systemtools/number.py'''
-        try:
-            # First we return None if we don't have something in the text:
-            if text is None:
-                return None
-            if isinstance(text, int) or isinstance(text, float):
-                return text
-            text = text.strip()
-            if text == "":
-                return None
-            # Next we get the first "[0-9,. ]+":
-            n = re.search("-?[0-9]*([,. ]?[0-9]+)+", text).group(0)
-            n = n.strip()
-            if not re.match(".*[0-9]+.*", text):
-                return None
-            # Then we cut to keep only 2 symbols:
-            while " " in n and "," in n and "." in n:
-                index = max(n.rfind(','), n.rfind(' '), n.rfind('.'))
-                n = n[0:index]
-            n = n.strip()
-            # We count the number of symbols:
-            symbolsCount = 0
-            for current in [" ", ",", "."]:
-                if current in n:
-                    symbolsCount += 1
-            # If we don't have any symbol, we do nothing:
-            if symbolsCount == 0:
-                pass
-            # With one symbol:
-            elif symbolsCount == 1:
-                # If this is a space, we just remove all:
-                if " " in n:
-                    n = n.replace(" ", "")
-                # Else we set it as a "." if one occurence, or remove it:
-                else:
-                    theSymbol = "," if "," in n else "."
-                    if n.count(theSymbol) > 1:
-                        n = n.replace(theSymbol, "")
-                    else:
-                        n = n.replace(theSymbol, ".")
-            else:
-                rightSymbolIndex = max(n.rfind(','), n.rfind(' '), n.rfind('.'))
-                rightSymbol = n[rightSymbolIndex:rightSymbolIndex+1]
-                if rightSymbol == " ":
-                    return self.parse_number(n.replace(" ", "_"))
-                n = n.replace(rightSymbol, "R")
-                leftSymbolIndex = max(n.rfind(','), n.rfind(' '), n.rfind('.'))
-                leftSymbol = n[leftSymbolIndex:leftSymbolIndex+1]
-                n = n.replace(leftSymbol, "L")
-                n = n.replace("L", "")
-                n = n.replace("R", ".")
-            n = float(n)
-            if n.is_integer():
-                return int(n)
-            else:
-                return n
-        except:
-            pass
-        return None
-
-    def money_string_to_float(self, money: str):
-        multiplier = 1
-        digits = re.findall("[0-9.,]+", money)
-        amount_float = self.parse_number("".join(digits))
-        if re.search(re.compile("million(?:s)?", re.I), money):
-            multiplier = 1000000
-        if re.search(re.compile("billion(?:s)?", re.I), money):
-            multiplier = 1000000000
-        return float(amount_float*multiplier)
-    
-    def coerce_tokens_to_datetime(self, tokens: list[Token]|Span):
-        try:
-            date = pd.to_datetime("".join([i.text_with_ws for i in tokens]))
-        except Exception as e:
-            logger.debug(e, exc_info=True)
-            return None
-        else:
-            return date
-
-    
-    def coerce_tokens_to_timedelta(self, tokens: list[Token]):
-        multipliers = []
-        timdelta_ = None
-        current_idxs = []
-        converted = []
-        for idx, token in enumerate(tokens):
-            w2n_conversion = self.w2n.convert_spacy_token(token)
-            if w2n_conversion:
-                if isinstance(w2n_conversion, timedelta):
-                    timedelta_ = w2n_conversion
-                    current_idxs.append(idx)
-                    for prev_idx in range(idx-1, -1, -1):
-                        prev_token = tokens[prev_idx]
-                        if prev_token.is_punct:
-                            continue
-                        try:
-                            current_idxs.append(prev_idx)
-                            number = int(prev_token.lower_)
-                            multipliers.append(number)
-                        except ValueError:
-                            number = self.w2n.convert_spacy_token(prev_token)
-                            if isinstance(number, int):
-                                multipliers.append(number)
-                            else:
-                                break
-                    if multipliers != [] and timedelta_ is not None:
-                        if len(multipliers) > 1:
-                            raise NotImplementedError(f"multiple numbers before a timedelta token arent handled yet")
-                        converted.append((multipliers[0]*timedelta_, current_idxs))
-                timedelta_ = None
-                multipliers = []
-                current_idxs = []                    
-        return converted if converted != [] else None
-
-
-formater = MatchFormater()
-
-
-def int_to_roman(input):
-    """ Convert an integer to a Roman numeral. """
-
-    if not isinstance(input, type(1)):
-        raise TypeError(f"expected integer, got {type(input)}")
-    if not (0 < input < 4000):
-        print(input)
-        raise ValueError("Argument must be between 1 and 3999")
-    ints = (1000, 900,  500, 400, 100,  90, 50,  40, 10,  9,   5,  4,   1)
-    nums = ('M',  'CM', 'D', 'CD','C', 'XC','L','XL','X','IX','V','IV','I')
-    result = []
-    for i in range(len(ints)):
-        count = int(input / ints[i])
-        result.append(nums[i] * count)
-        input -= ints[i] * count
-    return ''.join(result).lower()
-
-def roman_list():
-    return ["(" + int_to_roman(i)+")" for i in range(1, 50)]
-
-def alphabetic_list():
-    return ["(" + letter +")" for letter in list(string.ascii_lowercase)]
-
-def numeric_list():
-    return ["(" + str(number) + ")" for number in range(150)]
 
 class DependencyNode:
+    #TODO: review if I will ever use this, otherwise move to own project or delete
     def __init__(self, data, children=None):
         self.children: list[DependencyNode] = children if children is not None else list()
         self.data = data
@@ -349,6 +164,7 @@ class DependencyMatchHelper:
                 result.append(descendant)
         return result
 
+
 class DependencyAttributeMatcher():
     '''
     Find a specific dependency from an origin token. 
@@ -451,7 +267,6 @@ class DependencyAttributeMatcher():
                 booleans.append(False)
         return any(booleans)
     
-    # TODO: REFACTOR split below function into two functions (one for the candidates and the other the build_matches_from_candidates)
     def get_candidate_matches(self, attrs: list[dict]) -> list[list[tuple[Token, str]]]:
         tree, root = self._get_attr_tree(attrs)
         # logger.debug(f"tree: {tree}; root: {root}")
@@ -488,7 +303,7 @@ class DependencyAttributeMatcher():
                     # logger.debug(f"continuing with recursion.")
                     resolve_matching_from_node(child_idx, candidates_cache, tree)
         found_matches = resolve_matching_from_node(root, candidates_cache, tree)
-        logger.debug(f"final candidates_cache: {candidates_cache}")
+        # logger.debug(f"final candidates_cache: {candidates_cache}")
         if found_matches == -1:
             return []
         else:
@@ -507,29 +322,62 @@ class DependencyAttributeMatcher():
                 return processed_matches
             return build_matches_from_candidates(candidates_cache, tree)
 
-    #TODO split this interface into get and format so we can reuse the resulting tokens from matches for further evaluation ?
+
+class DatefulRelation:
+    def _format_context_as_lemmas(self, context: dict[str, list[Token]]) -> dict[str, set[str]]:
+        if context is None:
+            return {}
+        lemma_dict = defaultdict(set)
+        for key, tokens in context.items():
+            if tokens:
+                for token in tokens:
+                    lemma_dict[key].add(token.lemma_)
+        return lemma_dict
+
+
+class DatetimeRelation(DatefulRelation):
+    def __init__(self, spacy_date: Span, timestamp: Timestamp, context: dict[str, list[Token]]):
+        self.spacy_date = spacy_date
+        self.timestamp = timestamp
+        self.context = context
+        self.lemmas = self._format_context_as_lemmas(context.get("formatted", None) if context != [] else None)
+    
+    def __repr__(self):
+        return f"{self.spacy_date} - {self.context}"
+    
+    def __eq__(self, other):
+        if isinstance(other, DatetimeRelation):
+            if (
+                (self.spacy_date == other.spacy_date) and 
+                (self.timestamp == other.timestamp) and
+                (self.lemmas == other.lemmas) and
+                (self.context == other.context)
+            ):
+                return True
+        return False
 
 class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
     def __init__(self):
         super().__init__()
 
-    def get_expiry_date(self, secu: Token):
-        # TODO: expiry date should be accessable through date_relation 
+
+    def _filter_negated(self, args):
+        # TODO: can this be done as simple as checking ._.negated on the main verb/adj ?
         pass
 
+    # TODO: is get_exercise_price and get_expiry_date in the correct location here, or should it be moved to either SECU or somewhere else?
+    # eg in a class that handles the information of date_relation and quantities to form a definitv object (eg: exercise_price with date, expiry ect)
     def get_exercise_price(self, secu: Token):
         prices = self._get_exercise_price(secu)
         if not prices:
             return None
         if len(prices) > 1:
-            # TODO: handle multiple prices. eg a range in a security class "warrants have exercise prices between 10 and 20" ect. since i dont need that information or rather i mostlikely cant link it back to a specific security i will just ignore it for now
+            # NOTE: handling price ranges in a security class "warrants have exercise prices between 10 and 20" ect. I mostlikely cant link it back to a specific security i will just ignore it for now
             logger.info("Multiple exercise prices found, current case only handles one. pretending we didnt find any.")
             logger.info(f"actual prices found were: {prices}")
         else:
             return (formater.money_string_to_float(prices[0][0].text), prices[0][1].text)
     
-    #TODO: what kind of pattern do exercise, expiry dates etc follow ?
-
     def _get_exercise_price(self, secu: Token):
         anchor_pattern = self._get_anchor_pattern(secu)
         complete_pattern = add_anchor_pattern_to_patterns(anchor_pattern, SECU_EXERCISE_PRICE_PATTERNS)
@@ -557,29 +405,37 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
         return result
 
     def get_date_relation(self, token: Token) -> dict:
-        # TODO: format context better into distinct pieces with a common key: like "prep" -> 'as of', "verbal_context" ect 
         unformatted_dates = []
         unformatted_dates += self._get_date_relation_through_root_verb(token)
+        # TODO: think and write how i will need the timedelta part of this and how it could be used
         dates = {"datetime": [], "timedelta": []}
         contexts = []
         for unformatted in unformatted_dates:
             context = self._get_context_for_date_relation(unformatted.root)
-            try:
-                date = formater.coerce_tokens_to_datetime(unformatted)
-                dates["datetime"].append((date, context))
-            except Exception as e:
-                date = formater.coerce_tokens_to_timedelta(unformatted)
-                dates["timedelta"].append((date, context))
+            date = formater.coerce_tokens_to_datetime(unformatted)
+            if date:
+                relation = DatetimeRelation(unformatted, date, context)
+                if relation not in dates["datetime"]:
+                    dates["datetime"].append(relation)
             else:
-                continue
+                date = formater.coerce_tokens_to_timedelta(unformatted)
+                if date:
+                    dates["timedelta"].append({"date": date, "context": context})
         return dates
+        # TODO: fix the implementation of date_relation in a SECU context since we should only have one date in a specific context, right?
+        # we should only have one date in a quantity context otherwise we cant be certain how they relate ?
+        # options: 1) create a set of the datetimerelations and check if len <= 1 when assigning to quantity
 
-    def _get_context_for_date_relation(self, date_root_token: Token):
+    def _get_context_for_date_relation(self, date_root_token: Token) -> dict:
+        '''
+        Returns:
+            {"original": list[tuple], "formatted": dict[str, dict]}
+        '''
         logger.debug(f"getting context for date relation with root token: {date_root_token}")
         date_root_pattern = self._get_anchor_pattern(date_root_token)
         complete_patterns = add_anchor_pattern_to_patterns(date_root_pattern, SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS)
         matches = self.run_patterns_for_match(complete_patterns)
-        logger.debug(f"matches for context: {matches}")
+        logger.debug(f"matches for date_relation context: {matches}")
         # TODO: Filter the context matches to eliminate duplicates (or a set that is fully contained within another)
         if not matches:
             return []
@@ -656,16 +512,13 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
         if root_verb:
             anchor_pattern = self._get_anchor_pattern(root_verb)
             date_relation_root_verb_patterns = add_anchor_pattern_to_patterns(anchor_pattern, SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB)
-            #TODO: REFACTOR
             for pattern in date_relation_root_verb_patterns:
                 candidate_matches = self.get_candidate_matches(pattern)
-                if len(candidate_matches) > 0:
-                    for match in candidate_matches:
-                        for entry in match:
-                            candidate_token, right_id = entry
-                            if right_id == "date_start":
-                                span = extend_token_ent_to_span(candidate_token, candidate_token.doc)
-                                result.append(span)
+                for match in candidate_matches:
+                    for rel in self._get_tokens_with_tag_from_match_tuples(match, "date_start"):
+                        if rel is None:
+                            break
+                        result.append(extend_token_ent_to_span(rel, rel.doc))
         return result
 
     def get_quantities(self, token: Token) -> list[Token]|None:
@@ -705,7 +558,7 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                 }
             ]
         )
-        logger.debug(f"canddiate_matches for aux_verb: {candidate_matches}")
+        # logger.debug(f"canddiate_matches for aux_verb: {candidate_matches}")
         aux_verbs = []
         if candidate_matches != []:
             for match in candidate_matches:
@@ -770,7 +623,7 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                 }
             ]
         )
-        logger.debug(f"canddiate_matches for root_verb: {candidate_matches}")
+        # logger.debug(f"canddiate_matches for root_verb: {candidate_matches}")
         if candidate_matches != []:
             if len(candidate_matches) > 1:
                 verbs = []
@@ -791,35 +644,110 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                         return candidate_token
         return None
     
+class Amount:
+    def __init__(self, amount: float):
+        self.amount = amount
+    
+    def __eq__(self, other):
+        if isinstance(other, Amount):
+            if self.amount == other.amount:
+                return True
+        return False
+    
+    def __repr__(self):
+        return f"{self.amount}"
+    
+class Unit:
+    def __init__(self, unit: str):
+        self.unit = unit
+    
+    def __eq__(self, other):
+        if isinstance(other, Unit):
+            if self.unit == other.unit:
+                return True
+        return False
+    
+    def __repr__(self):
+        return self.unit
 
+class SecurityAmount:
+    def __init__(self, amount, unit):
+        self.amount = amount
+        self.unit = unit
+    
+    def __eq__(self, other):
+        if isinstance(other, SecurityAmount):
+            if (
+                (self.amount == other.amount) and
+                (self.unit == other.unit)
+            ):
+                return True
+        return False
+    
+    def __repr__(self):
+        return f"{self.amount} {self.unit}"
+    
+    
 class SECUQuantity:
     def __init__(self, original, attr_matcher: SecurityDependencyAttributeMatcher):
         self.original: Token|Span = original
-        self.quantity = original._.secuquantity
-        self.unit: str = original._.secuquantity_unit
+        self._quantity = original._.secuquantity
+        self._unit: str = original._.secuquantity_unit
+        self.amount: SecurityAmount = SecurityAmount(self._quantity, self._unit)
         self.amods: list = original._.amods
         self.parent_verb = attr_matcher.get_parent_verb(self.original)
-        self.date_relations = attr_matcher.get_date_relation(self.original)
+        self._date_relations = attr_matcher.get_date_relation(self.original)
+        self.datetime_relation: DatetimeRelation = self._get_datetime_relation()
     
-    def __repr__(self):
-        return f"{self.quantity},\
-\t {self.unit},\
-\t {self.amods})"
+    def _get_datetime_relation(self):
+        if self._date_relations:
+            if len(self._date_relations["datetime"]) == 0:
+                return None
+            elif len(self._date_relations["datetime"]) == 1:
+                return self._date_relations["datetime"][0]
+            elif len(self._date_relations) > 1:
+                raise ValueError(f"More than one datetime relation present for {self.original}, failed to determine a certain context -> failed to create the SECUQuantity object.")
+        else:
+            return None
         
+    def __repr__(self):
+        return f"SECUQuantity({self.amount} -\
+    \t {self.amods} - \
+    \t {self.datetime_relation})"   
+
+    def __eq__(self, other):
+        if isinstance(other, SECUQuantity):
+            has_same_timestamp = False
+            if isinstance(self.datetime_relation, DatetimeRelation) and isinstance(other.datetime_relation, DatetimeRelation):
+                if self.datetime_relation.timestamp == other.datetime_relation.timestamp:
+                    has_same_timestamp = True
+            if (
+                (self.amount == other.amount) and
+                (self.datetime_relation == other.datetime_relation or has_same_timestamp)
+            ):
+                return True
+        return False
+
+
 @dataclass
 class QuantityRelation:
     quantity: SECUQuantity
     main_secu: Any
     rel_type: str = "quantity"
-    root_verb: Optional[Token] = None
-    root_noun: Optional[Token] = None
     
     def __repr__(self):
         return f"QuantityRelation(\
  {self.quantity}\
-\t {self.main_secu.original}\
-\t {self.root_verb}\
-\t {self.root_noun})"
+\t {self.main_secu.original})"
+
+    def __eq__(self, other):
+        if (
+            (self.quantity == other.quantity)
+            and
+            (self.main_secu == other.main_secu)
+        ):
+            return True
+        return False
 
 
 class SourceQuantityRelation(QuantityRelation):
@@ -832,6 +760,7 @@ class SourceQuantityRelation(QuantityRelation):
         return f"SourceQuantityRelation({self.quantity},\
 \t {self.source.original})"
 
+
 class SECU:
     def __init__(self, original, attr_matcher: SecurityDependencyAttributeMatcher):
         self.original: Token = self._set_original(original)
@@ -839,26 +768,70 @@ class SECU:
         self.secu_key: str = original._.secu_key
         self.amods = original._.amods
         self.other_relations: list = list()
-        self.quantity_relations: list = list()
+        self.quantity_relations: list[QuantityRelation|SourceQuantityRelation] = list()
         self._set_quantity_relations()
         self.root_verb: Token|None = attr_matcher.get_root_verb(self.original)
         self.parent_verb: Token|None = attr_matcher.get_parent_verb(self.original)
         self.aux_verbs: list = attr_matcher.get_aux_verbs(self.original)
         self.date_relations: list[dict] = attr_matcher.get_date_relation(self.original)
         self.exercise_price: tuple|None = attr_matcher.get_exercise_price(self.original)
-        self.expiry_date = self._set_expiry_date
+        self.expiry_date = self._get_expiry_datetime_relation()
+        self.exercise_date = self._get_exercise_datetime_relation()
     
-    def _set_expiry_date(self):
-        if self.date_relations is None:
+    def _date_relation_attr_with_subset_of_pattern(self, valid_patterns: list[dict[str, set]], attr: str="lemmas"):
+        '''
+        valid_patterns:
+        [
+            {
+                "prep": set(["as", "of", "on"]),
+                "adj": set(["exercisable"]),
+            },
+            ...
+        ]
+        '''
+        matches = set()
+        for date_relation in self.date_relations["datetime"]:
+            if not getattr(date_relation, attr): continue
+            for pattern in valid_patterns:
+                keys_to_check = pattern.keys()
+                attrs = getattr(date_relation, attr, None)
+                if not attrs:
+                    continue
+                if not all([k in attrs.keys() for k in keys_to_check]):
+                    logger.debug(f"SECU. _date_relation_attr_has_subset_of_pattern(): not all required keys found. Missing:{[k if k not in attrs.keys() else None for k in keys_to_check]} ")
+                    continue
+                if all([attrs[key].issubset(pattern[key]) for key in keys_to_check]):
+                    if date_relation not in matches:
+                        matches.add(date_relation)
+        return matches
+    
+
+    def _get_exercise_datetime_relation(self):
+        if (self.date_relations is None) or (len(self.date_relations["datetime"]) == 0):
             return None
-        for date_relation in self.date_relations:
-            # TODO: filter for wanted verbs, aux_verbs, etc. and pick right one or return None
-            pass
+        valid_patterns = SECU_GET_EXERCISE_DATE_LEMMA_COMBINATIONS
+        matches = self._date_relation_attr_with_subset_of_pattern(
+            valid_patterns,
+            attr="lemmas")
+        return list(matches)[0] if len(matches) == 1 else None
+
+    
+    def _get_expiry_datetime_relation(self):
+        #TODO: implement this for the timedelta case (when i have a grip on issuance dates)
+        if (self.date_relations is None) or (len(self.date_relations["datetime"]) == 0):
+            return None
+        valid_patterns = SECU_GET_EXPIRY_DATE_LEMMA_COMBINATIONS
+        matches = self._date_relation_attr_with_subset_of_pattern(valid_patterns, "lemmas")
+        if len(matches) > 1:
+            raise ValueError(f"SECU._get_expiry_datetime_relation() found more than one expiry for a specific security, case not handled. dates found: {matches}, secu: {self}")
+        return list(matches)[0] if len(matches) == 1 else None
+        
+    
 
     def _set_quantity_relations(self):
         quants = self.attr_matcher.get_quantities(self.original)
         if not quants:
-            logger.debug(f"no quantities found for secu: {self.original}")
+            # logger.debug(f"no quantities found for secu: {self.original}")
             return
         for quant in quants:
             quant_obj = SECUQuantity(quant["quantity"], self.attr_matcher)
@@ -985,10 +958,6 @@ class SecurityActMatcher:
         return doc 
     
     def add_sec_acts_to_matcher(self):
-        romans = roman_list()
-        numerals = numeric_list()
-        letters = alphabetic_list()
-        upper_letters = [a.upper() for a in letters]
         patterns = [
             [   
                 {"ORTH": {"IN": ["Rule", "Section", "section"]}},
@@ -1176,6 +1145,7 @@ def get_alias(doc: Doc, secu: Span):
         secu_last_token = secu[-1]
         similarity_score_store = []
         checked_combination = set()
+        #TODO: optimize this
         for sent in doc.sents:
             if secu_first_token in sent:
                 secu_counter = 0
@@ -1193,7 +1163,7 @@ def get_alias(doc: Doc, secu: Span):
                         checked_combination.add((secu, alias))
                         if score:
                             similarity_score_store.append((secu, alias, sent[0].i, score))
-        logger.debug(f"similarity_score_map: {similarity_score_store}")
+        # logger.debug(f"similarity_score_map: {similarity_score_store}")
         if similarity_score_store != []:
             highest_similarity = sorted(similarity_score_store, key=lambda x: x[3])[-1]
             return highest_similarity[1]
@@ -1212,12 +1182,12 @@ def _set_single_secu_alias_map(doc: Doc) -> dict:
             raise AttributeError(f"Didnt set spans correctly missing one or more keys of (SECU, alias). keys found: {doc.spans.keys()}")
         single_secu_alias = dict()
         secu_ents = doc._.secus
-        logger.debug(f"working from ._.secus: {secu_ents}")
+        # logger.debug(f"working from ._.secus: {secu_ents}")
         for secu in secu_ents:
             if doc._.is_alias(secu):
                 continue
             secu_key = get_secu_key(secu)
-            logger.debug(f"got secu_key: {secu_key} -> from secu -> {secu}")
+            # logger.debug(f"got secu_key: {secu_key} -> from secu -> {secu}")
             if secu_key not in single_secu_alias.keys():
                 single_secu_alias[secu_key] = {"base": [secu], "alias": []}
             else:
@@ -1225,7 +1195,7 @@ def _set_single_secu_alias_map(doc: Doc) -> dict:
             alias = doc._.get_alias(secu)
             if alias:
                 single_secu_alias[secu_key]["alias"].append(alias)
-        logger.debug(f"got single_secu_alias map: {single_secu_alias}")
+        # logger.debug(f"got single_secu_alias map: {single_secu_alias}")
         doc._.single_secu_alias = single_secu_alias
 
 def _set_single_secu_alias_map_as_tuples(doc: Doc) -> dict:
@@ -1257,7 +1227,7 @@ def is_alias(doc: Doc, secu: Span) -> bool:
 
 def get_secu_key(secu: Span|Token) -> str:
     premerge_tokens = secu._.premerge_tokens if secu.has_extension("premerge_tokens") else None
-    logger.debug(f"premerge_tokens while getting secu_key: {premerge_tokens}")
+    # logger.debug(f"premerge_tokens while getting secu_key: {premerge_tokens}")
     if premerge_tokens:
         secu = premerge_tokens
     core_tokens = secu if secu[-1].text.lower() not in ["shares"] else secu[:-1] 
@@ -1297,12 +1267,12 @@ def _get_secu_key_extension_for_token(token: Token):
 def get_premerge_tokens_for_span(span: Span) -> tuple|None:
     premerge_tokens = []
     source_spans_seen = set()
-    logger.debug(f"getting premerge_tokens for span: {span}")
+    # logger.debug(f"getting premerge_tokens for span: {span}")
     for token in span:
-        logger.debug(f"checking token: {token}")
+        # logger.debug(f"checking token: {token}")
         if token.has_extension("was_merged"):
             if token._.was_merged is True:
-                logger.debug(f"token._.source_span_unmerged: {token._.source_span_unmerged}")
+                # logger.debug(f"token._.source_span_unmerged: {token._.source_span_unmerged}")
                 if token._.source_span_unmerged not in source_spans_seen:
                     premerge_tokens.append([i for i in token._.source_span_unmerged])
                     source_spans_seen.add(token._.source_span_unmerged)
@@ -1596,13 +1566,13 @@ def _is_match_preceeded_by(doc: Doc, start: int, end: int, exclude: list[str]):
 
 def update_doc_secus_spans(doc: Doc):
     doc._.secus = []
-    logger.debug(f"updating doc._.secus")
+    # logger.debug(f"updating doc._.secus")
     for ent in doc.ents:
         if ent.label_ == "SECU":
-            logger.debug(f"found SECU ent in doc.ents: {ent}")
+            # logger.debug(f"found SECU ent in doc.ents: {ent}")
             if doc._.is_alias(ent):
                 continue
-            logger.debug(f"ent was not an alias, adding it.")
+            # logger.debug(f"ent was not an alias, adding it.")
             doc._.secus.append(ent)
 
 def add_SECU_to_spans(doc: Doc, entity: Span):
@@ -1627,7 +1597,7 @@ def _add_SECUREF_ent(matcher, doc: Doc, i: int, matches):
 
     
 def _add_SECU_ent(matcher, doc: Doc, i: int, matches):
-    logger.debug(f"adding SECU ent: {matches[i]}")
+    # logger.debug(f"adding SECU ent: {matches[i]}")
     _add_ent(doc, i, matches, "SECU", exclude_after=[
             "agreement",
             "agent",
@@ -1729,7 +1699,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
             # logger.debug(f"Added entity: {entity} with label: {ent_label}")
         except ValueError as e:
             if "[E1010]" in str(e):
-                logger.debug(f"handling overlapping entities for entity: {entity}")
+                # logger.debug(f"handling overlapping entities for entity: {entity}")
                 handle_overlapping_ents(doc, start, end, entity, overwrite_labels=always_overwrite)
         if (ent_callback) and (entity in doc.ents):
             ent_callback(doc, entity)
@@ -1737,7 +1707,7 @@ def _add_ent(doc: Doc, i, matches, ent_label: str, exclude_after: list[str]=[], 
 def handle_overlapping_ents(doc: Doc, start: int, end: int, entity: Span, overwrite_labels: Optional[list[str]]=None):
     previous_ents = set(doc.ents)
     conflicting_ents = get_conflicting_ents(doc, start, end, overwrite_labels=overwrite_labels)
-    logger.debug(f"conflicting_ents: {conflicting_ents}")
+    # logger.debug(f"conflicting_ents: {conflicting_ents}")
     # if (False not in [end-start >= k[0] for k in conflicting_ents]) and (conflicting_ents != []):
     if conflicting_ents != []:
         [previous_ents.remove(k) for k in conflicting_ents]
@@ -1771,7 +1741,7 @@ def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optio
     conflicting_ents = []
     seen_conflicting_ents = []
     covered_tokens = range(start, end)
-    print(f"new ent covering tokens: {[i for i in covered_tokens]}")
+    # logger.debug(f"new ent covering tokens: {[i for i in covered_tokens]}")
     for ent in doc.ents:
         # if ent.end == ent.start-1:
         #     covered_tokens = [ent.start]
@@ -1788,8 +1758,8 @@ def get_conflicting_ents(doc: Doc, start: int, end: int, overwrite_labels: Optio
                     conflicting_ents = seen_conflicting_ents
                 else:
                     conflicting_ents.append(ent)
-            else:
-                logger.debug(f"{ent} shouldnt be conflicting")
+            # else:
+                # logger.debug(f"{ent} shouldnt be conflicting")
                 
     return conflicting_ents
 
@@ -1906,7 +1876,7 @@ class SpacyFilingTextSearch:
             # cls._instance.nlp.add_pipe("coreferee")
         return cls._instance
         
-    def get_SECU_objects(self, doc: Doc) -> dict:
+    def get_SECU_objects(self, doc: Doc) -> dict[str, list[SECU]]:
         if not self.nlp.has_pipe("secu_matcher"):
             raise AttributeError("SECUMatcher not added to pipeline. Please add it with nlp.add_pipe('secu_matcher')")
         secus = defaultdict(list)
@@ -2550,7 +2520,7 @@ def token_nsubjpass_getter(target: Token):
 def span_amods_getter(target: Span):
     if not isinstance(target, Span):
         raise TypeError("target must be a Span, got: type {}".format(type(target)))
-    logger.debug(f"getting amods for: {target, target.label_}")
+    # logger.debug(f"getting amods for: {target, target.label_}")
     if target.label_ == "SECUQUANTITY":
         seen_tokens = set([i for i in target])
         heads_with_dep = []
@@ -2579,7 +2549,7 @@ def span_amods_getter(target: Span):
 def token_amods_getter(target: Token):
     if not isinstance(target, Token):
         raise TypeError("target must be a Token, got: type {}".format(type(target)))
-    logger.debug(f"getting amods for: {target, target.ent_type_}")
+    # logger.debug(f"getting amods for: {target, target.ent_type_}")
     amods = []
     if target.ent_type_ == "SECUQUANTITY":
         if target.dep_ == "nummod":

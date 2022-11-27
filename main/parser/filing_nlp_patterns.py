@@ -601,7 +601,7 @@ CORE_DATE_RELATION_CONTEXT_PATTERNS = [
     [
         {
             "LEFT_ID": "anchor",
-            "REL_OP": "<",
+            "REL_OP": "<<",
             "RIGHT_ID": "prep_end",
             "RIGHT_ATTRS": {"DEP": "prep", "LOWER": "until"}
         },
@@ -649,6 +649,20 @@ TAIL_DATE_RELATION_CONTEXT_PATTERNS = [
             "REL_OP": ">",
             "RIGHT_ID": "adj_to_verb",
             "RIGHT_ATTRS": {"DEP": {"IN": ["aux", "acomp"]}, "POS": "ADJ"}
+        },  
+    ],
+    [
+        {
+            "LEFT_ID": "prep_end",
+            "REL_OP": "<",
+            "RIGHT_ID": "adj_to_verb",
+            "RIGHT_ATTRS": {"DEP": {"IN": ["aux", "acomp"]}, "POS": "ADJ"}
+        },
+        {
+            "LEFT_ID": "adj_to_verb",
+            "REL_OP": "<",
+            "RIGHT_ID": "verb",
+            "RIGHT_ATTRS": {"POS": "VERB"}
         },  
     ],
     []
@@ -877,4 +891,44 @@ SECU_SECUQUANTITY_PATTERNS = [
 
     ]
 ]
+
+
+#TODO: see how i can integrate this approach or are there better ones?
+SECU_GET_EXPIRY_DATE_LEMMA_COMBINATIONS = [
+    # should i store these as sets so i can faster compare;
+    # what are the alternatives and how much time
+    # complexity will i get from sets compared to lists 
+    # (when length of list is below 100)?
+    # at what part of this pipe do I incorperate negation ?
+    
+    {
+        "verb": set(["remain"]),
+        "prep": set(["until"]),
+        "adj": set(["exercisable"]),
+    },
+    {
+        "verb": set(["expire"]),
+        "prep": set(["as of", "on"]),
+        "aux_verb": set(["be", "can"]),
+    }
+]
+
+SECU_GET_EXERCISE_DATE_LEMMA_COMBINATIONS = [
+    # should i store these as sets so i can faster compare;
+    # what are the alternatives and how much time
+    # complexity will i get from sets compared to lists 
+    # (when length of list is below 100)?
+    # at what part of this pipe do I incorperate negation ?
+    
+    {
+        "prep": set(["as", "of", "on"]),
+        "adj": set(["exercisable"]),
+    },
+    {
+        "verb": set(["exercise"]),
+        "prep": set(["as", "of", "on"]),
+        "aux_verb": set(["can", "be"]),
+    }
+]
+
         

@@ -1389,15 +1389,58 @@ if __name__ == "__main__":
     # displacy_dep_with_search(text)
     # displacy_ent_with_search(text)
 
+    def try_get_SECU_objects():
+        from main.parser.parsers import filing_factory
+        from main.parser.filing_nlp import SpacyFilingTextSearch
+        search = SpacyFilingTextSearch()
+        path = r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
+        filing_info = {
+            "path": path,
+            "filing_date": None,
+            "accession_number": Path(path).parents[0].name,
+            "cik": Path(path).parents[2].name,
+            "file_number": "333-147568",
+            "form_type": "S-3",
+            "extension": ".htm"
+        }
+        filing: BaseHTMFiling = filing_factory.create_filing(**filing_info)
+        text = filing.get_text_only()
+        doc = search.nlp(text)
+        print("_________________done creating doc_________________")
+        secus = search.get_SECU_objects(doc)
+        # print("got SECU objects: ", secus)
+        for secu_key, values in secus.items():
+            if "common" in secu_key:
+                for secu in values:
+                    # print("\t date_relations: ", secu.date_relations)
+                    if secu.quantity_relations != []:
+                        print(f"SECU_KEY: {secu.secu_key}")
+                        # print("date_relations: ", secu.date_relations)
+                        # print("quantity_relations: ", secu.quantity_relations)
+                        for qrel in secu.quantity_relations:
+                            print("\t quantity: ", qrel.quantity)
+
+
     def try_own_dep_matcher():
         # text = "This is being furnished into a test sentence for a dependency matcher."
-        from main.parser.filing_nlp import SecurityDependencyAttributeMatcher
-        matcher = SecurityDependencyAttributeMatcher()
+    
         # result = matcher.get_possible_candidates(pattern)
         # print([i for i in result])
         secus = []
         docs = []
         eps = []
+        from main.parser.parsers import filing_factory
+        path = r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings\0001035976\S-3\000143774918017591\fncb20180927_s3.htm"
+        filing_info = {
+        "path": path,
+        "filing_date": None,
+        "accession_number": Path(path).parents[0].name,
+        "cik": Path(path).parents[2].name,
+        "file_number": "333-147568",
+        "form_type": "S-3",
+        "extension": ".htm"
+    }
+        filing = filing_factory.create_filing(**filing_info)
         for each in [
             # (
             #     "As of May 4, 2021, 46,522,759 shares of our common stock were issued and outstanding.",
@@ -1422,7 +1465,10 @@ if __name__ == "__main__":
             # ),
             # ("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",),
             # ("The warrants we issued pursuant to our Private Placement can be exercised as of May 5, 2021.",),
-            ("The warrants were exercisable on the grant date (April 26, 2016) and remain exercisable until April 26, 2021. The warrants were exercisable on the grant date (May 25, 2018) and remain exercisable until May 24, 2023.",)
+            # ("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.",),
+            # (filing.get_text_only(),)
+            # ("The warrants were exercisable on the grant date (April 26, 2016) and remain exercisable until April 26, 2021. \
+            #   The warrants were exercisable on the grant date (April 26, 2018) and remain exercisable until May 26, 2021.",)
         ]:
             text = each[0]
             doc = search.nlp(text)
@@ -1441,15 +1487,27 @@ if __name__ == "__main__":
         for ep in eps:
             for key, secus in ep.items():
                 for secu in secus:
-                    print("---------------")
-                    print(key)
-                    print(secu.date_relations)
-                    quants = secu.quantity_relations
-                    if quants:
-                        for quant in quants:
-                            print("quant date_relations: ", quant.quantity.date_relations)
-                            print("quant amods: ", quant.quantity.amods)
-                            print("quant parent_verb", quant.quantity.parent_verb)
+                    if "common" in secu.secu_key:
+                        if secu.quantity_relations != []:
+                            print("expiry_date", secu.expiry_date)
+                            # print("date_relations: ", secu.date_relations)
+                            # print("quantity_relations: ", secu.quantity_relations)
+                            for qrel in secu.quantity_relations:
+                                print("quantity: ", qrel.quantity)
+                    # print(secu)
+                    # print(secu.date_relations)
+                    # print(secu.exercise_date)
+                    # print("---------------")
+                    # print(key)
+                    # print(secu.date_relations)
+                    # for date_relation in secu.date_relations["datetime"]:
+                    #     print(date_relation)
+                    # quants = secu.quantity_relations
+                    # if quants:
+                    #     for quant in quants:
+                    #         print("quant date_relations: ", quant.quantity.date_relations)
+                    #         print("quant amods: ", quant.quantity.amods)
+                    #         print("quant parent_verb", quant.quantity.parent_verb)
 
 
                     # get = [secu.original, secu.date_relations, secu.exercise_price, secu.quantity_relations, secu.other_relations, secu.root_verb, secu.parent_verb, secu.aux_verbs, secu.amods]
@@ -1484,6 +1542,7 @@ if __name__ == "__main__":
         # create amod getter for Token
         # rework this to account correctly for optional dependency condition
     # displacy_ent_with_search("This is based on 41,959,545 shares, not including shares of our Common Stock, currently outstanding as of October 26, 2020. ")
-    try_own_dep_matcher()
+    # try_own_dep_matcher()
+    try_get_SECU_objects()
     # displacy_dep_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.", show_lemmas=True)
     # displacy_ent_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.")

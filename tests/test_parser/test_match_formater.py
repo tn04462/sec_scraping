@@ -1,5 +1,6 @@
 
-from main.parser.filing_nlp import SpacyFilingTextSearch, MatchFormater
+from main.parser.filing_nlp import SpacyFilingTextSearch
+from main.parser.filing_nlp_utils import MatchFormater
 from spacy.tokens import Token, Span
 import pytest
 from datetime import timedelta
@@ -9,11 +10,26 @@ text_search = SpacyFilingTextSearch()
 f = MatchFormater()
 
 @pytest.mark.parametrize(["input", "expected"], [
+    ("10", "10"),
+    ("10.0", "10.0"),
+    ("250,000.25", "250000.25"),
+    ("100,000", "100000"),
+    ("100.00,000", None),
+    ("100,000.000,000", None),
+    ("100.000,000.000", None)
+    ])
+def test_parse_american_number(input, expected):
+    assert f.parse_american_number(input) == expected
+
+@pytest.mark.parametrize(["input", "expected"], [
     ("up to $75,000,000", 75000000),
     ("up to $7.5 million", 7500000),
     ("up to $7,5 million", 7500000),
     ("up to $0.0075 billion", 7500000),
-    ("11.5", 11.5)
+    ("11.5", 11.5),
+    ("700,000", 700000),
+    ("150,000.25", 150000.25),
+    ("150,000,000.01", 150000000.01),
     ])
 def test_money_string_to_float(input, expected):
     assert f.money_string_to_float(input) == expected

@@ -10,6 +10,8 @@ pytest = "*"
 matplotlib = "*"
 coreferee = "*"
 pysec-downloader = "*"
+cython = "*"
+scalene = {git = "https://github.com/plasma-umass/scalene"}
 
 [dev-packages]
 

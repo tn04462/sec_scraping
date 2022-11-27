@@ -116,10 +116,10 @@ class TestDependencyAttributeMatcher:
             0
         ),
     ])
-    def test_get_expiry(self, input, expected, secu_idx, get_search):
+    def test_get_expiry(self, input, expected, origin_idx, get_search):
         search = get_search
         doc = search.nlp(input)
-        match = search.dep_getter.get_expiry(doc[secu_idx])
+        match = search.dep_getter.get_expiry(doc[origin_idx])
         assert match == expected
     
     #FIXME: adjust for new context format when decided on which to use
