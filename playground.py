@@ -1419,6 +1419,12 @@ if __name__ == "__main__":
                         # print("quantity_relations: ", secu.quantity_relations)
                         for qrel in secu.quantity_relations:
                             print("\t quantity: ", qrel.quantity)
+                    if secu.exercise_price:
+                        print("exercise_price: ",secu.exercise_price)
+                    if secu.expiry_date:
+                        print("expiry_date: ", secu.expiry_date)
+
+                    
 
 
     def try_own_dep_matcher():
@@ -1543,6 +1549,54 @@ if __name__ == "__main__":
         # rework this to account correctly for optional dependency condition
     # displacy_ent_with_search("This is based on 41,959,545 shares, not including shares of our Common Stock, currently outstanding as of October 26, 2020. ")
     # try_own_dep_matcher()
-    try_get_SECU_objects()
+    # try_get_SECU_objects()
     # displacy_dep_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.", show_lemmas=True)
     # displacy_ent_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.")
+# TODO: to test new SECU object, invoke an htmlfilingparser, spacyfilingtextsearch
+    def get_SECU_objects_from_text(text: str):
+        search = SpacyFilingTextSearch()
+        doc = search.nlp(text)
+        secu_objects = search.get_SECU_objects(doc)
+        return secu_objects
+    
+    def sample_for_SECU_objects():
+        filing_paths = [i for i in Path(r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings").rglob("*.htm")]
+        parser = HTMFilingParser()
+        # create logger file, log file name and log sSECU to info
+        file_logger = logging.getLogger("fl")
+        fl_handler = logging.FileHandler(r"C:\Users\Olivi\Desktop\SECU_objects_log.log")
+        file_logger.addHandler(fl_handler)
+        for path in filing_paths:
+            file_logger.warning(f"current file: {path}")
+            text = parser.get_doc(path)
+            secu_objects = get_SECU_objects_from_text(text)
+            for secu_key, values in secu_objects.items():
+                if "common" in secu_key or "warrant" in secu_key:
+                    for secu in values:
+                        # print("\t date_relations: ", secu.date_relations)
+                        if secu.quantity_relations != []:
+                            file_logger.info(f"SECU_KEY: {secu.secu_key}")
+                            # file_logger.info(("date_relations: ", secu.date_relations))
+                            # file_logger.info(("quantity_relations: ", secu.quantity_relations))
+                            for qrel in secu.quantity_relations:
+                                file_logger.info(("\t quantity: ", qrel))
+                        if secu.exercise_price:
+                            file_logger.info(("exercise_price: ",secu.exercise_price))
+                        if secu.expiry_date:
+                            file_logger.info(("expiry_date: ", secu.expiry_date))
+    # t = search.nlp(
+    #     "The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following"
+    #     )[10]
+    # from main.parser.filing_nlp import _get_amods_of_target_token
+    # print(t.ent_type_, t._.amods, _get_amods_of_target_token(t), list(t.children))
+    # secus = get_SECU_objects_from_text("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
+    # print(secus)
+    sample_for_SECU_objects()
+# prep -> pobj -> amods if unit shares
+    # displacy_dep_with_search("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
+# get text only of filing
+# create doc of text
+# call get_SECU_objects on doc
+# aggregate results
+# print results
+# compare to filing

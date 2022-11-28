@@ -672,8 +672,8 @@ class Unit:
 
 class SecurityAmount:
     def __init__(self, amount, unit):
-        self.amount = amount
-        self.unit = unit
+        self.amount: Amount = amount
+        self.unit: Unit = unit
     
     def __eq__(self, other):
         if isinstance(other, SecurityAmount):
@@ -698,6 +698,7 @@ class SECUQuantity:
         self.parent_verb = attr_matcher.get_parent_verb(self.original)
         self._date_relations = attr_matcher.get_date_relation(self.original)
         self.datetime_relation: DatetimeRelation = self._get_datetime_relation()
+
     
     def _get_datetime_relation(self):
         if self._date_relations:
@@ -733,7 +734,7 @@ class SECUQuantity:
 class QuantityRelation:
     quantity: SECUQuantity
     main_secu: Any
-    rel_type: str = "quantity"
+    rel_type: str = "quantity"                    
     
     def __repr__(self):
         return f"QuantityRelation(\
@@ -834,7 +835,11 @@ class SECU:
             # logger.debug(f"no quantities found for secu: {self.original}")
             return
         for quant in quants:
-            quant_obj = SECUQuantity(quant["quantity"], self.attr_matcher)
+            try:
+                quant_obj = SECUQuantity(quant["quantity"], self.attr_matcher)
+            except ValueError as e:
+                logger.debug(e)
+                continue
             if getattr(quant_obj.original, "source_secu", None) is not None:
                 source = quant["source_secu"]
                 rel = SourceQuantityRelation(quant_obj, self, source)
@@ -876,7 +881,7 @@ class SECU:
     
     def __eq__(self, other):
         if not isinstance(other, SECU):
-            logger.debug(f"comparing {self} to {other} which is not of type SECU, but of: {type(other)}")
+            logger.debug(f"cant compare {self} to {other}. other not of type SECU, but of type: {type(other)}")
             return False
         return (
             self.secu_key == other.secu_key
@@ -1135,7 +1140,6 @@ def get_span_similarity_score(
             )
         return score
 
-
 def get_alias(doc: Doc, secu: Span):
     # logger.debug(f"getting alias for: {secu}")
     if doc._.is_alias(secu) is True:
@@ -1145,7 +1149,7 @@ def get_alias(doc: Doc, secu: Span):
         secu_last_token = secu[-1]
         similarity_score_store = []
         checked_combination = set()
-        #TODO: optimize this
+        #TODO: optimize this, but how?
         for sent in doc.sents:
             if secu_first_token in sent:
                 secu_counter = 0

@@ -629,11 +629,11 @@ class HTMFilingParser(AbstractFilingParser):
         table_shape = (len(table), len(table[0]))
         if table_shape[1] != 2:
             return False
-        bullet = "●"
+        bullet = "\u25cf"
         cols_unicode = [True] * table_shape[1]
         for col in range(table_shape[1]):
             for row in range(table_shape[0]):
-                if table[row][col] not in ["●", "● ●", "●●", "", ""]:
+                if table[row][col] not in ["\u25cf", "\u25cf \u25cf", "\u25cf\u25cf", "", ""]:
                     # print(table[row][col], row, col)
                     cols_unicode[col] = False
         if cols_unicode[0] is True:

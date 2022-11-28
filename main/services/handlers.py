@@ -9,6 +9,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# TODO: internal cache of companies somwhere within sqlalchemy otherwise create one for use within handlers?
+
+
 def add_company(cmd: commands.AddCompany, uow: AbstractUnitOfWork):
     with uow as u:
         u.company.add(cmd.company)
@@ -108,6 +111,21 @@ def add_effect_registration(cmd: commands.AddEffectRegistration, uow: AbstractUn
             company.add_effect(local_effect_object)
         u.company.add(company)
         u.commit()
+
+def add_outstanding_security_fact(cmd: commands.AddOutstandingSecurityFact, uow: AbstractUnitOfWork):
+    with uow as u:
+        company: model.Company = u.company.get(symbol=cmd.symbol)
+        security: model.Security = company.get_security_by_name(cmd.name)
+        if security:
+            local_outstanding = u.session.merge(cmd.outstanding)
+            with u.session.no_autoflush:
+                security.add_outstanding(local_outstanding)
+            u.company.add(company)
+            u.commit()
+        else:
+            logger.info(f"OutstandingSecurity({cmd.outstanding}) couldnt be added, didnt find a Security which to assign it to.")
+        
+        
         
 
 COMMAND_HANDLERS = {
@@ -121,6 +139,8 @@ COMMAND_HANDLERS = {
     commands.AddFormType: add_form_type,
     commands.AddFilingLinks: add_filing_links,
     commands.AddEffectRegistration: add_effect_registration,
+
+    commands.AddOutstandingSecurityFact: add_outstanding_security_fact,
 
 }
 

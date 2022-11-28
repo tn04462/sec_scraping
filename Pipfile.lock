@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8bc4ffe1085d11edc5474154eb11a106f8c33bf702537c3fd11077e08df0a832"
+            "sha256": "f5b8418d24840d8e19625c501cc4dd9879b1e882602be6474cb959a23deeb271"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -202,12 +202,6 @@
             ],
             "index": "pypi",
             "version": "==1.3.1"
-        },
-        "crdp": {
-            "hashes": [
-                "sha256:01cb5b60276e3de8fabfe4110d40fdeb478567d005a54c7afe584c0a7ebb58a5"
-            ],
-            "version": "==0.0.2"
         },
         "cycler": {
             "hashes": [
@@ -853,7 +847,7 @@
                 "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86",
                 "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
             "version": "==2.8.2"
         },
         "requests": {
@@ -873,8 +867,22 @@
             "version": "==12.6.0"
         },
         "scalene": {
-            "git": "https://github.com/plasma-umass/scalene",
-            "ref": "a7cf3231eee88e68dbe9942a892dc6c726fd9222"
+            "hashes": [
+                "sha256:03b5bc4c053bbad21e061dbccdb6bae9841962761726486f33b58c7e436e2425",
+                "sha256:29847c70a6af5c7d31ed5ba4ccf53138137183d26e25a50c050860d05537cd8a",
+                "sha256:3c12e12c144eeedc95bdfd37a40b85cc22ddb20210c605731ff0b35f1c365d15",
+                "sha256:716dcac69e25748909b3c532544375aa9ecb21ead411b99712489fc75000d9ae",
+                "sha256:ace30828a91b99c0c82782fd8b69f1ab9a9bb473be19d8724cf5eb334f0102d5",
+                "sha256:ae77d2a7cb37b1b6ce0b800ca4309652abf949dc52c9e843fd078936b334e502",
+                "sha256:aea8e6c7aeecacc10fafe8c4bf2f79ce2f9733d96b2330b9f6b6c36f3e3b0dca",
+                "sha256:d4b71a8671d8856ae1fa54ded79875b44a9f5b7ba4c8dc13921be7cb560f283f",
+                "sha256:f5be6865d56e025f551886fd1768548b156696d6022d87ba1f11c4995266ba48",
+                "sha256:f90f55ba7443d20d7ba3fde17de19533b4822b80e595a5037196eba6032c5f59",
+                "sha256:fa7dee3a6ee6d06c0606e30a388df4ec07d2e60787e59b96bed5cdb74c9aa511",
+                "sha256:fe7b5cbb36127510ea9860a5a2faf55c26a603773c8ab4a58867ff945ea18316"
+            ],
+            "index": "pypi",
+            "version": "==1.5.15"
         },
         "setuptools": {
             "hashes": [
@@ -889,7 +897,7 @@
                 "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926",
                 "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
             "version": "==1.16.0"
         },
         "smart-open": {

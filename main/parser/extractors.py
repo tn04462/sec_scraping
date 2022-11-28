@@ -86,6 +86,7 @@ class BaseHTMExtractor:
         return security_type_factory.get_security_type(security_name)
     
     def merge_attributes(self, d1: dict, d2: dict) -> Dict:
+        # TODO: DEPRECATE shouldnt be needed after rework
         logger.debug(f"merging: {d1} and {d2}")
         if (d2 is None) or (d2 == {}):
             return d1
@@ -98,6 +99,7 @@ class BaseHTMExtractor:
         return d1 
 
     def get_security_attributes(self, doc: Doc, security_name: str, security_type: Security, security_spans) -> Dict:  
+        #TODO: replace with function: check_security_has_inital_required_security_type_attributes (think of better name)
         attributes = {}
         _kwargs = {"doc": doc, "security_name": security_name, "security_spans": security_spans}
         if security_type == CommonShare:
@@ -138,6 +140,11 @@ class BaseHTMExtractor:
         return attributes
     
     def get_securities_from_docs(self, docs: List[Doc]) -> List[model.Security]:
+        # TODO: rewrite this to use new SECU class 
+        # 1) get SECU objects
+        # 2) get security type for given secu key
+        # 3) check the securities with given key against requirements for given security type
+        # 4) create the model and append to securities list
         securities = []
         mentioned_secus = {}
         for doc in docs:
@@ -159,22 +166,8 @@ class BaseHTMExtractor:
                 securities.append(security)
         return securities
 
-    # def get_queryable_secu_spans_from_key(self, doc: Doc, security_key: str):
-    #     # POSSIBLE WASTE CODE
-    #     # print("security_key when getting queryable_secu_spans: ", security_key)
-    #     single_secu_alias = doc._.single_secu_alias.get(security_key)
-    #     # print(f"working with single_secu_alias map: {doc._.single_secu_alias}")
-    #     # print(f"got single_secu_alias: {single_secu_alias}")
-    #     if single_secu_alias:
-    #         base = single_secu_alias.get("base")
-    #         alias = single_secu_alias.get("alias")
-    #         return base + alias
-    #         # need to think how i handle bases that arent unique -> only return alias? or only search until we encounter next sentence containing a base span?
-    #         # maybe apply a flag when creating the alias map
-    #     return None
-    #     # now build queries which take the span as arg to search for features
-
     def get_secu_exercise_price(self, doc: Doc, security_name: str, security_spans: List[Span]) -> str|NoneType:
+        # DEPRECATE shouldnt be needed since we have the exercise price within the SECU object
         exercise_prices_seen = set()
         exercise_prices = []
         logger.debug("get_secu_exercise_price:")
@@ -248,6 +241,7 @@ class BaseHTMExtractor:
         return False
     
     def get_secu_expiry_by_type(self, wanted: str, doc: Doc, security_name: str, security_spans: List[Span]) -> str|NoneType:
+        # TODO: DEPRECATE shouldnt be needed after rework
         '''
         handle the case for the expiry as a timedelta from the issuance date or as a specific date in time.
 
@@ -268,6 +262,7 @@ class BaseHTMExtractor:
         return None
     
     def get_secu_expiry(self, doc: Doc, security_name: str, security_spans: List[Span]) -> str|NoneType:
+        # TODO: DEPREACTE since we have the expiry within the SECU objects
         expiries_seen = set()
         expiries = []
         logger.debug("get_secu_expiry:")
@@ -291,44 +286,36 @@ class BaseHTMExtractor:
             return expiries[0] if expiries != [] else None
 
     def get_secu_multiplier(self, doc: Doc, security_name: str, security_spans: List[Span]):
+        # TODO: implement
         logger.debug("get_secu_multiplier returning dummy value: 1")
         return 1
 
     def get_secu_latest_issue_date(self, doc: Doc, security_name: str, security_spans: List[Span]):
+        # TODO: implement to use SECU objects
         logger.debug("get_secu_latest_issue_date returning dummy value: None")
         return None
 
     def get_secu_interest_rate(self, doc: Doc, security_name: str, security_spans: List[Span]):
+        # TODO: implement to use SECU objects
         logger.debug("get_secu_interest_rate returning dummy value: 0.05")
         return 0.05
 
     def get_secu_right(self, doc: Doc, security_name: str, security_spans: List[Span]):
+        # TODO: implement to use SECU objects
         logger.debug("get_secu_right returning dummy value: 'Call'")
         return "Call"
 
     def get_secu_conversion(self, doc: Doc, security_name: str, security_spans: List[Span]):
+        # TODO: implement to use SECU objects
         logger.debug("get_secu_conversion not implemented")
         pass
     
-    def get_issuable_relation(self, doc: Doc, security_name: str):
-        # DEPRECATED
-        primary_matches = self.spacy_text_search.match_issuable_secu_primary(doc)
-        print(f"primary_matches: {primary_matches}")
-        no_primary_matches = self.spacy_text_search.match_issuable_secu_no_primary(doc)
-        print(f"no_primary_matches: {no_primary_matches}")
-        no_exercise_price = self.spacy_text_search.match_issuable_secu_no_exercise_price(doc)
-        print(f"no_exercise_price_matches: {no_exercise_price}")
-
-    # def _handle_issuable_no_primary_secu_match(self, match):
-    #     converted_security = CommonShare()
-    #     base_secu = 
-
-    # def _handle_issuable_primary_secu_match(self, match):
-    
     def doc_from_section(self, section: FilingSection) -> Doc:
+        # TODO: implement to use SECU objects
         return self.spacy_text_search.nlp(section.text_only)
 
     def extract_outstanding_shares(self, filing: Filing) -> list[model.SecurityOutstanding]|NoneType:
+        # TODO: adjust to use SECU objects
         text = filing.get_text_only()
         if text is None:
             logger.debug(filing)
@@ -337,10 +324,12 @@ class BaseHTMExtractor:
         return [model.SecurityOutstanding(v["amount"], v["date"]) for v in values]
 
 class HTMS1Extractor(BaseHTMExtractor, AbstractFilingExtractor):
+    # TODO: rework with SECU objects in mind
     def extract_form_values(self, filing: Filing):
         return [self.extract_outstanding_shares(filing)]
 
 class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
+    # TODO: rework to with SECU objects in mind
     def extract_form_values(self, filing: Filing, company: model.Company, bus: MessageBus):
         complete_doc = self.spacy_text_search.nlp(filing.get_text_only())
         try:

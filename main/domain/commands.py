@@ -37,9 +37,6 @@ class AddFilingLinks(NeedCompanyCommand):
 class AddCompany(Command):
     company: model.Company
 
-@dataclass
-class AddOutstanding(SecuritiesCommand):
-    outstanding: list[model.SecurityOutstanding]
 
 @dataclass
 class AddSecurities(NeedCompanyCommand):
@@ -66,6 +63,9 @@ class AddShelfSecurityRegistration(NeedCompanyCommand):
     offering_accn: str
     security_registration: model.ShelfSecurityRegistration
 
+@dataclass
+class AddOutstandingSecurityFact(SecuritiesCommand):
+    outstanding: list[model.SecurityOutstanding]
 
 
 

@@ -11,7 +11,7 @@ matplotlib = "*"
 coreferee = "*"
 pysec-downloader = "*"
 cython = "*"
-scalene = {git = "https://github.com/plasma-umass/scalene"}
+scalene = "*"
 
 [dev-packages]
 
