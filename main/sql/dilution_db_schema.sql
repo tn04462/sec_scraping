@@ -343,7 +343,6 @@ CREATE TABLE IF NOT EXISTS securities (
             REFERENCES securities(id),
     CONSTRAINT unique_name_company_type
         UNIQUE(company_id, security_name, security_type)
-
 );
 
 CREATE TABLE IF NOT EXISTS securities_cusip(

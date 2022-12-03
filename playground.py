@@ -1553,37 +1553,128 @@ if __name__ == "__main__":
     # displacy_dep_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.", show_lemmas=True)
     # displacy_ent_with_search("The warrants we issued pursuant to our Private Placement are exercisable as of May 5, 2021.")
 # TODO: to test new SECU object, invoke an htmlfilingparser, spacyfilingtextsearch
+    
+    def match_context_sconj_action(doc):
+        from main.parser.filing_nlp import SecurityDependencyAttributeMatcher
+        attr_matcher = SecurityDependencyAttributeMatcher()
+        results = []
+        for ent in doc.ents:
+            if ent.label_ == "SECUQUANTITY":
+                sample = attr_matcher._get_context_sconj_action_from_secuquantity(ent.root)
+                if sample:
+                    results += sample
+        return results 
+
+    def context_sconj_action_sample(paths):
+        results = []
+        docs = []
+        for path in paths:
+            docs.append(get_doc_from_path(path))
+        for doc in docs:
+            result = match_context_sconj_action(doc)
+            if result:
+                results += result
+        return results
+                    
     def get_SECU_objects_from_text(text: str):
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
         secu_objects = search.get_SECU_objects(doc)
         return secu_objects
     
+    
     def sample_for_SECU_objects():
-        filing_paths = [i for i in Path(r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings").rglob("*.htm")]
+        filing_paths = [
+        # r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0000831547/S-3/000083154720000018/cleans-3.htm",
+        # r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0001325879/S-3/000119312518218817/d439397ds3.htm",
+        r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0001453593/S-3/000149315221008120/forms-3.htm"]
+        # filing_paths = [i for i in Path(r"C:\Users\Olivi\Testing\sec_scraping\tests\test_resources\filings").rglob("*.htm")][2:3]
         parser = HTMFilingParser()
         # create logger file, log file name and log sSECU to info
         file_logger = logging.getLogger("fl")
         fl_handler = logging.FileHandler(r"C:\Users\Olivi\Desktop\SECU_objects_log.log")
         file_logger.addHandler(fl_handler)
+        exercise_date = []
+        exercise_price = []
+        expiry = []
+        secu_keys = []
+        quants = []
         for path in filing_paths:
             file_logger.warning(f"current file: {path}")
-            text = parser.get_doc(path)
+            text = parser.clean_text_only_filing(parser.get_doc(path))
             secu_objects = get_SECU_objects_from_text(text)
             for secu_key, values in secu_objects.items():
-                if "common" in secu_key or "warrant" in secu_key:
-                    for secu in values:
-                        # print("\t date_relations: ", secu.date_relations)
-                        if secu.quantity_relations != []:
-                            file_logger.info(f"SECU_KEY: {secu.secu_key}")
-                            # file_logger.info(("date_relations: ", secu.date_relations))
-                            # file_logger.info(("quantity_relations: ", secu.quantity_relations))
-                            for qrel in secu.quantity_relations:
-                                file_logger.info(("\t quantity: ", qrel))
-                        if secu.exercise_price:
-                            file_logger.info(("exercise_price: ",secu.exercise_price))
-                        if secu.expiry_date:
-                            file_logger.info(("expiry_date: ", secu.expiry_date))
+                secu_keys.append(secu_key)
+                has_exercise_price, has_expiry, has_exercise_date, has_quant = 0, 0, 0, 0
+                for secu in values:
+                    if secu.exercise_price:
+                        has_exercise_price += 1
+                    if secu.expiry_date:
+                        has_expiry += 1
+                    if secu.exercise_date:
+                        has_exercise_date += 1
+                    if secu.quantity_relations != []:
+                        has_quant += len(secu.quantity_relations)
+
+                exercise_date.append(has_exercise_date)
+                exercise_price.append(has_exercise_price)
+                expiry.append(has_expiry)
+                quants.append(has_quant)
+                # if "common" in secu_key or "warrant" in secu_key:
+                for secu in values:
+                    # print("\t date_relations: ", secu.date_relations)
+                    if secu.quantity_relations != []:
+                        file_logger.info(f"SECU_KEY: {secu.secu_key}")
+                        # file_logger.info(("date_relations: ", secu.date_relations))
+                        # file_logger.info(("quantity_relations: ", secu.quantity_relations))
+                        for qrel in secu.quantity_relations:
+                            file_logger.info(("\t quantity: ", qrel))
+                    if secu.exercise_price:
+                        file_logger.info(("exercise_price: ",secu.exercise_price))
+                    if secu.expiry_date:
+                        file_logger.info(("expiry_date: ", secu.expiry_date))
+        df = pd.DataFrame(data={"name": secu_keys, "quantity_relations": quants ,"exercise_date": exercise_date, "exercise_price": exercise_price, "expiry": expiry})
+        print(df)
+    
+    def get_doc_from_path(path):
+        search = SpacyFilingTextSearch()
+        parser = HTMFilingParser()
+        text = parser.clean_text_only_filing(parser.get_doc(path))
+        return search.nlp(text)
+    
+ 
+    
+    # docs = []
+    # for p in [
+    #     r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0000831547/S-3/000083154720000018/cleans-3.htm",
+    #     r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0001325879/S-3/000119312518218817/d439397ds3.htm",
+    #     r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0001453593/S-3/000149315221008120/forms-3.htm"
+    #     ]:
+    #     docs.append(get_doc_from_cache(p))
+    # search = SpacyFilingTextSearch()
+    # text = "	Includes 7,111,112 shares of common stock that may be issued upon the exercise of warrants."
+    # displacy_dep_with_search(text)
+    # doc = search.nlp(text)
+    # print(match_context_sconj_action(doc))
+    # d = context_sconj_action_sample([
+    #     r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0001453593/S-3/000149315221008120/forms-3.htm"
+    #     # r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0000831547/S-3/000083154720000018/cleans-3.htm",
+    #     # r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0001325879/S-3/000119312518218817/d439397ds3.htm",
+    #     # r"C:/Users/Olivi/Testing/sec_scraping/tests/test_resources/filings/0001453593/S-3/000149315221008120/forms-3.htm"
+    #     ])
+    # print(d)
+    # matches_only = [i["match"] for i in d]
+    # formatted_matches = []
+    # for i in matches_only:
+    #     r = {}
+    #     for entry in i:
+    #         # for entry in x:
+    #         r[entry[1]] = entry[0]
+    #     formatted_matches.append(r)
+    # print(formatted_matches)
+    # df = pd.DataFrame(data=formatted_matches)
+    # print(df)
+    
     # t = search.nlp(
     #     "The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following"
     #     )[10]
@@ -1591,8 +1682,12 @@ if __name__ == "__main__":
     # print(t.ent_type_, t._.amods, _get_amods_of_target_token(t), list(t.children))
     # secus = get_SECU_objects_from_text("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
     # print(secus)
-    sample_for_SECU_objects()
-# prep -> pobj -> amods if unit shares
+    # sample_for_SECU_objects()
+    # displacy_dep_with_search("The selling stockholders acquired these shares from us pursuant to a (i) Securities Purchase Agreement, dated February 22, 2021 pursuant to which we issued 8,888,890 shares of common stock, par value $0.000001 per share, at a purchase price of $2.25 per share, and a warrant to purchase up to 6,666,668 shares of common stock in a private placement, and (ii) Placement Agent Agreement, dated February 22, 2021, with A.G.P./Alliance Global Partners pursuant to which we issued warrants to purchase up to an aggregate of 444,444 shares of common stock.")
+    # displacy_dep_with_search("The number of shares consists of 8,663,890 shares of our common stock and 6,497,918 shares of our common stock issuable upon exercise of the Investor Warrant.")
+    # displacy_dep_with_search("Includes 7,111,112 shares of common stock that may be issued upon the exercise of warrants. The number of shares consists of 4,444 shares of our common stock issuable upon exercise of the Placement Agent Warrant.")
+    displacy_dep_with_search("we may issue certain stock. we have the right to issue certain stock. we could issue certain stock. this agreement is concerning stock which we may issue. the stock which may be issued at some point. ")
+    # need to check the quantity relations for existance of: daterelation, amount, amods of parent secu and quant 
     # displacy_dep_with_search("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
 # get text only of filing
 # create doc of text
