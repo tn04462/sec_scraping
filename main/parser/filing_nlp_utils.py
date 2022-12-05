@@ -1,11 +1,113 @@
 from datetime import timedelta
 import re
-from spacy.tokens import Token, Span
+from spacy.tokens import Token, Span, Doc
 import pandas as pd
 import logging
 import string
 
 logger = logging.getLogger(__name__)
+
+
+def extend_token_ent_to_span(token: Token, doc: Doc) -> list[Token]:
+    span_tokens = [token]
+    logger.debug(
+        f"extending ent span to surrounding for origin token: {token, token.i}"
+    )
+    for i in range(token.i - 1, 0, -1):
+        if doc[i].ent_type_ == token.ent_type_:
+            span_tokens.insert(0, doc[i])
+            logger.debug(f"found preceding token matching ent: {doc[i]}")
+        else:
+            break
+    for i in range(token.i + 1, 10000000, 1):
+        if doc[i].ent_type_ == token.ent_type_:
+            span_tokens.append(doc[i])
+            logger.debug(f"found following token matching ent: {doc[i]}")
+        else:
+            break
+    logger.debug(f"making tokens to span: {span_tokens}")
+    if len(span_tokens) <= 1:
+        span = Span(doc, token.i, token.i + 1, label=token.ent_type_)
+        logger.debug(f"returning span: {span, span.text}")
+        return span
+    span = Span(doc, span_tokens[0].i, span_tokens[-1].i + 1, label=token.ent_type_)
+    logger.debug(f"span: {span, span.text}")
+    return span
+
+def BFS_non_recursive(origin, target) -> list:
+    """
+    Breadth First Search algorithm
+
+    Returns:
+        list: list of nodes in the path from origin to target
+        None: if no path is found
+    """
+    path = []
+    queue = [[origin]]
+    node = origin
+    visited = set()
+    while queue:
+        path = queue.pop(0)
+        node = path[-1]
+        if node == target:
+            return path
+        visited.add(node)
+        adjacents = (list(node.children) if node.children else []) + (
+            list(node.ancestors) if node.ancestors else []
+        )
+        for adjacent in adjacents:
+            if adjacent in visited:
+                continue
+            new_path = list(path)
+            new_path.append(adjacent)
+            queue.append(new_path)
+
+
+def get_dep_distance_between(origin, target) -> int:
+    """
+    get the distance between two tokens in a spaCy dependency tree.
+
+    Returns:
+        int: distance between origin and target
+        None: if origin and target arent part of the same tree
+    """
+    is_in_same_tree = False
+    if origin.is_ancestor(target):
+        is_in_same_tree = True
+        start = origin
+        end = target
+    if target.is_ancestor(origin):
+        is_in_same_tree = True
+        start = target
+        end = origin
+    if is_in_same_tree:
+        path = BFS_non_recursive(start, end)
+        return len(path)
+    else:
+        return None
+
+
+def get_dep_distance_between_spans(origin, target) -> int:
+    """
+    get the distance between two spans (counting from their root) in a spaCy dependency tree.
+
+    Returns:
+        int: distance between origin and target
+        None: if origin and target arent part of the same tree
+    """
+    distance = get_dep_distance_between(origin.root, target.root)
+    return distance
+
+
+def get_span_distance(secu, alias: list[Token] | Span) -> int:
+    if secu[0].i > alias[0].i:
+        first = alias
+        second = secu
+    else:
+        first = secu
+        second = alias
+    mean_distance = ((second[0].i - first[-1].i) + (second[-1].i - first[0].i)) / 2
+    return mean_distance
 
 def int_to_roman(input):
     """ Convert an integer to a Roman numeral. """

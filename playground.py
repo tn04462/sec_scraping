@@ -1044,7 +1044,7 @@ if __name__ == "__main__":
     # output_path = Path(r"C:\Users\Olivi\Desktop\test_svg.svg") # you can keep there only "dependency_plot.svg" if you want to save it in the same folder where you run the script 
     # svg = displacy.render(docs, style="dep", options={"fine_grained": True, "compact": True})
     # output_path.open("w", encoding="utf-8").write(svg)
-    def displacy_dep_with_search(text, print_tokens=False, show_lemmas=False):
+    def displacy_dep_with_search(text, print_tokens=False, show_lemmas=False, finegrained=False):
         search = SpacyFilingTextSearch()
         doc = search.nlp(text)
         if print_tokens is True:
@@ -1053,7 +1053,7 @@ if __name__ == "__main__":
                 print(      spacy.explain(token.dep_),  token.dep_)
                 print(      spacy.explain(token.pos_), token.pos_)
                 print(      spacy.explain(token.tag_), token.tag_)
-        displacy.serve(doc, style="dep", options={"fine_grained": False, "compact": True, "add_lemma": show_lemmas}, port=5000)
+        displacy.serve(doc, style="dep", options={"fine_grained": finegrained, "compact": True, "add_lemma": show_lemmas}, port=5000)
 
     def displacy_ent_with_search(text):
         search = SpacyFilingTextSearch()
@@ -1686,11 +1686,12 @@ if __name__ == "__main__":
     # displacy_dep_with_search("The selling stockholders acquired these shares from us pursuant to a (i) Securities Purchase Agreement, dated February 22, 2021 pursuant to which we issued 8,888,890 shares of common stock, par value $0.000001 per share, at a purchase price of $2.25 per share, and a warrant to purchase up to 6,666,668 shares of common stock in a private placement, and (ii) Placement Agent Agreement, dated February 22, 2021, with A.G.P./Alliance Global Partners pursuant to which we issued warrants to purchase up to an aggregate of 444,444 shares of common stock.")
     # displacy_dep_with_search("The number of shares consists of 8,663,890 shares of our common stock and 6,497,918 shares of our common stock issuable upon exercise of the Investor Warrant.")
     # displacy_dep_with_search("Includes 7,111,112 shares of common stock that may be issued upon the exercise of warrants. The number of shares consists of 4,444 shares of our common stock issuable upon exercise of the Placement Agent Warrant.")
-    displacy_dep_with_search("we may issue certain stock. we have the right to issue certain stock. we could issue certain stock. this agreement is concerning stock which we may issue. the stock which may be issued at some point. ")
+    displacy_dep_with_search("perhaps, we issue certain stock if the time is right. we have the right to issue certain stock. we could issue certain stock. this agreement is concerning stock which we may issue. the stock which may be issued at some point. Perhaps, we will buy that. In may we may be buy that.",finegrained=True)
+
     # need to check the quantity relations for existance of: daterelation, amount, amods of parent secu and quant 
     # displacy_dep_with_search("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
 # get text only of filing
-# create doc of text
+# create doc of text    
 # call get_SECU_objects on doc
 # aggregate results
 # print results

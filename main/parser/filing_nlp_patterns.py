@@ -1,3 +1,54 @@
+def add_anchor_pattern_to_patterns(
+    anchor_pattern: list[dict], patterns: list[list[dict]]
+) -> list[list[dict]]:
+    if not any(
+        [False if entry["RIGHT_ID"] != "anchor" else True for entry in anchor_pattern]
+    ):
+        raise ValueError(
+            "Anchor pattern must contain an anchor token with RIGHT_ID = 'anchor'"
+        )
+    finished_patterns = [None] * len(patterns)
+    for idx, pattern in enumerate(patterns):
+        finished_patterns[idx] = anchor_pattern + pattern
+    return finished_patterns
+
+ADVERBS_OF_CERTAINTY = [
+    "definitly",
+    "surely",
+    "certainly",
+    "probably",
+    "perhaps",
+    "likely",
+    "possibly"
+]
+
+MODALITY_CERTAINTY_MARKER_DEPENDENCY_PATTERNS = [
+    [
+        {
+            "RIGHT_ID": "certainty_marker",
+            "RIGHT_ATTRS": {"TAG": "MD", "LEMMA": {"NOT_IN": ["will"]}}
+        },
+        {
+            "LEFT_ID": "certainty_marker",
+            "REL_OP": ";*",
+            "RIGHT_ID": "affected_main_verb",
+            "RIGHT_ATTRS": {"POS": "VERB"}
+        }
+    ],
+    [
+        {
+            "RIGHT_ID": "certainty_marker",
+            "RIGHT_ATTRS": {"TAG": "ADV", "LOWER": {"IN": ADVERBS_OF_CERTAINTY}}
+        },
+        {
+            "LEFT_ID": "certainty_marker",
+            "REL_OP": ";*",
+            "RIGHT_ID": "affected_main_verb",
+            "RIGHT_ATTRS": {"POS": "VERB"}
+        }
+    ],
+]
+
 ADJ_NEGATION_PATTERNS = [
     [
         {"DEP": "neg"},
@@ -889,7 +940,7 @@ SECU_SECUQUANTITY_PATTERNS = [
             "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
         },
 
-    ]
+    ],
 ]
 
 

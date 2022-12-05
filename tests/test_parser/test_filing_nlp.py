@@ -2,7 +2,8 @@ import pytest
 import spacy
 # from spacy.tokens import Span, Token, Doc
 # from spacy.matcher import Matcher
-from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher, DependencyNode, DependencyAttributeMatcher
+from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher
+from main.parser.filing_nlp_dependency_matcher import DependencyAttributeMatcher
 from pandas import to_datetime
 import datetime
 
@@ -36,6 +37,7 @@ def get_dependency_attribute_matcher():
 
 # classes not tested: AggreementMatcher, NegationSetter
 
+# TODO: move to own test file
 class TestDependencyAttributeMatcher:
     def test_match_simple_pattern_one_child_per_level(self, get_search):
         search = get_search
@@ -361,39 +363,3 @@ class TestSpacyFilingTextSearch:
         assert conflicting == [doc.ents[0], doc.ents[1]]
         conflicting = get_conflicting_ents(doc, 1, 2)
         assert conflicting == []
-
-
-class TestDependencyNode:
-    def test_dependency_node_get_nodes_base_case(self):
-        root = DependencyNode(data=0)
-        child1 = DependencyNode(data=1)
-        root.children.append(child1)
-        result = [i for i in root.get_leaf_paths(root)]
-        assert [[i.data for i in li] for li in result] == [[0, 1]]
-
-
-    def test_dependency_node_get_nodes_more_nodes(self):
-        root = DependencyNode(data=0)
-        child1 = DependencyNode(data=1)
-        child2 = DependencyNode(data=2)
-        child11 = DependencyNode(data=11)
-        child12 = DependencyNode(data=12)
-        root.children.append(child1)
-        root.children.append(child2)
-        root.children[0].children.append(child11)
-        root.children[0].children.append(child12)
-        result = [i for i in root.get_leaf_paths(root)]
-        assert [[i.data for i in li] for li in result] == [[0, 1, 11], [0, 1, 12], [0, 2]]
-
-    def test_dependency_node_get_more_nodes_without_specifing_node(self): 
-        root = DependencyNode(data=0)
-        child1 = DependencyNode(data=1)
-        child2 = DependencyNode(data=2)
-        child11 = DependencyNode(data=11)
-        child12 = DependencyNode(data=12)
-        root.children.append(child1)
-        root.children.append(child2)
-        root.children[0].children.append(child11)
-        root.children[0].children.append(child12)
-        result = [i for i in root.get_leaf_paths()]
-        assert [[i.data for i in li] for li in result] == [[0, 1, 11], [0, 1, 12], [0, 2]]

@@ -1,0 +1,43 @@
+from spacy.tokens import Token, Span
+from pandas import Timestamp
+from collections import defaultdict
+
+
+class DatefulRelation:
+    def _format_context_as_lemmas(
+        self, context: dict[str, list[Token]]
+    ) -> dict[str, set[str]]:
+        if context is None:
+            return {}
+        lemma_dict = defaultdict(set)
+        for key, tokens in context.items():
+            if tokens:
+                for token in tokens:
+                    lemma_dict[key].add(token.lemma_)
+        return lemma_dict
+
+
+class DatetimeRelation(DatefulRelation):
+    def __init__(
+        self, spacy_date: Span, timestamp: Timestamp, context: dict[str, list[Token]]
+    ):
+        self.spacy_date = spacy_date
+        self.timestamp = timestamp
+        self.context = context
+        self.lemmas = self._format_context_as_lemmas(
+            context.get("formatted", None) if context != [] else None
+        )
+
+    def __repr__(self):
+        return f"{self.spacy_date} - {self.context.get('formatted', None)}"
+
+    def __eq__(self, other):
+        if isinstance(other, DatetimeRelation):
+            if (
+                (self.spacy_date == other.spacy_date)
+                and (self.timestamp == other.timestamp)
+                and (self.lemmas == other.lemmas)
+                and (self.context == other.context)
+            ):
+                return True
+        return False
