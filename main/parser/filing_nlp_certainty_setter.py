@@ -5,7 +5,7 @@ from collections import defaultdict
 import logging
 logger = logging.getLogger(__name__)
 
-CERTAINTY_LEVEL_MAP = {
+CERTAINTY_LEVEL_MAP_MD = {
     "must": 0.9,
     "will": 0.8,
     "would": 0.7,
@@ -15,33 +15,45 @@ CERTAINTY_LEVEL_MAP = {
     "could": 0.25,
     "may": 0.2,
     "might": 0.15,
+}
 
+CERTAINTY_LEVEL_MAP_ADV = {
+    "definitly": 1.0,
+    "surely": 1.0,
+    "certainly": 1.0,
+    "likely": 0.8,
+    "probably": 0.75,
+    "perhaps": 0.5,
+    "possibly": 0.3
 }
 
 class CertaintyInfo:
-    def __init__(self, marker_idx: list[int], doc: Doc):
+    def __init__(self, marker_idx: int, doc: Doc):
         self.marker_idx = marker_idx
         self.doc = doc
     
     def get_marker(self):
         return self.doc[self.marker_idx] 
     
+    def get_marker_scope(self):
+        return self.doc._.certainty_marker_map.get(self.marker_idx)
+
     def determine_level(self):
         marker = self.doc[self.marker_idx]
         if marker.tag_ == "MD":
-            check_against = marker.lemma_
+            certainty_level_map_entry = CERTAINTY_LEVEL_MAP_MD.get(marker.lemma_, None)
+        elif marker.pos_ == "ADV":
+            certainty_level_map_entry = CERTAINTY_LEVEL_MAP_ADV.get(marker.lower_, None)
         else:
-            check_against = marker.lower_
-        in_certainty_level_map = CERTAINTY_LEVEL_MAP.get(check_against, None)
-        if not in_certainty_level_map:
-            logger.warning(f"folowing marker isnt assigned a degree [0, 1[ of certainty, add {marker} to the CERTAINTY_LEVEL_MAP to resolve and not see this message.")
+            certainty_level_map_entry = None
+        if not certainty_level_map_entry:
+            logger.warning(f"folowing marker isnt assigned a degree [0, 1[ of certainty, add {marker} to the CERTAINTY_LEVEL_MAP, CERTAINTY_LEVEL_MAP_MD or CERTAINTY_LEVEL_MAP_ADV to resolve and not see this message.")
             return 1.0
         else:
-            return in_certainty_level_map
-
+            return certainty_level_map_entry
 
     def __repr__(self):
-        return str(self.marker_idx) + " " + str(self.token)
+        return str(self.marker_idx) + " " + str(self.doc[self.marker_idx])
 
 
 ADVERBS_OF_CERTAINTY = [
@@ -81,7 +93,7 @@ MODALITY_CERTAINTY_MARKER_DEPENDENCY_PATTERNS = [
     ],
 ]
 
-class ModalitySetter:
+class CertaintySetter:
     '''
     sets a CertaintyInfo class on each Token that needs it on the extension ._.certainty
     sets extension if not set yet: 
@@ -118,14 +130,13 @@ class ModalitySetter:
         return doc
 
 
-
 def on_certainty_marker_match(matcher: DependencyMatcher, doc: Doc, i: int, matches) -> None:
     match_id, token_idxs = matches[i]
     certainty_marker_idx = token_idxs[0]
     affected_main_verb = doc[token_idxs[1]]
     scope = [t.i for t in affected_main_verb.subtree]
     for i in scope:
-        certainty_info = CertaintyInfo([certainty_marker_idx], doc)
+        certainty_info = CertaintyInfo(certainty_marker_idx, doc)
         doc[i]._.certainty_info = certainty_info
     for i in scope:
         doc._.token_to_certainty_marker_map[i].append(certainty_marker_idx)
@@ -142,10 +153,9 @@ def _get_certainty_level(token: Token) -> float:
         return token._.certainty_info.determine_level()
     
 
-
-@Language.factory("modality_setter")
-def create_modality_setter(nlp, name):
-    return ModalitySetter(nlp.vocab)
+@Language.factory("certainty_setter")
+def create_certainty_setter(nlp, name):
+    return CertaintySetter(nlp.vocab)
 
 class TenseTimeSetter:
     pass #TODO: how can i add this? what is the current state of linguistics regarding tenses and time?

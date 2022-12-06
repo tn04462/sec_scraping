@@ -17,7 +17,8 @@ from main.parser.filing_nlp_utils import (
     get_span_distance,
     extend_token_ent_to_span,
 )
-from main.parser.filing_nlp_modality import create_modality_setter
+from main.parser.filing_nlp_certainty_setter import create_certainty_setter
+from main.parser.filing_nlp_negation_setter import create_negation_setter
 from main.parser.filing_nlp_dateful_relations import DatetimeRelation
 from main.parser.filing_nlp_dependency_matcher import (
     SourceContext,
@@ -1029,36 +1030,6 @@ class AgreementMatcher:
     # def agreement_callback()
 
 
-class NegationSetter:
-    """
-    sets negation for ADJ and VERBS with the token extension ._.negated.
-    """
-
-    def __init__(self, vocab):
-        self.vocab = vocab
-        self.matcher = Matcher(vocab)
-        self.add_negation_ent_to_matcher()
-
-    def add_negation_ent_to_matcher(self):
-        self.matcher.add(
-            "negation",
-            [*VERB_NEGATION_PATTERNS, *ADJ_NEGATION_PATTERNS],
-            on_match=_set_negation_extension,
-        )
-
-    def __call__(self, doc: Doc):
-        self.matcher(doc)
-        return doc
-
-
-def _set_negation_extension(matcher: Matcher, doc: Doc, i: int, matches: list):
-    """
-    sets the negation extension for the matched tokens
-    """
-    match_id, start, end = matches[i]
-    for token in doc[start:end]:
-        if token.dep_ not in ["neg", "aux", "auxpass"]:
-            token._.negated = True
 
 
 @Language.factory("secu_matcher")
@@ -1086,11 +1057,7 @@ def create_agreement_matcher(nlp, name):
     return AgreementMatcher(nlp.vocab)
 
 
-@Language.factory("negation_setter")
-def create_negation_setter(nlp, name):
-    if not Token.has_extension("negated"):
-        Token.set_extension("negated", default=False)
-    return NegationSetter(nlp.vocab)
+
 
 
 
@@ -1115,6 +1082,7 @@ class SpacyFilingTextSearch:
             )
             cls._instance.nlp.add_pipe("negation_setter")
             cls._instance.nlp.add_pipe("secu_matcher")
+            cls._instance.nlp.add_pipe("certainty_setter")
             cls._instance.nlp.add_pipe("agreement_matcher")
             # cls._instance.nlp.add_pipe("coreferee")
         return cls._instance

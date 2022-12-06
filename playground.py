@@ -1677,7 +1677,9 @@ if __name__ == "__main__":
     
     # t = search.nlp(
     #     "The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following"
-    #     )[10]
+    #     )
+    # for i in t:
+    #     print(i._.certainty_info, i._.negated)
     # from main.parser.filing_nlp import _get_amods_of_target_token
     # print(t.ent_type_, t._.amods, _get_amods_of_target_token(t), list(t.children))
     # secus = get_SECU_objects_from_text("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
@@ -1686,7 +1688,7 @@ if __name__ == "__main__":
     # displacy_dep_with_search("The selling stockholders acquired these shares from us pursuant to a (i) Securities Purchase Agreement, dated February 22, 2021 pursuant to which we issued 8,888,890 shares of common stock, par value $0.000001 per share, at a purchase price of $2.25 per share, and a warrant to purchase up to 6,666,668 shares of common stock in a private placement, and (ii) Placement Agent Agreement, dated February 22, 2021, with A.G.P./Alliance Global Partners pursuant to which we issued warrants to purchase up to an aggregate of 444,444 shares of common stock.")
     # displacy_dep_with_search("The number of shares consists of 8,663,890 shares of our common stock and 6,497,918 shares of our common stock issuable upon exercise of the Investor Warrant.")
     # displacy_dep_with_search("Includes 7,111,112 shares of common stock that may be issued upon the exercise of warrants. The number of shares consists of 4,444 shares of our common stock issuable upon exercise of the Placement Agent Warrant.")
-    displacy_dep_with_search("perhaps, we issue certain stock if the time is right. we have the right to issue certain stock. we could issue certain stock. this agreement is concerning stock which we may issue. the stock which may be issued at some point. Perhaps, we will buy that. In may we may be buy that.",finegrained=True)
+    # displacy_dep_with_search("perhaps, we issue certain stock if the time is right. we have the right to issue certain stock. we could issue certain stock. this agreement is concerning stock which we may issue. the stock which may be issued at some point. Perhaps, we will buy that. In may we may be buy that.",finegrained=True)
 
     # need to check the quantity relations for existance of: daterelation, amount, amods of parent secu and quant 
     # displacy_dep_with_search("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
