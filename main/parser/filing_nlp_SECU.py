@@ -257,6 +257,10 @@ class SECU:
             logger.debug(f"quantity_relation {relation} already present in {self}")
 
     def _add_relation(self, relation):
+        #TODO: do I even need this?
+        # consider the case were we want to assign a context to a secu instance,
+        # wouldnt I just assign that through extensions on doc, span, token objects?
+        # -> at most this should be an accessebility wrapper
         if relation not in self.other_relations:
             self.other_relations.append(relation)
         else:

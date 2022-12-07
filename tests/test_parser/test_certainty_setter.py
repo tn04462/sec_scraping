@@ -24,9 +24,9 @@ def test_determine_level_adv():
     nlp = spacy.load("en_core_web_lg")
     nlp.add_pipe("certainty_setter")
 
-    text = "Perhaps, we wont issue a new security."
+    text = "Perhaps, we won't issue a new security."
     doc = nlp(text)
-    level = doc[4]._.certainty_info.determine_level()
+    level = doc[5]._.certainty_info.determine_level()
     assert level == CERTAINTY_LEVEL_MAP_ADV["perhaps"]
 
 def test_determine_level_md():
@@ -35,7 +35,7 @@ def test_determine_level_md():
 
     text = "We may not issue new securities this year."
     doc = nlp(text)
-    level = doc[4]._.certainty_info.determine_level()
+    level = doc[3]._.certainty_info.determine_level()
     assert level == CERTAINTY_LEVEL_MAP_MD["may"]
 
 

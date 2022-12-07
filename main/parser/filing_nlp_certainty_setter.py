@@ -82,7 +82,7 @@ MODALITY_CERTAINTY_MARKER_DEPENDENCY_PATTERNS = [
     [
         {
             "RIGHT_ID": "certainty_marker",
-            "RIGHT_ATTRS": {"TAG": "ADV", "LOWER": {"IN": ADVERBS_OF_CERTAINTY}}
+            "RIGHT_ATTRS": {"POS": "ADV", "LOWER": {"IN": ADVERBS_OF_CERTAINTY}}
         },
         {
             "LEFT_ID": "certainty_marker",
