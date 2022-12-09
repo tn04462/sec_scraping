@@ -307,7 +307,7 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
             logger.info(f"actual prices found were: {prices}")
         else:
             return (
-                formater.money_string_to_float(prices[0][0].text),
+                formater.quantity_string_to_float(prices[0][0].text),
                 prices[0][1].text,
             )
 
@@ -383,7 +383,7 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
         logger.debug(f"matches for date_relation context: {matches}")
         # TODO: Filter the context matches to eliminate duplicates (or a set that is fully contained within another)
         if not matches:
-            return []
+            return None
         merged_set = self._merge_wanted_tags_into_set(matches)
         formatted_tags = self._format_wanted_tags_from_set_as_dict(merged_set)
         return {"original": merged_set, "formatted": formatted_tags}
@@ -402,7 +402,6 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
         ],
     ) -> list[tuple]:
         merged_set = set()
-        print("matches: ", matches)
         for match in matches:
             for entry in match:
                 if entry[1] in wanted_tags:

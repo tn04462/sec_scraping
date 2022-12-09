@@ -1,6 +1,8 @@
 from spacy.tokens import Token, Span
 from pandas import Timestamp
 from collections import defaultdict
+import logging
+logger = logging.getLogger(__name__)
 
 
 class DatefulRelation:
@@ -23,10 +25,27 @@ class DatetimeRelation(DatefulRelation):
     ):
         self.spacy_date = spacy_date
         self.timestamp = timestamp
-        self.context = context
+        self._context = context
         self.lemmas = self._format_context_as_lemmas(
-            context.get("formatted", None) if context != [] else None
+            context.get("formatted", None) if context is not None else None
         )
+    
+    @property
+    def context(self):
+        return self._context if self._context else {}
+    
+    @context.setter
+    def context(self, value):
+        if isinstance(value, dict):
+            if ["original", "formatted"] in value.keys():
+                self._context = value
+                return
+            else:
+                logger.warning(f"context needs to be of type dict and have at least keys: 'original' and 'formatted'. received: {type(value), value}")
+        else:
+            logger.warning(f"expecting a dict for the context instance variable: context; got: {type(value)}")
+        logger.warning(f"Failed to set context attribute of {self}")
+    
 
     def __repr__(self):
         return f"{self.spacy_date} - {self.context.get('formatted', None)}"

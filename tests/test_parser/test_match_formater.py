@@ -32,7 +32,7 @@ def test_parse_american_number(input, expected):
     ("150,000,000.01", 150000000.01),
     ])
 def test_money_string_to_float(input, expected):
-    assert f.money_string_to_float(input) == expected
+    assert f.quantity_string_to_float(input) == expected
 
 def test_timedelta_conversion_with_numeric_tokens():
     tokens = [t for t in text_search.nlp("3 weeks")]

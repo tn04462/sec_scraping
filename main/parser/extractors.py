@@ -463,7 +463,7 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
                 if ent.label_ == "SECU":
                     offering_data["SECU"].append(get_secu_key(ent))
                 if ent.label_ == "MONEY":
-                    offering_data["amount"] = self.formater.money_string_to_float(ent.text)
+                    offering_data["amount"] = self.formater.quantity_string_to_float(ent.text)
             return offering_data if (offering_data["amount"] is not None) else None
  
     def extract_securities_conversion_attributes(self, filing: Filing, company: model.Company, bus: MessageBus) -> List[model.SecurityConversion]:
@@ -748,9 +748,9 @@ class HTMS3Extractor(BaseHTMExtractor, AbstractFilingExtractor):
             return None
         capacity = capacity_dict["total_shelf_capacity"]
         if capacity["unit"] == "$":
-            return self.formater.money_string_to_float(capacity["amount"])
+            return self.formater.quantity_string_to_float(capacity["amount"])
         if capacity["unit"] == "shares":
-            return str(self.formater.money_string_to_float(capacity["amount"])) + " shares"
+            return str(self.formater.quantity_string_to_float(capacity["amount"])) + " shares"
     
 
 class HTMDEF14AExtractor(BaseHTMExtractor, AbstractFilingExtractor):

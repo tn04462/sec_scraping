@@ -19,7 +19,6 @@ from main.parser.filing_nlp_utils import (
 )
 from main.parser.filing_nlp_certainty_setter import create_certainty_setter
 from main.parser.filing_nlp_negation_setter import create_negation_setter
-from main.parser.filing_nlp_dateful_relations import DatetimeRelation
 from main.parser.filing_nlp_dependency_matcher import (
     SourceContext,
     SecurityDependencyAttributeMatcher,
@@ -156,7 +155,7 @@ def get_span_secuquantity_float(span: Span):
             "span must be of type spacy.tokens.span.Span, got: {}".format(type(span))
         )
     if span.label_ == "SECUQUANTITY":
-        return formater.money_string_to_float(span.text)
+        return formater.quantity_string_to_float(span.text)
     else:
         raise AttributeError(
             "get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'"
@@ -171,7 +170,7 @@ def get_token_secuquantity_float(token: Token):
             )
         )
     if token.ent_type_ == "SECUQUANTITY":
-        return formater.money_string_to_float(token.text)
+        return formater.quantity_string_to_float(token.text)
     else:
         raise AttributeError(
             "get_secuquantity can only be called on Spans with label: 'SECUQUANTITY'"
@@ -1415,7 +1414,7 @@ class SpacyFilingTextSearch:
             def _get_CD_object_from_match(match):
                 for token in match:
                     if token.tag_ == "CD":
-                        return formater.money_string_to_float(token.text)
+                        return formater.quantity_string_to_float(token.text)
 
             return [_get_CD_object_from_match(match[1]) for match in matches]
 

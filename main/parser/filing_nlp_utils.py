@@ -172,11 +172,24 @@ class WordToNumberConverter():
         "years": timedelta(days=365.25)
     }
 
+    def convert_str_number_name(self, s: str):
+        if self.numbers_map.get(s):
+            return self.numbers_map[s]
+        return None
+    
+    def convert_str_timedelta(self, s: str):
+        if self.timedelta_map.get(s):
+            return self.timedelta_map[s]
+        return None
+
     def convert_spacy_token(self, token: Token):
-        if self.numbers_map.get(token.lower_):
-            return self.numbers_map[token.lower_]
-        if self.timedelta_map.get(token.lower_):
-            return self.timedelta_map[token.lower_]
+        number = self.convert_str_number_name(token.lower_)
+        if number:
+            return number
+        else:
+            tdelta = self.convert_str_timedelta(token.lower_)
+            if tdelta:
+                return tdelta
         return None
 
 class MatchFormater:
@@ -292,17 +305,20 @@ class MatchFormater:
             pass
         return None
 
-    def money_string_to_float(self, money: str):
+    def quantity_string_to_float(self, quantity_string: str):
         multiplier = 1
-        digits = re.findall("[0-9.,]+", money)
+        digits = re.findall("[0-9.,]+", quantity_string)
         parsed_number = self.parse_american_number("".join(digits))
+        if parsed_number is None:
+            parsed_number = self.w2n.convert_str_number_name(quantity_string)
         if parsed_number is not None:
             amount_float = float(parsed_number)
-            if re.search(re.compile("million(?:s)?", re.I), money):
+            if re.search(re.compile("million(?:s)?", re.I), quantity_string):
                 multiplier = 1000000
-            if re.search(re.compile("billion(?:s)?", re.I), money):
+            if re.search(re.compile("billion(?:s)?", re.I), quantity_string):
                 multiplier = 1000000000
             return amount_float*multiplier
+        logger.warning(f"failed to convert quantity_string: {quantity_string} to float")
         return None
     
     def coerce_tokens_to_datetime(self, tokens: list[Token]|Span):
