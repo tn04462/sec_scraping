@@ -1,3 +1,5 @@
+from main.parser.filing_nlp_constants import SECUQUANTITY_UNITS
+
 def add_anchor_pattern_to_patterns(
     anchor_pattern: list[dict], patterns: list[list[dict]]
 ) -> list[list[dict]]:
@@ -12,42 +14,6 @@ def add_anchor_pattern_to_patterns(
         finished_patterns[idx] = anchor_pattern + pattern
     return finished_patterns
 
-ADVERBS_OF_CERTAINTY = [
-    "definitly",
-    "surely",
-    "certainly",
-    "probably",
-    "perhaps",
-    "likely",
-    "possibly"
-]
-
-MODALITY_CERTAINTY_MARKER_DEPENDENCY_PATTERNS = [
-    [
-        {
-            "RIGHT_ID": "certainty_marker",
-            "RIGHT_ATTRS": {"TAG": "MD", "LEMMA": {"NOT_IN": ["will"]}}
-        },
-        {
-            "LEFT_ID": "certainty_marker",
-            "REL_OP": ";*",
-            "RIGHT_ID": "affected_main_verb",
-            "RIGHT_ATTRS": {"POS": "VERB"}
-        }
-    ],
-    [
-        {
-            "RIGHT_ID": "certainty_marker",
-            "RIGHT_ATTRS": {"TAG": "ADV", "LOWER": {"IN": ADVERBS_OF_CERTAINTY}}
-        },
-        {
-            "LEFT_ID": "certainty_marker",
-            "REL_OP": ";*",
-            "RIGHT_ID": "affected_main_verb",
-            "RIGHT_ATTRS": {"POS": "VERB"}
-        }
-    ],
-]
 
 ADJ_NEGATION_PATTERNS = [
     [
@@ -778,7 +744,7 @@ SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB = [
     
 ]
 
-
+# FIXME: which patterns below are to general and cause the wrong assignment to a unassociated SECU during relationship building?
 SECU_SECUQUANTITY_PATTERNS = [
     [
         {
@@ -830,119 +796,191 @@ SECU_SECUQUANTITY_PATTERNS = [
         }
 
     ],
-    [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<<",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
-        },
-        {
-            "LEFT_ID": "verb1",
-            "REL_OP": ">",
-            "RIGHT_ID": "prep",
-            "RIGHT_ATTRS": {"DEP": "prep"}, 
-        },
-        {
-            "LEFT_ID": "prep",
-            "REL_OP": ">",
-            "RIGHT_ID": "noun_relation",
-            "RIGHT_ATTRS": {"POS": "NOUN"}, 
-        },
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<<",
-            "RIGHT_ID": "any",
-            "RIGHT_ATTRS": {"POS": "NOUN"}
-        },
-        {
-            "LEFT_ID": "any",
-            "REL_OP": ">",
-            "RIGHT_ID": "secuquantity",
-            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-        }
-    ],
-    [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<<",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
-        },
-        {
-            "LEFT_ID": "verb1",
-            "REL_OP": ">",
-            "RIGHT_ID": "prep",
-            "RIGHT_ATTRS": {"DEP": "prep"}, 
-        },
-        {
-            "LEFT_ID": "prep",
-            "REL_OP": ">",
-            "RIGHT_ID": "noun_relation",
-            "RIGHT_ATTRS": {"POS": "NOUN"}, 
-        },
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<<",
-            "RIGHT_ID": "any",
-            "RIGHT_ATTRS": {"POS": "NOUN"}
-        },
-        {
-            "LEFT_ID": "any",
-            "REL_OP": ">",
-            "RIGHT_ID": "secuquantity",
-            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-        },
-        {
-            "LEFT_ID": "verb1",
-            "REL_OP": "<",
-            "RIGHT_ID": "source_secu",
-            "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
-        }
-    ],
-    [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"NOT_IN": ["purchase", "acquire"]}}, 
-        },
-        {
-            "LEFT_ID": "verb1",
-            "REL_OP": ">>",
-            "RIGHT_ID": "secuquantity",
-            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-        }
-    ],
-    [
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<<",
-            "RIGHT_ID": "verb1",
-            "RIGHT_ATTRS": {"POS": "VERB"}
-        },
-        {
-            "LEFT_ID": "anchor",
-            "REL_OP": "<<",
-            "RIGHT_ID": "any",
-            "RIGHT_ATTRS": {}
-        },
-        {
-            "LEFT_ID": "any",
-            "REL_OP": ">",
-            "RIGHT_ID": "secuquantity",
-            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
-        },
-        {
-            "LEFT_ID": "verb1",
-            "REL_OP": "<",
-            "RIGHT_ID": "source_secu",
-            "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
-        },
-
-    ],
 ]
 
+SECU_SOURCE_SECU_SECUQUANTITY_PATTERNS = [
+    # anchor is the secu for which we want to check for child security relations
+    # eg: warrant (<-anchor) to purchase 5000 shares of common stock (<-child security)
+    # [
+    #     {
+    #         "LEFT_ID": "anchor",
+    #         "REL_OP": "<<",
+    #         "RIGHT_ID": "verb1",
+    #         "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
+    #     },
+    #     {
+    #         "LEFT_ID": "verb1",
+    #         "REL_OP": ">",
+    #         "RIGHT_ID": "prep",
+    #         "RIGHT_ATTRS": {"DEP": "prep"}, 
+    #     },
+    #     {
+    #         "LEFT_ID": "prep",
+    #         "REL_OP": ">",
+    #         "RIGHT_ID": "noun_relation",
+    #         "RIGHT_ATTRS": {"POS": "NOUN"}, 
+    #     },
+    #     {
+    #         "LEFT_ID": "anchor",
+    #         "REL_OP": "<<",
+    #         "RIGHT_ID": "any",
+    #         "RIGHT_ATTRS": {"POS": "NOUN"}
+    #     },
+    #     {
+    #         "LEFT_ID": "any",
+    #         "REL_OP": ">",
+    #         "RIGHT_ID": "secuquantity",
+    #         "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+    #     }
+    # ],
+    # [
+    #     {
+    #         "LEFT_ID": "anchor",
+    #         "REL_OP": "<<",
+    #         "RIGHT_ID": "verb1",
+    #         "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["relate"]}}, 
+    #     },
+    #     {
+    #         "LEFT_ID": "verb1",
+    #         "REL_OP": ">",
+    #         "RIGHT_ID": "prep",
+    #         "RIGHT_ATTRS": {"DEP": "prep"}, 
+    #     },
+    #     {
+    #         "LEFT_ID": "prep",
+    #         "REL_OP": ">",
+    #         "RIGHT_ID": "noun_relation",
+    #         "RIGHT_ATTRS": {"POS": "NOUN"}, 
+    #     },
+    #     {
+    #         "LEFT_ID": "anchor",
+    #         "REL_OP": "<<",
+    #         "RIGHT_ID": "any",
+    #         "RIGHT_ATTRS": {"POS": "NOUN"}
+    #     },
+    #     {
+    #         "LEFT_ID": "any",
+    #         "REL_OP": ">",
+    #         "RIGHT_ID": "secuquantity",
+    #         "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+    #     },
+    #     {
+    #         "LEFT_ID": "verb1",
+    #         "REL_OP": "<",
+    #         "RIGHT_ID": "source_secu",
+    #         "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
+    #     }
+    # ],
+        [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">",
+            "RIGHT_ID": "verb1",
+            "RIGHT_ATTRS": {"POS": "VERB"}, 
+        },
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<",
+            "RIGHT_ID": "v2",
+            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["have", "will", "be", "can"]}}, 
+        },
+        {
+            "LEFT_ID": "verb1",
+            "REL_OP": ">",
+            "RIGHT_ID": "secuquantity",
+            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+        }
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": ">",
+            "RIGHT_ID": "verb1",
+            "RIGHT_ATTRS": {"POS": "VERB"}, 
+        },
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<",
+            "RIGHT_ID": "v2",
+            "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"IN": ["have", "will", "be", "can"]}}, 
+        },
+        {
+            "LEFT_ID": "verb1",
+            "REL_OP": ">",
+            "RIGHT_ID": "secuquantity_unit",
+            "RIGHT_ATTRS": {"LOWER": {"IN": SECUQUANTITY_UNITS}}
+        },
+        {
+            "LEFT_ID": "secuquantity_unit",
+            "REL_OP": ">",
+            "RIGHT_ID": "secuquantity",
+            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+        }
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<",
+            "RIGHT_ID": "verb1",
+            # "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"NOT_IN": ["purchase", "acquire"]}},
+            "RIGHT_ATTRS": {"POS": "VERB"}, 
+        },
+        {
+            "LEFT_ID": "verb1",
+            "REL_OP": ">",
+            "RIGHT_ID": "secuquantity",
+            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+        }
+    ],
+    [
+        {
+            "LEFT_ID": "anchor",
+            "REL_OP": "<",
+            "RIGHT_ID": "verb1",
+            # "RIGHT_ATTRS": {"POS": "VERB", "LEMMA": {"NOT_IN": ["purchase", "acquire"]}},
+            "RIGHT_ATTRS": {"POS": "VERB"}, 
+        },
+        {
+            "LEFT_ID": "verb1",
+            "REL_OP": ">",
+            "RIGHT_ID": "secuquantity_unit",
+            "RIGHT_ATTRS": {"LOWER": {"IN": SECUQUANTITY_UNITS}}
+        },
+        {
+            "LEFT_ID": "secuquantity_unit",
+            "REL_OP": ">",
+            "RIGHT_ID": "secuquantity",
+            "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+        }
+    ],
+    # [
+    #     {
+    #         "LEFT_ID": "anchor",
+    #         "REL_OP": "<<",
+    #         "RIGHT_ID": "verb1",
+    #         "RIGHT_ATTRS": {"POS": "VERB"}
+    #     },
+    #     {
+    #         "LEFT_ID": "anchor",
+    #         "REL_OP": "<<",
+    #         "RIGHT_ID": "any",
+    #         "RIGHT_ATTRS": {}
+    #     },
+    #     {
+    #         "LEFT_ID": "any",
+    #         "REL_OP": ">",
+    #         "RIGHT_ID": "secuquantity",
+    #         "RIGHT_ATTRS": {"ENT_TYPE": "SECUQUANTITY"}
+    #     },
+    #     {
+    #         "LEFT_ID": "verb1",
+    #         "REL_OP": "<",
+    #         "RIGHT_ID": "source_secu",
+    #         "RIGHT_ATTRS": {"ENT_TYPE": "SECU"}, 
+    #     },
+
+    # ],
+]
 
 #TODO: see how i can integrate this approach or are there better ones?
 SECU_GET_EXPIRY_DATE_LEMMA_COMBINATIONS = [

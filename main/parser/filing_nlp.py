@@ -195,9 +195,12 @@ def retokenize_SECU(doc: Doc):
                     else:
                         source_tokens = tuple([t for t in source_doc_slice])
                 attrs = {
-                    "tag": ent.root.tag,
+                    # "tag": ent.root.tag,
+                    "tag": "NOUN",
+                    "pos": "NOUN",
                     "dep": ent.root.dep,
                     "ent_type": ent.label,
+                    # might fix some wrong dependency setting (SECU should be a NOUN in any case, correct?)
                     "_": {"source_span_unmerged": source_tokens, "was_merged": True},
                 }
                 ent._.was_merged = True
@@ -445,6 +448,9 @@ def get_premerge_tokens_for_token(token: Token) -> tuple | None:
             return tuple([i for i in token._.source_span_unmerged])
     return None
 
+def _set_extension(cls, name, kwargs):
+    if not cls.has_extension(name):
+        cls.set_extension(name, **kwargs)
 
 def set_SECUMatcher_extensions():
     token_extensions = [
@@ -480,10 +486,6 @@ def set_SECUMatcher_extensions():
         {"name": "secus", "kwargs": {"getter": _get_SECU_in_doc}},
     ]
 
-    def _set_extension(cls, name, kwargs):
-        if not cls.has_extension(name):
-            cls.set_extension(name, **kwargs)
-
     for each in span_extensions:
         _set_extension(Span, each["name"], each["kwargs"])
     for each in doc_extensions:
@@ -492,20 +494,136 @@ def set_SECUMatcher_extensions():
         _set_extension(Token, each["name"], each["kwargs"])
 
 
+class SECUQuantityMatcher:
+    '''
+    This component will mark qunatities associated with SECU entities.
+    Sets ._.secuquantity and ._.secuquantity_unit extensions on Tokens and Spans.
+    This component needs to be placed after the SECUMatcher component or
+    a custom component which adds SECU entities to the doc and sets the needed
+    Span and Token extensions.
+    See the SECUMatcher for specifications for a SECU entity.
+    '''
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self.matcher = Matcher(vocab)
+        self.add_SECUQUANTITY_ent_to_matcher(self.matcher)
+    
+    def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
+        matcher.add(
+            "SECUQUANTITY_ENT",
+            [*SECUQUANTITY_ENT_PATTERNS],
+            on_match=_add_SECUQUANTITY_ent_regular_case,
+        )
+        logger.debug("added SECUQUANTITY patterns to matcher")
+
+    def __call__(self, doc: Doc):
+        self.matcher(doc)
+        return doc
+
+
+class SECUObjectMapper:
+    '''
+    This component handles the creation of SECU,
+    QunatityRelation, SourceQunatityRelation and TODO: [add as we go here] objects and
+    creates the necessary custom extension attributes.
+
+    Custom extension attributes added with this component:
+    Doc extensions:
+        - ._.secu_objects (stores all SECU objects in the doc grouped by secu_key)
+        - ._.secu_objects_map (stores SECU by index in doc)
+        - ._.quantity_relation_map (
+                maps the root token idx of the secuquantity
+                to the created QuantityRelation
+            )
+        - ._.source_quantity_relation_map (
+                maps the root token idx of the secuquantity
+                to the created SourceQuantityRelation
+            )
+
+    This component must be placed after the SecuQuantityMatcher
+    and the SECUMatcher in the spacy pipeline.
+    '''
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self._secu_attr_getter = SecurityDependencyAttributeMatcher()
+        self._set_needed_extensions()
+    
+    def _set_needed_extensions(self):
+        doc_extensions = [
+            {"name": "secu_objects", "kwargs": {"default": defaultdict(list)}}, #Type: Dict[str, List[SECU]]
+            {"name": "secu_objects_map", "kwargs": {"default": dict()}}, #Type: Dict[int, SECU]
+            {"name": "quantity_relation_map", "kwargs": {"default": dict()}}, #Type: Dict[int, QuantityRelation]
+            {"name": "source_quantity_relation_map", "kwargs": {"default": dict()}}, #Type: Dict[int, SourceQuantityRelation], int being the index of the secuquantity of the relation
+        ]
+        for each in doc_extensions:
+            _set_extension(Doc, each["name"], each["kwargs"])
+    
+    def create_secu_objects(self, doc: Doc) -> None:
+        for secu in doc._.secus:
+            if len(secu) == 1:
+                secu = secu[0]
+            secu_obj = SECU(secu, self._secu_attr_getter)
+            doc._.secu_objects[secu_obj.secu_key].append(secu_obj)
+            doc._.secu_objects_map[secu_obj.original.i] = secu_obj
+
+    def set_quantity_relation_map(self, doc: Doc):
+        for secu_key, secus in doc._.secu_objects.items():
+            for secu in secus:
+                if secu.quantity_relations:
+                    for quantity_relation in secu.quantity_relations:
+                        if isinstance(quantity_relation, QuantityRelation):
+                            doc._.quantity_relation_map[quantity_relation.quantity.original.i] = quantity_relation
+    
+    def handle_source_quantity_relations(self, doc: Doc):
+        for secu_key, secus in doc._.secu_objects.items():
+            for secu in secus:
+                for source_quantity_rel in self._get_source_quantity_relations(secu, doc):
+                    if source_quantity_rel:
+                        self._add_to_source_quantity_relation_map(doc, source_quantity_rel)
+                        secu.add_source_quantity_relation(source_quantity_rel)
+                    else:
+                        break
+
+    def _add_to_source_quantity_relation_map(self, doc: Doc, source_quantity_relation: SourceQuantityRelation) -> None:
+        if isinstance(source_quantity_relation, SourceQuantityRelation):
+            doc._.source_quantity_relation_map[source_quantity_relation.quantity.original.i] = source_quantity_relation
+        else:
+            raise TypeError(f"expecting SourceQuantityRelation, got: {type(source_quantity_relation)}")
+    
+    def _get_source_quantity_relations(self, secu: SECU, doc: Doc):
+        possible_source_quantities = self._secu_attr_getter.get_possible_source_quantities(secu.original)
+        if possible_source_quantities:
+            for incomplete_source_quantity in possible_source_quantities:
+                quantity_relation = doc._.quantity_relation_map.get(incomplete_source_quantity.i, None)
+                if quantity_relation is not None:
+                    if quantity_relation.main_secu != secu:
+                        source_context: SourceContext = self._secu_attr_getter._get_source_secu_context_through_secuquantity(incomplete_source_quantity)
+                        if source_context is None:
+                            logger.warning(f"couldnt establish a source_context for this source_quantity_relation: {incomplete_source_quantity, quantity_relation}")
+                        source_quantity_relation = SourceQuantityRelation(source_context, quantity_relation.quantity, quantity_relation.main_secu, source_secu=secu)
+                        yield source_quantity_relation
+        yield None
+    
+    def __call__(self, doc: Doc):
+        self.create_secu_objects(doc)
+        self.set_quantity_relation_map(doc)
+        self.handle_source_quantity_relations(doc)
+        return doc
+    
+
+
 class SECUMatcher:
     def __init__(self, vocab):
         self.vocab = vocab
         self.matcher_SECU = Matcher(vocab)
         self.matcher_SECUREF = Matcher(vocab)
         self.matcher_SECUATTR = Matcher(vocab)
-        self.matcher_SECUQUANTITY = Matcher(vocab)
 
         set_SECUMatcher_extensions()
 
         self.add_SECU_ent_to_matcher(self.matcher_SECU)
         self.add_SECUREF_ent_to_matcher(self.matcher_SECUREF)
         self.add_SECUATTR_ent_to_matcher(self.matcher_SECUATTR)
-        self.add_SECUQUANTITY_ent_to_matcher(self.matcher_SECUQUANTITY)
 
     def __call__(self, doc: Doc):
         self._init_span_labels(doc)
@@ -519,7 +637,6 @@ class SECUMatcher:
         self.handle_SECU_special_cases(doc)
         doc = self.handle_retokenize_SECU(doc)
         self.matcher_SECUATTR(doc)
-        self.matcher_SECUQUANTITY(doc)
         return doc
 
     def handle_retokenize_SECU(self, doc: Doc):
@@ -699,14 +816,6 @@ class SECUMatcher:
             on_match=_add_SECU_ent,
         )
 
-    def add_SECUQUANTITY_ent_to_matcher(self, matcher: Matcher):
-        matcher.add(
-            "SECUQUANTITY_ENT",
-            [*SECUQUANTITY_ENT_PATTERNS],
-            on_match=_add_SECUQUANTITY_ent_regular_case,
-        )
-        logger.debug("added SECUQUANTITY patterns to matcher")
-
 
 def _is_match_followed_by(doc: Doc, start: int, end: int, exclude: list[str]):
     if end == len(doc):
@@ -824,13 +933,13 @@ def _add_SECUQUANTITY_ent_regular_case(matcher, doc: Doc, i, matches):
     wanted_tokens = []
     for token in match_tokens:
         # logger.debug(f"token: {token}, ent_type: {token.ent_type_}")
-        if (token.ent_type_ in ["MONEY", "CARDINAL", "SECUQUANTITY"]) or (
+        if ((token.ent_type_ in ["MONEY", "CARDINAL", "SECUQUANTITY"]) and (token.dep_ != "advmod")) or (
             token.dep_ == "nummod" and token.pos_ == "NUM"
         ):
             # end = token.i-1
             wanted_tokens.append(token.i)
     end = sorted(wanted_tokens)[-1] + 1 if wanted_tokens != [] else None
-    # print(end, wanted_tokens)
+    start = sorted(wanted_tokens)[0] if wanted_tokens != [] else start
     if end is None:
         raise AttributeError(
             f"_add_SECUQUANTITY_ent_regular_case couldnt determine the end token of the entity, match_tokens: {match_tokens}"
@@ -1035,10 +1144,17 @@ class AgreementMatcher:
 def create_secu_matcher(nlp, name):
     return SECUMatcher(nlp.vocab)
 
+@Language.factory("secuquantity_matcher")
+def create_secuquantity_matcher(nlp, name):
+    return SECUQuantityMatcher(nlp.vocab)
 
 @Language.factory("secu_act_matcher")
 def create_secu_act_matcher(nlp, name):
     return SecurityActMatcher(nlp.vocab)
+
+@Language.factory("secu_object_mapper")
+def create_secu_object_mapper(nlp, name):
+    return SECUObjectMapper(nlp.vocab)
 
 
 @Language.factory("security_law_retokenizer")
@@ -1081,15 +1197,23 @@ class SpacyFilingTextSearch:
             )
             cls._instance.nlp.add_pipe("negation_setter")
             cls._instance.nlp.add_pipe("secu_matcher")
+            cls._instance.nlp.add_pipe("secuquantity_matcher")
             cls._instance.nlp.add_pipe("certainty_setter")
+            cls._instance.nlp.add_pipe("secu_object_mapper")
             cls._instance.nlp.add_pipe("agreement_matcher")
             # cls._instance.nlp.add_pipe("coreferee")
         return cls._instance
+    
+    # TODO[epic=maybe]: maybe add a map of SECU objects to sent indices so we can create a map of context for sents and therefor a context to SECU map?
 
     def get_SECU_objects(self, doc: Doc) -> dict[str, list[SECU]]:
         if not self.nlp.has_pipe("secu_matcher"):
             raise AttributeError(
                 "SECUMatcher not added to pipeline. Please add it with nlp.add_pipe('secu_matcher')"
+            )
+        if not self.nlp.has_pipe("secuquantity_matcher"):
+            raise AttributeError(
+                "SECUQuantityMatcher not added to pipeline. Please add it with nlp.add_pipe('secuquantity_matcher')"
             )
         secus = defaultdict(list)
         for secu in doc._.secus:

@@ -21,6 +21,7 @@ from main.parser.filing_nlp_patterns import (
     add_anchor_pattern_to_patterns,
     SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB,
     SECU_SECUQUANTITY_PATTERNS,
+    SECU_SOURCE_SECU_SECUQUANTITY_PATTERNS,
     SECU_DATE_RELATION_PATTERNS_FROM_ROOT_VERB,
     SECU_DATE_RELATION_FROM_ROOT_VERB_CONTEXT_PATTERNS,
     SECU_EXERCISE_PRICE_PATTERNS,
@@ -29,11 +30,10 @@ from main.parser.filing_nlp_patterns import (
 formater = MatchFormater()
 
 class SourceContext:
-    def __init__(self, context: Token, sconj: Token, action: Token, source: Token):
+    def __init__(self, context: Token, sconj: Token, action: Token):
         self.context = context
         self.sconj = sconj
         self.action = action
-        self.source = source
 
 class DependencyMatchHelper:
     def _convert_key_to_stringkey(self, key: str) -> str:
@@ -458,7 +458,7 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
         self, token: Token
     ) -> SourceContext | None:
         # pattern: secuquantity -> unit_word ->> context_word -> upon -> (the) -> action_word -> of -> pobj SECU
-        # how can i account for "may be" + context_word and similar?
+        # TODO[epic=maybe]: make this pattern more specific by adding the source into the pattern since we look for context from the source secu anyhow 
         if token.ent_type_ != "SECUQUANTITY":
             return None
 
@@ -568,6 +568,27 @@ class SecurityDependencyAttributeMatcher(DependencyAttributeMatcher):
                     if quant is not None:
                         result.append(quant)
         return result if result != [] else None
+    
+    def get_possible_source_quantities(self, token: Token) -> list[Token]:
+        anchor_pattern = self._get_anchor_pattern(token)
+        patterns = add_anchor_pattern_to_patterns(
+            anchor_pattern, SECU_SOURCE_SECU_SECUQUANTITY_PATTERNS
+        )
+        result = []
+        for pattern in patterns:
+            # logger.debug(f"currently working on pattern {pattern}")
+            candidate_matches = self.get_candidate_matches(pattern)
+            if len(candidate_matches) > 0:
+                for match in candidate_matches:
+                    quant = None
+                    for entry in match:
+                        candidate_token, right_id = entry
+                        if right_id == "secuquantity":
+                            quant = candidate_token
+                    if quant is not None:
+                        result.append(quant)
+        return result if result != [] else None
+
 
     def get_aux_verbs(self, token: Token) -> list[Token] | None:
         """get the child aux verbs of token."""

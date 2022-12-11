@@ -2,7 +2,7 @@ import pytest
 import spacy
 # from spacy.tokens import Span, Token, Doc
 # from spacy.matcher import Matcher
-from main.parser.filing_nlp import SpacyFilingTextSearch, SECUMatcher
+from main.parser.filing_nlp import SpacyFilingTextSearch, create_secuquantity_matcher, create_secu_matcher
 from main.parser.filing_nlp_dependency_matcher import DependencyAttributeMatcher
 from pandas import to_datetime
 import datetime
@@ -18,13 +18,6 @@ def get_search():
     search = SpacyFilingTextSearch()
     yield search
     del search
-
-@pytest.fixture
-def get_secumatcher(get_en_core_web_lg_nlp):
-    nlp = get_en_core_web_lg_nlp
-    secu_matcher = SECUMatcher(nlp.vocab)
-    yield secu_matcher
-    del secu_matcher
 
 @pytest.fixture
 def get_dependency_attribute_matcher():
@@ -188,6 +181,16 @@ class TestSECUMatcher:
         * setting SECUREF
         * setting SECUATTR
     '''
+
+    def test_matcher_SECU(self, get_en_core_web_lg_nlp):
+        nlp = get_en_core_web_lg_nlp
+        nlp.add_pipe("secu_matcher")
+        doc = nlp("The Common stock, Series A Preferred stock and the Series C Warrants of company xyz is fairly valued.")
+        secus = [i.text for i in filter(lambda x: x.ent_type_ == "SECU", doc)]
+        assert secus == ['Common', 'stock', 'Series', 'A', 'Preferred', 'stock', 'Series', 'C', 'Warrants']
+
+class TestSECUQuantityMatcher:
+
     @pytest.mark.parametrize(["input", "expected"], [
         (
             "This prospectus covers the sale of an aggregate of 2,388,050 shares (the “shares”) of our common stock , $0.001 par value per share (the “ common stock ”), by the selling stockholders identified in this prospectus (collectively with any of the holder’s transferees, pledgees, donees or successors, the “selling stockholders”). The shares are issuable upon the exercise of warrants (the “ warrants ”) purchased by the selling stockholders in a private placement transaction exempt from registration under Section 4(a)(2) of the Securities Act of 1933, as amended (the “Securities Act”), pursuant to a Securities Purchase Agreement dated April 9, 2021 (the “Purchase Agreement”).",
@@ -198,22 +201,13 @@ class TestSECUMatcher:
             ["up", "to", "9,497,051"]
         )
     ])
-    def test_matcher_SECUQUANTITY(self, input, expected, get_secumatcher, get_en_core_web_lg_nlp):
-        sm =  get_secumatcher
+    def test_matcher_SECUQUANTITY(self, input, expected, get_en_core_web_lg_nlp):
         nlp = get_en_core_web_lg_nlp
+        nlp.add_pipe("secu_matcher")
+        nlp.add_pipe("secuquantity_matcher")
         doc = nlp(input)
-        sm.matcher_SECUQUANTITY(doc)
         secuquantities = [i.text for i in filter(lambda x: x.ent_type_ == "SECUQUANTITY", doc)]
         assert expected == secuquantities
-
-    def test_matcher_SECU(self, get_secumatcher, get_en_core_web_lg_nlp):
-        sm = get_secumatcher
-        nlp = get_en_core_web_lg_nlp
-        doc = nlp("The Common stock, Series A Preferred stock and the Series C Warrants of company xyz is fairly valued.")
-        sm.matcher_SECU(doc)
-        secus = [i.text for i in filter(lambda x: x.ent_type_ == "SECU", doc)]
-        assert secus == ['Common', 'stock', 'Series', 'A', 'Preferred', 'stock', 'Series', 'C', 'Warrants']
-
 
 class TestSpacyFilingTextSearch:
     '''
@@ -351,7 +345,7 @@ class TestSpacyFilingTextSearch:
         print(f"res: {res}")
         assert res[0] == expected
 
-    def test_get_conflicting_ents(self, get_search, get_secumatcher):
+    def test_get_conflicting_ents(self, get_search):
         search = get_search
         text = "one or three or five are the magic numbers."
         doc = search.nlp(text)

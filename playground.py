@@ -1053,7 +1053,7 @@ if __name__ == "__main__":
                 print(      spacy.explain(token.dep_),  token.dep_)
                 print(      spacy.explain(token.pos_), token.pos_)
                 print(      spacy.explain(token.tag_), token.tag_)
-        displacy.serve(doc, style="dep", options={"fine_grained": finegrained, "compact": True, "add_lemma": show_lemmas}, port=5000)
+        displacy.serve(doc, style="dep", options={"fine_grained": finegrained, "compact": True, "add_lemma": show_lemmas, "word_spacing": 16, "arrow_spacing": 12}, port=5000)
 
     def displacy_ent_with_search(text):
         search = SpacyFilingTextSearch()
@@ -1689,7 +1689,7 @@ if __name__ == "__main__":
     # displacy_dep_with_search("The number of shares consists of 8,663,890 shares of our common stock and 6,497,918 shares of our common stock issuable upon exercise of the Investor Warrant.")
     # displacy_dep_with_search("Includes 7,111,112 shares of common stock that may be issued upon the exercise of warrants. The number of shares consists of 4,444 shares of our common stock issuable upon exercise of the Placement Agent Warrant.")
     # displacy_dep_with_search("perhaps, we issue certain stock if the time is right. we have the right to issue certain stock. we could issue certain stock. this agreement is concerning stock which we may issue. the stock which may be issued at some point. Perhaps, we will buy that. In may we may be buy that.",finegrained=True)
-    displacy_dep_with_search("Perhaps, we won't issue a new security.")
+    displacy_dep_with_search("As of March 31, 2021, we had outstanding warrants to purchase 7,532,390 shares of our common stock, and stock options to purchase 2,176,272 shares of our common stock.")
     # need to check the quantity relations for existance of: daterelation, amount, amods of parent secu and quant 
     # displacy_dep_with_search("The common stock outstanding after the offering is based on 113,299,612 shares of our common stock outstanding as of December 31, 2019 and the sale of 36,057,692 shares of our common stock at an assumed offering price of $2.08 per share, the last reported sale price of our common stock on the NASDAQ on March 16, 2020 and excludes the following")
 # get text only of filing

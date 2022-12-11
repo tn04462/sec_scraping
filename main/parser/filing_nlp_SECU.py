@@ -123,19 +123,20 @@ class QuantityRelation:
             return True
         return False
 
-class SourceQuantityRelation(QuantityRelation):
-    def __init__(self, context, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.context: SourceContext = context
+class SourceQuantityRelation():
+    def __init__(self, context: SourceContext, quantity: SECUQuantity, target_secu: Any, source_secu: Any):
+        self.quantity = quantity
+        self.target_secu = target_secu
+        self.source_secu = source_secu
+        self.context = context
         self.rel_type = "source_quantity"
 
     def __repr__(self):
-        return f"SourceQuantityRelation({self.quantity},\
-                \t {self.context.source})"
+        return f"SourceQuantityRelation({self.quantity} {self.target_secu} from {self.context.source})"
 
 
 # TODO: handle and give better error message for failing to extend datetime root token to full span (eg out of bounds nanosecond timestamp)
-
+    
 
 class SECU:
     def __init__(self, original, attr_matcher: SecurityDependencyAttributeMatcher):
@@ -144,10 +145,9 @@ class SECU:
         self.secu_key: str = original._.secu_key
         self.amods = original._.amods
         self.other_relations: list = list()
-        self.quantity_relations: list[
-            QuantityRelation | SourceQuantityRelation
-        ] = list()
+        self.quantity_relations: list[QuantityRelation] = list()
         self._set_quantity_relations()
+        self.source_quantity_relations: list[SourceQuantityRelation] = list()
         self.root_verb: Token | None = attr_matcher.get_root_verb(self.original)
         self.parent_verb: Token | None = attr_matcher.get_parent_verb(self.original)
         self.aux_verbs: list = attr_matcher.get_aux_verbs(self.original)
@@ -213,7 +213,7 @@ class SECU:
                 f"SECU._get_expiry_datetime_relation() found more than one expiry for a specific security, case not handled. dates found: {matches}, secu: {self}"
             )
         return list(matches)[0] if len(matches) == 1 else None
-
+    
     def _set_quantity_relations(self):
         quants = self.attr_matcher.get_quantities(self.original)
         if not quants:
@@ -222,20 +222,35 @@ class SECU:
         for quant in quants:
             try:
                 quant_obj = SECUQuantity(quant, self.attr_matcher)
+                rel = QuantityRelation(quant_obj, self)
+                self._add_quantity_relation(rel)
             except ValueError as e:
                 logger.debug(e)
                 continue
-            source_context = (
-                self.attr_matcher._get_source_secu_context_through_secuquantity(
-                    quant_obj.original
-                )
-            )
-            if source_context is not None:
-                rel = SourceQuantityRelation(source_context, quant_obj, self)
-                self._add_quantity_relation(rel)
-            else:
-                rel = QuantityRelation(quant_obj, self)
-                self._add_quantity_relation(rel)
+            
+
+    # def _set_quantity_relations(self): # REPLACED WITH NEWER VERSION ABOVE WITHOUT SOURCEQUANTITY RELATION
+    #     quants = self.attr_matcher.get_quantities(self.original)
+    #     if not quants:
+    #         # logger.debug(f"no quantities found for secu: {self.original}")
+    #         return
+    #     for quant in quants:
+    #         try:
+    #             quant_obj = SECUQuantity(quant, self.attr_matcher)
+    #         except ValueError as e:
+    #             logger.debug(e)
+    #             continue
+    #         source_context = (
+    #             self.attr_matcher._get_source_secu_context_through_secuquantity(
+    #                 quant_obj.original
+    #             )
+    #         )
+    #         if source_context is not None:
+    #             rel = SourceQuantityRelation(source_context, quant_obj, self)
+    #             self._add_quantity_relation(rel)
+    #         else:
+    #             rel = QuantityRelation(quant_obj, self)
+    #             self._add_quantity_relation(rel)
 
     def _set_original(self, original: Token | Span) -> None:
         if isinstance(original, Token):
@@ -248,16 +263,24 @@ class SECU:
                     "Span with more than one token for use as original argument is not supported yet."
                 )
 
-    def _add_quantity_relation(
-        self, relation: QuantityRelation | SourceQuantityRelation
-    ):
+    def _add_quantity_relation(self, relation: QuantityRelation):
+        if not isinstance(relation, QuantityRelation):
+            raise TypeError(f"Tried adding object with wrong type: {type(relation)}; expecting a QuantityRelation object")
         if relation not in self.quantity_relations:
             self.quantity_relations.append(relation)
         else:
             logger.debug(f"quantity_relation {relation} already present in {self}")
+    
+    def add_source_quantity_relation(self, relation: SourceQuantityRelation):
+        if not isinstance(relation, SourceQuantityRelation):
+            raise TypeError(f"Tried adding object with wrong type: {type(relation)}; expecting a SourceQuantityRelation object")
+        if relation not in self.source_quantity_relations:
+            self.source_quantity_relations.append(relation)
+        else:
+            logger.debug(f"relation {relation} already present in {self}")
 
     def _add_relation(self, relation):
-        #TODO: do I even need this?
+        #TODO[epic=maybe]: do I even need this?
         # consider the case were we want to assign a context to a secu instance,
         # wouldnt I just assign that through extensions on doc, span, token objects?
         # -> at most this should be an accessebility wrapper
