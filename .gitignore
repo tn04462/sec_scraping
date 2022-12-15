@@ -22,3 +22,4 @@ fact_extractor_playground.py
 __pycache__/_constants.cpython-310.pyc
 profile.json
 profile.html
+public.env
